@@ -1,0 +1,28 @@
+{
+  "$schema": "https://partygames.local/schemas/quiz-pack-v1.json",
+  "id": "demo-quiz-v1",
+  "title": "Pack quiz démo",
+  "version": 1,
+  "rounds": [
+    {
+      "id": "r1",
+      "title": "Culture générale",
+      "questions": [
+        {
+          "id": "q1",
+          "prompt": "Capitale de la France ?",
+          "choices": ["Lyon", "Paris", "Marseille", "Nantes"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "q2",
+          "prompt": "Nombre de joueurs aux échecs (par équipe locale) ?",
+          "choices": ["1", "2", "3", "4"],
+          "correctIndex": 0,
+          "points": 2
+        }
+      ]
+    }
+  ]
+}

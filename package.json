@@ -1,0 +1,13 @@
+{
+  "name": "buzzy-live-games",
+  "private": true,
+  "description": "Convenience scripts; application code and dependencies are in webserver/",
+  "scripts": {
+    "test": "npm --prefix webserver run test",
+    "test:watch": "npm --prefix webserver run test:watch",
+    "build": "npm --prefix webserver run build",
+    "lint": "npm --prefix webserver run lint",
+    "dev": "npm --prefix webserver run dev",
+    "start": "npm --prefix webserver start"
+  }
+}
