@@ -272,16 +272,22 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
 
 function Shell(props: { title: string; children: React.ReactNode }): JSX.Element {
   return (
-    <div style={{ fontFamily: "system-ui,sans-serif", maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, letterSpacing: "0.03em", marginBottom: 8 }}>{props.title}</h1>
-        <nav style={{ display: "flex", gap: 14 }}>
-          <Link to="/">Accueil</Link>
-          <Link to="/create">Créer</Link>
-          <Link to="/join">Rejoindre</Link>
-        </nav>
-      </header>
-      {props.children}
+    <div className="bz-app">
+      <div style={{ maxWidth: 880, margin: "0 auto", padding: "0 24px 48px" }}>
+        <header className="bz-header">
+          <Link to="/" className="bz-logo" style={{ fontSize: 24 }}>
+            <span>buzzy</span>
+            <span className="bz-logo-dot" />
+          </Link>
+          <span className="bz-page-title">{props.title}</span>
+          <nav>
+            <Link to="/">Accueil</Link>
+            <Link to="/create">Créer</Link>
+            <Link to="/join">Rejoindre</Link>
+          </nav>
+        </header>
+        {props.children}
+      </div>
     </div>
   );
 }
@@ -350,15 +356,7 @@ function Home(): JSX.Element {
     <Shell title="PartyGames">
       <p>Quiz temps réel : lobby commun, buzzer et scores synchronisés.</p>
       {playerResume !== null ? (
-        <section
-          style={{
-            marginBottom: 18,
-            padding: 12,
-            border: "1px solid #ccc",
-            borderRadius: 8,
-            background: "#f8f9fa",
-          }}
-        >
+        <section className="bz-card" style={{ marginBottom: 12 }} >
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Reprendre (joueur)</h2>
           <p style={{ marginBottom: 8 }}>
             Une session joueur est enregistrée dans cet onglet (équivalent d’un cookie de session pour
@@ -371,22 +369,14 @@ function Home(): JSX.Element {
             {playerResume.joinCode.length >= 4 ? (
               <>
                 {" "}
-                · code <strong>{playerResume.joinCode}</strong>
+                · code className="bz-code"
               </>
             ) : null}
           </p>
         </section>
       ) : null}
       {adminResume !== null ? (
-        <section
-          style={{
-            marginBottom: 18,
-            padding: 12,
-            border: "1px solid #ccc",
-            borderRadius: 8,
-            background: "#f0f7ff",
-          }}
-        >
+        <section className="bz-card" style={{ marginBottom: 12 }} >
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Reprendre (animateur)</h2>
           <p style={{ marginBottom: 8 }}>
             Le jeton d’animateur pour cette partie est encore présent dans la session du navigateur.
@@ -904,7 +894,10 @@ function Play(): JSX.Element {
           </>
         ) : null}
       </p>
-      <p>État : {snap.state}</p>
+      <p>État&nbsp;: <span className={`bz-pill ${snap.state === "round_active" ? "bz-live" : ""}`}>
+		{snap.state === "round_active" && <span className="bz-dot" />}
+		{snap.state}
+		</span></p>
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
 
       <GameBoardPanel
