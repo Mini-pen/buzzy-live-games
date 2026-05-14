@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
@@ -774,41 +774,139 @@ function Admin(): JSX.Element {
     rememberAdminParty(pid);
   }, [pid, bearer]);
 
-  async function hosts(
-    path: string,
-    method: string,
-    body?: Record<string, unknown>,
-  ): Promise<PartySnapshot> {
-    const rBody = body === undefined ? undefined : JSON.stringify(body);
-    interface ErrBody {
-      error?: string;
-    }
-    const res = await fetch(path, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${bearer}`,
-      },
-      body: method === "GET" ? undefined : rBody,
-    });
-    const text = await res.text();
-    if (!res.ok) {
-      let detail = text.slice(0, 200);
-      if (text !== "") {
-        try {
-          detail = (JSON.parse(text) as ErrBody).error ?? text;
-        } catch {
-          /* keep raw text */
-        }
+  const callHostSnapshot = useCallback(
+    async (
+      path: string,
+      method: string,
+      body?: Record<string, unknown>,
+    ): Promise<PartySnapshot> => {
+      if (!pid || bearer === "")
+        throw new Error("auth:Session animateur incomplète (recharger la page).");
+      const rBody = body === undefined ? undefined : JSON.stringify(body);
+      interface ErrBody {
+        error?: string;
       }
-      throw new Error(`${res.status}:${detail}`);
-    }
+      const res = await fetch(path, {
+        method,
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${bearer}`,
+        },
+        body: method === "GET" ? undefined : rBody,
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let detail = text.slice(0, 200);
+        if (text !== "") {
+          try {
+            detail = (JSON.parse(text) as ErrBody).error ?? text;
+          } catch {
+            /* noop */
+          }
+        }
+        throw new Error(`${res.status}:${detail}`);
+      }
+      try {
+        return JSON.parse(text) as PartySnapshot;
+      } catch {
+        throw new Error(`${res.status}:INVALID_JSON`);
+      }
+    },
+    [pid, bearer],
+  );
+
+  const hostBasePath = `/api/parties/${encodeURIComponent(pid)}`;
+
+  const onHostRoundStart = useCallback(async (): Promise<void> => {
+    setErr(null);
     try {
-      return JSON.parse(text) as PartySnapshot;
-    } catch {
-      throw new Error(`${res.status}:INVALID_JSON`);
+      const p = await callHostSnapshot(`${hostBasePath}/host/round/start`, "POST", {});
+      setSnap(p);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
     }
-  }
+  }, [callHostSnapshot, hostBasePath]);
+
+  const onHostRoundPause = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const p = await callHostSnapshot(`${hostBasePath}/host/round/pause`, "POST", {});
+      setSnap(p);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
+  const onHostBuzzWindow = useCallback(
+    async (open: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/buzz-window`, "POST", { open });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const applyPackMutation = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const j = await fetchJson<{ snapshot: PartySnapshot }>(
+        `${hostBasePath}/host/pack`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${bearer}`,
+          },
+          body: JSON.stringify({ packBasename: basename }),
+        },
+      );
+      setSnap(j.snapshot);
+    } catch (e7) {
+      setErr(String(e7));
+    }
+  }, [hostBasePath, bearer, basename]);
+
+  const onHostChatSend = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const h = await callHostSnapshot(`${hostBasePath}/host/chat`, "POST", { text: hostChat });
+      setHostChat("");
+      setSnap(h);
+    } catch (e8: unknown) {
+      setErr(e8 instanceof Error ? e8.message : String(e8));
+    }
+  }, [callHostSnapshot, hostBasePath, hostChat]);
+
+  const onDeltaScoreApply = useCallback(
+    async (playerDbId: string): Promise<void> => {
+      const raw = deltaById[playerDbId] ?? "1";
+      const delta = Number.parseInt(raw, 10);
+      if (!Number.isInteger(delta)) return;
+      setErr(null);
+      try {
+        const u = await fetchJson<PartySnapshot>(
+          `${hostBasePath}/host/players/${encodeURIComponent(playerDbId)}/score`,
+          {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${bearer}`,
+            },
+            body: JSON.stringify({ delta }),
+          },
+        );
+        setSnap(u);
+      } catch (e9) {
+        setErr(String(e9));
+      }
+    },
+    [hostBasePath, bearer, deltaById],
+  );
 
   if (!pid) return <Navigate to="/create" replace />;
 
@@ -826,77 +924,6 @@ function Admin(): JSX.Element {
     return <Shell title="Admin">Chargement…</Shell>;
 
   const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}`;
-
-  async function runRound(mode: "start" | "pause"): Promise<void> {
-    setErr(null);
-    try {
-      const p =
-        mode === "start"
-          ? await hosts(`/api/parties/${pid}/host/round/start`, "POST", {})
-          : await hosts(`/api/parties/${pid}/host/round/pause`, "POST", {});
-      setSnap(p);
-    } catch (e5) {
-      setErr(String(e5));
-    }
-  }
-
-  async function setBuzz(open: boolean): Promise<void> {
-    setErr(null);
-    try {
-      const n = await hosts(`/api/parties/${pid}/host/buzz-window`, "POST", { open });
-      setSnap(n);
-    } catch (e6) {
-      setErr(String(e6));
-    }
-  }
-
-  async function applyPack(): Promise<void> {
-    setErr(null);
-    try {
-      const j = await fetchJson<{ snapshot: PartySnapshot }>(`/api/parties/${pid}/host/pack`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${bearer}`,
-        },
-        body: JSON.stringify({ packBasename: basename }),
-      });
-      setSnap(j.snapshot);
-    } catch (e7) {
-      setErr(String(e7));
-    }
-  }
-
-  async function hcSend(): Promise<void> {
-    setErr(null);
-    try {
-      const h = await hosts(`/api/parties/${pid}/host/chat`, "POST", { text: hostChat });
-      setHostChat("");
-      setSnap(h);
-    } catch (e8) {
-      setErr(String(e8));
-    }
-  }
-
-  async function deltaScore(playerDbId: string): Promise<void> {
-    const raw = deltaById[playerDbId] ?? "1";
-    const delta = Number.parseInt(raw, 10);
-    if (!Number.isInteger(delta)) return;
-    setErr(null);
-    try {
-      const u = await fetchJson<PartySnapshot>(`/api/parties/${pid}/host/players/${playerDbId}/score`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${bearer}`,
-        },
-        body: JSON.stringify({ delta }),
-      });
-      setSnap(u);
-    } catch (e9) {
-      setErr(String(e9));
-    }
-  }
 
   return (
     <Shell title={`Animateur · ${snap.joinCode}`}>
@@ -919,16 +946,16 @@ function Admin(): JSX.Element {
       {err ? <pre style={{ color: "crimson", whiteSpace: "pre-wrap" }}>{err}</pre> : null}
 
       <section style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
-        <button type="button" onClick={() => void runRound("start")}>
-          Lancer / suivante manche
+        <button type="button" onClick={() => void onHostRoundStart()}>
+          Lancer la manche suivante
         </button>
-        <button type="button" onClick={() => void runRound("pause")}>
+        <button type="button" onClick={() => void onHostRoundPause()}>
           Mettre en pause (lobby)
         </button>
-        <button type="button" onClick={() => void setBuzz(true)}>
+        <button type="button" onClick={() => void onHostBuzzWindow(true)}>
           Ouvrir buzzer
         </button>
-        <button type="button" onClick={() => void setBuzz(false)}>
+        <button type="button" onClick={() => void onHostBuzzWindow(false)}>
           Fermer buzzer &amp; purge file
         </button>
       </section>
@@ -942,7 +969,7 @@ function Admin(): JSX.Element {
             </option>
           ))}
         </select>
-        <button type="button" onClick={() => void applyPack()}>
+        <button type="button" onClick={() => void applyPackMutation()}>
           Charger
         </button>
       </section>
@@ -975,7 +1002,7 @@ function Admin(): JSX.Element {
                   setDeltaById((m) => ({ ...m, [pl2.id]: ev.target.value }))
                 }
               />
-              <button type="button" onClick={() => void deltaScore(pl2.id)}>
+              <button type="button" onClick={() => void onDeltaScoreApply(pl2.id)}>
                 Appliquer delta
               </button>
             </li>
@@ -991,7 +1018,7 @@ function Admin(): JSX.Element {
           value={hostChat}
           onChange={(evh) => setHostChat(evh.target.value)}
         />
-        <button type="button" onClick={() => void hcSend()}>
+        <button type="button" onClick={() => void onHostChatSend()}>
           Publier
         </button>
       </section>
