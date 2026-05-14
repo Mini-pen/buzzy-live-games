@@ -1,12 +1,12 @@
-# * PartyGames static front — attach to the same external network as Traefik.
+# * buzzy-live-games — attach to the same external network as Traefik.
 # * Public URL: https://partygames.from-beyond.fr/ — override PARTYGAMES_HOST in .env if needed.
-# * Contexte à la racine du projet PartyGame (inclut `games/` dans l’image).
+# * Build context: repo root (includes `games/` in the image).
 services:
-  partygames-web:
+  buzzy-live-games-web:
     build:
       context: .
       dockerfile: webserver/Dockerfile
-    image: partygames-web:local
+    image: buzzy-live-games:local
     restart: unless-stopped
     environment:
       NODE_ENV: production

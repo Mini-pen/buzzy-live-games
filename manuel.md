@@ -98,7 +98,7 @@ cp .env.example .env
 
 docker compose build --no-cache
 docker compose up -d
-docker compose logs -f partygames-web
+docker compose logs -f buzzy-live-games-web
 ```
 
 Contrôles rapides depuis le serveur :
@@ -112,7 +112,7 @@ curl -skI -H 'Host: partygames.from-beyond.fr' https://127.0.0.1/
 
 ### Traefik
 
-- Réseau **externe** **`traefik`** : le service **`partygames-web`** doit y être attaché (déjà le cas dans **`docker-compose.yml`**).
+- Réseau **externe** **`traefik`** : le service **`buzzy-live-games-web`** doit y être attaché (déjà le cas dans **`docker-compose.yml`**).
 - **Port cible Traefik → conteneur** : **`3000`** (`traefik.http.services.partygames.loadbalancer.server.port=3000`).
 
 Si tu modifies le fichier compose Traefik racine (**`/home/cyrille/dev/traefik`** sur ton installation), vérifie que la version d’image **Traefik** est compatible avec la **Docker API** du démon (`v3.6+` a corrigé l’erreur « client API 1.24 too old » rencontrée avec Docker Engine très récent).

@@ -11,7 +11,7 @@ Ce projet suppose la même convention que `therapia.origin/traefik` :
 
 ## Fichiers fournis
 
-- `docker-compose.yml` : service `partygames-web` avec labels prêts à l’emploi.
+- `docker-compose.yml` : service `buzzy-live-games-web` avec labels prêts à l’emploi.
 - `.env.example` : valeur par défaut `PARTYGAMES_HOST=partygames.from-beyond.fr`.
 
 ## Déploiement
