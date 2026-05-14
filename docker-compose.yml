@@ -18,6 +18,7 @@ services:
       - traefik
     labels:
       - "traefik.enable=true"
+      - "traefik.docker.network=traefik"
 
       # * HTTP → HTTPS (same pattern as dashboard; leave ACME HTTP-01 path untouched)
       - "traefik.http.routers.partygames-http.rule=Host(`${PARTYGAMES_HOST:-partygames.from-beyond.fr}`) && !PathPrefix(`/.well-known/acme-challenge/`)"
