@@ -352,7 +352,9 @@ function Join(): JSX.Element {
   const [params] = useSearchParams();
   const nav = useNavigate();
   const [code, setCode] = useState(params.get("code") ?? "");
-  const [partyId, setPartyId] = useState(params.get("party") ?? "");
+  const [partyId, setPartyId] = useState(() =>
+    canonicalPartyIdFromRoute(params.get("party") ?? ""),
+  );
   const [snap, setSnap] = useState<PartySnapshot | null>(null);
   const [name, setName] = useState("");
   const [teamId, setTeamId] = useState<number>(1);
@@ -360,15 +362,23 @@ function Join(): JSX.Element {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    setCode(params.get("code") ?? "");
-    setPartyId(params.get("party") ?? "");
+    const c = params.get("code") ?? "";
+    const pRaw = params.get("party");
+    setCode(c);
+    if (params.has("party")) setPartyId(canonicalPartyIdFromRoute(pRaw ?? ""));
+    else if (c.trim() === "") setPartyId("");
   }, [params]);
 
   useEffect(() => {
     async function sync(): Promise<void> {
-      if (partyId.length >= 30) {
+      const pidNorm = canonicalPartyIdFromRoute(partyId);
+      if (pidNorm.length >= 30) {
         try {
-          setSnap(await fetchJson<PartySnapshot>(`/api/parties/${partyId}`));
+          setSnap(
+            await fetchJson<PartySnapshot>(
+              `/api/parties/${encodeURIComponent(pidNorm)}`,
+            ),
+          );
         } catch {
           setSnap(null);
         }
@@ -383,7 +393,7 @@ function Join(): JSX.Element {
         const m = await fetchJson<{ snapshot: PartySnapshot; partyId: string }>(
           `/api/parties/meta-by-code/${encodeURIComponent(c)}`,
         );
-        setPartyId(m.partyId);
+        setPartyId(canonicalPartyIdFromRoute(m.partyId));
         setSnap(m.snapshot);
       } catch {
         setSnap(null);
@@ -392,21 +402,32 @@ function Join(): JSX.Element {
     void sync();
   }, [code, partyId]);
 
+  const pidNormField = canonicalPartyIdFromRoute(partyId);
+  const joinPartyIdResolved: string =
+    pidNormField !== "" ? pidNormField : snap !== null ? canonicalPartyIdFromRoute(snap.id) : "";
+
   async function onSubmit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (!snap || partyId === "") return;
+    const pidCanon = joinPartyIdResolved;
+    if (!snap || pidCanon === "") {
+      if (snap !== null && pidCanon === "")
+        setErr(
+          "Impossible de déterminer l’identifiant de la partie. Attendez le chargement ou rafraîchissez la page.",
+        );
+      return;
+    }
     setLoading(true);
     setErr(null);
     try {
       const body: Record<string, unknown> = { displayName: name.trim() };
       if (snap.maxTeams != null && snap.maxTeams >= 2) body.teamId = teamId;
       const res = await fetchJson<{ playerToken: string }>(
-        `/api/parties/${encodeURIComponent(partyId)}/join`,
+        `/api/parties/${encodeURIComponent(pidCanon)}/join`,
         { method: "POST", body: JSON.stringify(body) },
       );
-      sessionStorage.setItem(playerSessionKey(partyId), res.playerToken);
-      rememberPlayerParty(partyId, snap.joinCode);
-      nav(`/party/${partyId}/play`);
+      sessionStorage.setItem(playerSessionKey(pidCanon), res.playerToken);
+      rememberPlayerParty(pidCanon, snap.joinCode);
+      nav(`/party/${encodeURIComponent(pidCanon)}/play`);
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Erreur");
     }
@@ -417,11 +438,13 @@ function Join(): JSX.Element {
 
   return (
     <Shell title="Rejoindre une partie">
-      {partyId !== "" && peekPlayerJwt(partyId) !== null ? (
+      {joinPartyIdResolved !== "" && peekPlayerJwt(joinPartyIdResolved) !== null ? (
         <p style={{ marginBottom: 16 }}>
           <button
             type="button"
-            onClick={() => nav(`/party/${encodeURIComponent(partyId)}/play`)}
+            onClick={() =>
+              nav(`/party/${encodeURIComponent(joinPartyIdResolved)}/play`)
+            }
           >
             Reprendre le lobby (vous êtes déjà inscrit sur cet appareil)
           </button>
@@ -442,7 +465,9 @@ function Join(): JSX.Element {
           <input
             style={{ width: "100%", marginTop: 4 }}
             value={partyId}
-            onChange={(e) => setPartyId(e.target.value.trim())}
+            onChange={(e) =>
+              setPartyId(canonicalPartyIdFromRoute(e.target.value))
+            }
             placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
           />
         </label>

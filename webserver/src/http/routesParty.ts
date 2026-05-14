@@ -73,7 +73,8 @@ const buzzWindowSchema = z.object({
 });
 
 function requireParty(store: PartyStore, id: string) {
-  const party = store.get(id);
+  const normalized = id.trim().toLowerCase();
+  const party = store.get(normalized);
   if (!party) {
     const err = Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
     throw err;
