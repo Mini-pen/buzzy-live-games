@@ -147,6 +147,40 @@ const STORAGE_LAST_PLAYER_PARTY = "partygames:lastPlayerPartyId";
 const STORAGE_LAST_PLAYER_CODE = "partygames:lastPlayerJoinCode";
 const STORAGE_LAST_ADMIN_PARTY = "partygames:lastAdminPartyId";
 
+/** * Drops every stale admin Bearer key tied to `routePartyIdRaw` plus `lastAdminParty` hint when it matches (case-insensitive id suffix). */
+function purgeAdminSessionForPartyRouteId(routePartyIdRaw: string): void {
+  if (typeof globalThis.sessionStorage === "undefined") return;
+  const needle = canonicalPartyIdFromRoute(routePartyIdRaw);
+  if (needle === "") return;
+  const prefix = "partygames:adminToken:";
+  const keysToDrop: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i += 1) {
+    const k = sessionStorage.key(i);
+    if (k === null || !k.startsWith(prefix)) continue;
+    const idSuffix = k.slice(prefix.length);
+    if (canonicalPartyIdFromRoute(idSuffix) === needle) keysToDrop.push(k);
+  }
+  for (const k of keysToDrop) sessionStorage.removeItem(k);
+
+  const last = sessionStorage.getItem(STORAGE_LAST_ADMIN_PARTY);
+  if (last !== null && canonicalPartyIdFromRoute(last) === needle) {
+    sessionStorage.removeItem(STORAGE_LAST_ADMIN_PARTY);
+  }
+
+  if (typeof globalThis.window === "undefined") return;
+  const rawHash = window.location.hash;
+  if (rawHash === "" || rawHash === "#") return;
+  const frag = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  try {
+    const hp = new URLSearchParams(frag);
+    if (hp.has("token")) {
+      window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
+    }
+  } catch {
+    /* noop */
+  }
+}
+
 /** * Records the player party id for the home page resume link; join code is optional display cache. */
 function rememberPlayerParty(partyId: string, joinCode?: string): void {
   if (typeof globalThis.sessionStorage === "undefined") return;
@@ -1207,11 +1241,8 @@ function Admin(): JSX.Element {
         <button
           type="button"
           onClick={() => {
-            sessionStorage.removeItem(adminSessionKey(pid));
-            const last = sessionStorage.getItem(STORAGE_LAST_ADMIN_PARTY);
-            if (last !== null && canonicalPartyIdFromRoute(last) === pid) {
-              sessionStorage.removeItem(STORAGE_LAST_ADMIN_PARTY);
-            }
+            purgeAdminSessionForPartyRouteId(pid);
+            setToken(null);
             nav("/", { replace: true });
           }}
         >
