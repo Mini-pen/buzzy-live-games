@@ -159,7 +159,7 @@ Pas de `GET /api/parties/:id/qr` : le **QR est généré côté client** (SPA ad
 
 ### Frontend — pages
 
-- [x] Accueil / création / rejoindre (dont `?code=` et `?party=`).
+- [x] Accueil / création / rejoindre (`/join?code=` suffit ; UUID en query optionnel pour anciens liens).
 - [x] Redirection admin après création (fragment `#token=` + sessionStorage).
 - [x] Vue joueur : buzz, chat aux phases permises.
 - [x] Bouton pour repasser par `/join` afin de modifier pseudo / équipe.

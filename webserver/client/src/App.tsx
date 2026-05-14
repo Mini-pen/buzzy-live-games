@@ -367,7 +367,7 @@ function Join(): JSX.Element {
           />
         </label>
         <label>
-          UUID (facultatif, pré-rempli par le lien d’invitation)
+          UUID de la partie (facultatif, anciens liens seulement ; le code suffit)
           <input
             style={{ width: "100%", marginTop: 4 }}
             value={partyId}
@@ -424,6 +424,30 @@ function PlayersPreview(props: { snap: PartySnapshot }): JSX.Element {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** * No player JWT: load public snapshot to redirect to `/join?code=` only (compact invite links / QR). */
+function RedirectJoinForReauth(props: { partyId: string }): JSX.Element {
+  const nav = useNavigate();
+  useEffect(() => {
+    let cancelled = false;
+    void fetchJson<PartySnapshot>(`/api/parties/${encodeURIComponent(props.partyId)}`)
+      .then((s) => {
+        if (!cancelled)
+          nav(`/join?code=${encodeURIComponent(s.joinCode)}`, { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) nav("/join", { replace: true });
+      });
+    return (): void => {
+      cancelled = true;
+    };
+  }, [props.partyId, nav]);
+  return (
+    <Shell title="Redirection…">
+      <p>Ouverture de la page rejoindre…</p>
+    </Shell>
   );
 }
 
@@ -596,8 +620,7 @@ function Play(): JSX.Element {
 
   if (!pid) return <Navigate to="/join" replace />;
 
-  if (jwt === null || jwt === "")
-    return <Navigate to={`/join?party=${encodeURIComponent(pid)}`} replace />;
+  if (jwt === null || jwt === "") return <RedirectJoinForReauth partyId={pid} />;
 
   /** * Spinner before first REST response. */
   if (snap === null) return <Shell title="Chargement…">Connexion lobby…</Shell>;
@@ -692,11 +715,7 @@ function Play(): JSX.Element {
       <p style={{ marginTop: 20 }}>
         <button
           type="button"
-          onClick={() =>
-            nav(
-              `/join?party=${encodeURIComponent(pid)}&code=${encodeURIComponent(snap.joinCode)}`,
-            )
-          }
+          onClick={() => nav(`/join?code=${encodeURIComponent(snap.joinCode)}`)}
         >
           Quitter pour changer pseudo / équipe
         </button>
@@ -806,7 +825,7 @@ function Admin(): JSX.Element {
   if (snap === null)
     return <Shell title="Admin">Chargement…</Shell>;
 
-  const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}&party=${encodeURIComponent(pid)}`;
+  const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}`;
 
   async function runRound(mode: "start" | "pause"): Promise<void> {
     setErr(null);

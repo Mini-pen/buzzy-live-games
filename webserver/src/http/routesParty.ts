@@ -146,7 +146,7 @@ export async function registerPartyRoutes(
         allowTeamChange: body.allowTeamChange,
       });
 
-      const joinRelative = `/join?code=${encodeURIComponent(party.joinCode)}&party=${encodeURIComponent(party.id)}`;
+      const joinRelative = `/join?code=${encodeURIComponent(party.joinCode)}`;
 
       const joinUrl = `${config.publicUrl}${joinRelative}`;
       const adminUrl = `${config.publicUrl}/party/${party.id}/admin#token=${encodeURIComponent(party.adminToken)}`;
