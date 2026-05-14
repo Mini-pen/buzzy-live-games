@@ -113,7 +113,9 @@ curl -skI -H 'Host: partygames.from-beyond.fr' https://127.0.0.1/
 ### Traefik
 
 - Réseau **externe** **`traefik`** : le service **`buzzy-live-games-web`** doit y être attaché (déjà le cas dans **`docker-compose.yml`**).
-- **Port cible Traefik → conteneur** : **`3000`** (`traefik.http.services.partygames.loadbalancer.server.port=3000`).
+- **Port cible Traefik → conteneur** : **`3000`** (`traefik.http.services.buzzylive-svc.loadbalancer.server.port=3000`).
+
+Ne faire tourner **qu’une seule** stack Docker pour ce `Host` : si un ancien conteneur existe encore (ex. `partygame-partygames-web-1`) avec les **mêmes** règles `Host(\`partygames.from-beyond.fr\`)`, Traefik peut journaliser **`Router defined multiple times`** et servir un **404**. Arrêter l’ancien projet (`docker compose down` dans son répertoire) ou retirer ses labels Traefik.
 
 Si tu modifies le fichier compose Traefik racine (**`/home/cyrille/dev/traefik`** sur ton installation), vérifie que la version d’image **Traefik** est compatible avec la **Docker API** du démon (`v3.6+` a corrigé l’erreur « client API 1.24 too old » rencontrée avec Docker Engine très récent).
 
@@ -175,6 +177,7 @@ Une fois **`A`** visible partout :
 |-------------------|---------------------------|
 | **DNS parfois OK / parfois pas** | TTL, propagation, ancien résolveur en cache (**OS**, box, **entreprise**) |
 | **`ERR_TUNNEL_CONNECTION_FAILED`** (Chrome) | Souvent IPv6 (**AAAA**) ou intervention **proxy/antivirus**/VPN |
+| **`404`** alors que le conteneur tourne | **Doublon de routeurs** pour le même `Host` (ex. ancienne stack `partygame-*` + `buzzy-live-games-*`) : voir logs Traefik *Router defined multiple times* — **`docker compose down`** sur l’ancien répertoire. |
 | **`404`/aucune réponse derrière bon Host** | **Traefik** ne charge pas les labels Docker (vérif erreurs provider Docker dans les logs Traefik) |
 | **Self-signed / erreur cert** | DNS pas encore résolu lors de la tentative **ACME** ; redémarrer Traefik après DNS OK |
 

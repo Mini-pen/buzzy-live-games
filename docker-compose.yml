@@ -1,6 +1,9 @@
 # * buzzy-live-games — attach to the same external network as Traefik.
 # * Public URL: https://partygames.from-beyond.fr/ — override PARTYGAMES_HOST in .env if needed.
 # * Build context: repo root (includes `games/` in the image).
+#
+# * Traefik router names use prefix "buzzylive" so they never collide with other stacks
+# * (e.g. an old compose still using partygames-* on the same host).
 services:
   buzzy-live-games-web:
     build:
@@ -21,25 +24,25 @@ services:
       - "traefik.docker.network=traefik"
 
       # * HTTP → HTTPS (same pattern as dashboard; leave ACME HTTP-01 path untouched)
-      - "traefik.http.routers.partygames-http.rule=Host(`${PARTYGAMES_HOST:-partygames.from-beyond.fr}`) && !PathPrefix(`/.well-known/acme-challenge/`)"
-      - "traefik.http.routers.partygames-http.entrypoints=http"
-      - "traefik.http.routers.partygames-http.middlewares=partygames-redirect-https"
-      - "traefik.http.routers.partygames-http.service=partygames"
+      - "traefik.http.routers.buzzylive-http.rule=Host(`${PARTYGAMES_HOST:-partygames.from-beyond.fr}`) && !PathPrefix(`/.well-known/acme-challenge/`)"
+      - "traefik.http.routers.buzzylive-http.entrypoints=http"
+      - "traefik.http.routers.buzzylive-http.middlewares=buzzylive-redirect-https"
+      - "traefik.http.routers.buzzylive-http.service=buzzylive-svc"
 
       # * HTTPS — tls.domains forces ACME (HTTP-01 on entrypoint http) for this host after DNS resolves.
-      - "traefik.http.routers.partygames-https.rule=Host(`${PARTYGAMES_HOST:-partygames.from-beyond.fr}`)"
-      - "traefik.http.routers.partygames-https.entrypoints=https"
-      - "traefik.http.routers.partygames-https.tls=true"
-      - "traefik.http.routers.partygames-https.tls.certresolver=cloudflare"
-      - "traefik.http.routers.partygames-https.tls.domains[0].main=${PARTYGAMES_HOST:-partygames.from-beyond.fr}"
-      - "traefik.http.routers.partygames-https.service=partygames"
+      - "traefik.http.routers.buzzylive-https.rule=Host(`${PARTYGAMES_HOST:-partygames.from-beyond.fr}`)"
+      - "traefik.http.routers.buzzylive-https.entrypoints=https"
+      - "traefik.http.routers.buzzylive-https.tls=true"
+      - "traefik.http.routers.buzzylive-https.tls.certresolver=cloudflare"
+      - "traefik.http.routers.buzzylive-https.tls.domains[0].main=${PARTYGAMES_HOST:-partygames.from-beyond.fr}"
+      - "traefik.http.routers.buzzylive-https.service=buzzylive-svc"
 
       # * Application Node écoute sur 3000
-      - "traefik.http.services.partygames.loadbalancer.server.port=3000"
+      - "traefik.http.services.buzzylive-svc.loadbalancer.server.port=3000"
 
       # * Middlewares local to this service (no cross-reference to the Traefik container)
-      - "traefik.http.middlewares.partygames-redirect-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.partygames-redirect-https.redirectscheme.permanent=true"
+      - "traefik.http.middlewares.buzzylive-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.buzzylive-redirect-https.redirectscheme.permanent=true"
 
 networks:
   traefik:
