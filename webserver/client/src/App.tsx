@@ -844,14 +844,16 @@ function Play(): JSX.Element {
     }
   }
 
-  async function sendChat(): Promise<void> {
+  async function sendChat(textOverride?: string): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
+    const payload = (typeof textOverride === "string" ? textOverride : chat).trim();
+    if (payload === "") return;
     setErr(null);
     try {
       const snapRes = await fetchJson<PartySnapshot>(`/api/parties/${pid}/me/chat`, {
         method: "POST",
         headers: { Authorization: `Bearer ${jwt}` },
-        body: JSON.stringify({ text: chat }),
+        body: JSON.stringify({ text: payload }),
       });
       setChat("");
       setSnap(snapRes);
@@ -952,6 +954,11 @@ function Play(): JSX.Element {
             style={{ width: "100%" }}
             placeholder="Message…"
             onChange={(e) => setChat(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || e.shiftKey) return;
+              e.preventDefault();
+              void sendChat(e.currentTarget.value);
+            }}
           />
           <button type="button" onClick={() => void sendChat()}>
             Envoyer
@@ -1164,10 +1171,14 @@ function Admin(): JSX.Element {
     }
   }, [hostBasePath, bearer, basename]);
 
-  const onHostChatSend = useCallback(async (): Promise<void> => {
+  const onHostChatSend = useCallback(async (textOverride?: string): Promise<void> => {
+    const payload = (typeof textOverride === "string" ? textOverride : hostChat).trim();
+    if (payload === "") return;
     setErr(null);
     try {
-      const h = await callHostSnapshot(`${hostBasePath}/host/chat`, "POST", { text: hostChat });
+      const h = await callHostSnapshot(`${hostBasePath}/host/chat`, "POST", {
+        text: payload,
+      });
       setHostChat("");
       setSnap(h);
     } catch (e8: unknown) {
@@ -1368,6 +1379,11 @@ function Admin(): JSX.Element {
           style={{ width: "100%" }}
           value={hostChat}
           onChange={(evh) => setHostChat(evh.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" || e.shiftKey) return;
+            e.preventDefault();
+            void onHostChatSend(e.currentTarget.value);
+          }}
         />
         <button type="button" onClick={() => void onHostChatSend()}>
           Publier
