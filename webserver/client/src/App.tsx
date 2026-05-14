@@ -50,6 +50,78 @@ function peekPlayerJwt(pid: string): string | null {
   return sessionStorage.getItem(playerSessionKey(pid));
 }
 
+/** * Last party id hints (tab session). Same browser session scope as a cookie for this SPA. */
+const STORAGE_LAST_PLAYER_PARTY = "partygames:lastPlayerPartyId";
+const STORAGE_LAST_PLAYER_CODE = "partygames:lastPlayerJoinCode";
+const STORAGE_LAST_ADMIN_PARTY = "partygames:lastAdminPartyId";
+
+/** * Records the player party id for the home page resume link; join code is optional display cache. */
+function rememberPlayerParty(partyId: string, joinCode?: string): void {
+  if (typeof globalThis.sessionStorage === "undefined") return;
+  if (partyId === "") return;
+  sessionStorage.setItem(STORAGE_LAST_PLAYER_PARTY, partyId);
+  if (joinCode !== undefined && joinCode !== "")
+    sessionStorage.setItem(STORAGE_LAST_PLAYER_CODE, joinCode);
+}
+
+/** * Records the admin party id after create or when the host panel is open with a valid token. */
+function rememberAdminParty(partyId: string): void {
+  if (typeof globalThis.sessionStorage === "undefined") return;
+  if (partyId === "") return;
+  sessionStorage.setItem(STORAGE_LAST_ADMIN_PARTY, partyId);
+}
+
+function listPartyIdsWithStoredPlayerJwt(): string[] {
+  if (typeof globalThis.sessionStorage === "undefined") return [];
+  const prefix = "partygames:playerJwt:";
+  const ids: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i += 1) {
+    const k = sessionStorage.key(i);
+    if (k === null || !k.startsWith(prefix)) continue;
+    const id = k.slice(prefix.length);
+    const tok = sessionStorage.getItem(k);
+    if (typeof tok === "string" && tok.length > 0) ids.push(id);
+  }
+  ids.sort();
+  return ids;
+}
+
+function listPartyIdsWithStoredAdminToken(): string[] {
+  if (typeof globalThis.sessionStorage === "undefined") return [];
+  const prefix = "partygames:adminToken:";
+  const ids: string[] = [];
+  for (let i = 0; i < sessionStorage.length; i += 1) {
+    const k = sessionStorage.key(i);
+    if (k === null || !k.startsWith(prefix)) continue;
+    const id = k.slice(prefix.length);
+    const tok = sessionStorage.getItem(k);
+    if (typeof tok === "string" && tok.length > 0) ids.push(id);
+  }
+  ids.sort();
+  return ids;
+}
+
+/** * Party id if a player JWT is still in session for this tab. */
+function resolvePlayerPartyIdToResume(): string | null {
+  if (typeof globalThis.sessionStorage === "undefined") return null;
+  const last = sessionStorage.getItem(STORAGE_LAST_PLAYER_PARTY);
+  if (last !== null && last !== "" && peekPlayerJwt(last) !== null) return last;
+  const all = listPartyIdsWithStoredPlayerJwt();
+  return all.length > 0 ? all[0] ?? null : null;
+}
+
+/** * Party id if an admin token is still in session for this tab. */
+function resolveAdminPartyIdToResume(): string | null {
+  if (typeof globalThis.sessionStorage === "undefined") return null;
+  const last = sessionStorage.getItem(STORAGE_LAST_ADMIN_PARTY);
+  if (last !== null && last !== "") {
+    const tok = sessionStorage.getItem(adminSessionKey(last));
+    if (typeof tok === "string" && tok.length > 0) return last;
+  }
+  const all = listPartyIdsWithStoredAdminToken();
+  return all.length > 0 ? all[0] ?? null : null;
+}
+
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(path, {
     ...init,
@@ -80,9 +152,123 @@ function Shell(props: { title: string; children: React.ReactNode }): JSX.Element
 }
 
 function Home(): JSX.Element {
+  const [playerResume, setPlayerResume] = useState<{
+    partyId: string;
+    joinCode: string;
+  } | null>(null);
+  const [adminResume, setAdminResume] = useState<{
+    partyId: string;
+    joinCode: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadResume(): Promise<void> {
+      if (typeof globalThis.sessionStorage === "undefined") return;
+      const pidP = resolvePlayerPartyIdToResume();
+      const pidA = resolveAdminPartyIdToResume();
+      let pRes: { partyId: string; joinCode: string } | null = null;
+      let aRes: { partyId: string; joinCode: string } | null = null;
+      if (pidP !== null) {
+        const lastStored = sessionStorage.getItem(STORAGE_LAST_PLAYER_PARTY);
+        const cachedCode =
+          lastStored === pidP ? sessionStorage.getItem(STORAGE_LAST_PLAYER_CODE) ?? "" : "";
+        try {
+          const s = await fetchJson<PartySnapshot>(
+            `/api/parties/${encodeURIComponent(pidP)}`,
+          );
+          pRes = { partyId: pidP, joinCode: s.joinCode };
+        } catch {
+          pRes = {
+            partyId: pidP,
+            joinCode: cachedCode.length >= 4 ? cachedCode : "",
+          };
+        }
+      }
+      if (pidA !== null) {
+        try {
+          const s = await fetchJson<PartySnapshot>(
+            `/api/parties/${encodeURIComponent(pidA)}`,
+          );
+          aRes = { partyId: pidA, joinCode: s.joinCode };
+        } catch {
+          aRes = { partyId: pidA, joinCode: "" };
+        }
+      }
+      if (!cancelled) {
+        setPlayerResume(pRes);
+        setAdminResume(aRes);
+      }
+    }
+    void loadResume();
+    function onVis(): void {
+      if (document.visibilityState === "visible") void loadResume();
+    }
+    document.addEventListener("visibilitychange", onVis);
+    return (): void => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
+
   return (
     <Shell title="PartyGames">
       <p>Quiz temps réel : lobby commun, buzzer et scores synchronisés.</p>
+      {playerResume !== null ? (
+        <section
+          style={{
+            marginBottom: 18,
+            padding: 12,
+            border: "1px solid #ccc",
+            borderRadius: 8,
+            background: "#f8f9fa",
+          }}
+        >
+          <h2 style={{ fontSize: 16, marginTop: 0 }}>Reprendre (joueur)</h2>
+          <p style={{ marginBottom: 8 }}>
+            Une session joueur est enregistrée dans cet onglet (équivalent d’un cookie de session pour
+            ce site).
+          </p>
+          <p style={{ margin: 0 }}>
+            <Link to={`/party/${encodeURIComponent(playerResume.partyId)}/play`}>
+              Ouvrir le lobby / la partie
+            </Link>
+            {playerResume.joinCode.length >= 4 ? (
+              <>
+                {" "}
+                · code <strong>{playerResume.joinCode}</strong>
+              </>
+            ) : null}
+          </p>
+        </section>
+      ) : null}
+      {adminResume !== null ? (
+        <section
+          style={{
+            marginBottom: 18,
+            padding: 12,
+            border: "1px solid #ccc",
+            borderRadius: 8,
+            background: "#f0f7ff",
+          }}
+        >
+          <h2 style={{ fontSize: 16, marginTop: 0 }}>Reprendre (animateur)</h2>
+          <p style={{ marginBottom: 8 }}>
+            Le jeton d’animateur pour cette partie est encore présent dans la session du navigateur.
+          </p>
+          <p style={{ margin: 0 }}>
+            <Link to={`/party/${encodeURIComponent(adminResume.partyId)}/admin`}>
+              Ouvrir le tableau animateur
+            </Link>
+            {adminResume.joinCode.length >= 4 ? (
+              <>
+                {" "}
+                · code joueurs <strong>{adminResume.joinCode}</strong>
+              </>
+            ) : null}
+          </p>
+        </section>
+      ) : null}
       <p>
         <Link to="/create">Créer une partie</Link> ·{" "}
         <Link to="/join">Rejoindre avec un code</Link>
@@ -148,6 +334,7 @@ function Join(): JSX.Element {
         { method: "POST", body: JSON.stringify(body) },
       );
       sessionStorage.setItem(playerSessionKey(partyId), res.playerToken);
+      rememberPlayerParty(partyId, snap.joinCode);
       nav(`/party/${partyId}/play`);
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Erreur");
@@ -269,6 +456,7 @@ function Create(): JSX.Element {
         partyId: string;
       }>(`/api/parties`, { method: "POST", body: JSON.stringify(body) });
       sessionStorage.setItem(adminSessionKey(res.partyId), res.adminToken);
+      rememberAdminParty(res.partyId);
       nav(`/party/${res.partyId}/admin#token=${encodeURIComponent(res.adminToken)}`);
     } catch (e2) {
       setErr(e2 instanceof Error ? e2.message : "Erreur");
@@ -369,6 +557,11 @@ function Play(): JSX.Element {
       s.disconnect();
     };
   }, [pid, jwt]);
+
+  useEffect(() => {
+    if (!pid || jwt === null || jwt === "" || snap === null) return;
+    rememberPlayerParty(pid, snap.joinCode);
+  }, [pid, jwt, snap]);
 
   async function buzz(): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
@@ -555,6 +748,11 @@ function Admin(): JSX.Element {
       s.off("party:patch", onSnap);
       s.disconnect();
     };
+  }, [pid, bearer]);
+
+  useEffect(() => {
+    if (!pid || bearer === "") return;
+    rememberAdminParty(pid);
   }, [pid, bearer]);
 
   async function hosts(
