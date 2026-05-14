@@ -44,6 +44,20 @@ export interface Party {
   loadedPackId: string | null;
 }
 
+/** * Current-round question surfaced to clients (host payload may include scoring hints). */
+export interface PartyGameBoardSurface {
+  packTitle: string;
+  roundIndex: number;
+  roundTitle: string;
+  roundNumberHuman: number;
+  questionIndexInRound: number;
+  prompt: string;
+  choices: string[];
+  points: number;
+  /** * Present only when the snapshot is assembled for an authenticated host. */
+  correctChoiceIndex?: number;
+}
+
 export interface PartyPublicSnapshot {
   id: string;
   joinCode: string;
@@ -67,21 +81,15 @@ export interface PartyPublicSnapshot {
   }>;
   teamScores: Record<string, number>;
   chatTail: ChatEntry[];
-  /** * Minimal sync — richer round payloads arrive later via sockets. */
+  /** * Indices into `loadedPackId` quiz JSON; surfaced for sync; see `gameBoard` for wording. */
   currentRoundIndex: number | null;
   currentQuestionIndex: number | null;
+  /** * Non-null during `round_active` when the loaded pack resolves the indices. */
+  gameBoard: PartyGameBoardSurface | null;
 }
 
-/** * Stored inside the player JWT. */
+/** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */
 export interface JwtPlayerPayload {
-  /** * Party UUID */
   pid: string;
-  /** * Player UUID (JWT subject) */
-  sub: string;
-}
-
-/** * Stored inside player JWT cookie alternative (Fastify JWT). */
-export interface JwtPlayerPayload {
-  /** * Party UUID */
-  pid: string;
+  sub?: string;
 }

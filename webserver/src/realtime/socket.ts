@@ -43,7 +43,8 @@ export function attachSocketIO(httpServer: HttpServer, deps: SocketDeps): Server
         return;
       }
 
-      const party = deps.store.get(partyIdRaw);
+      const partyIdNorm = partyIdRaw.trim().toLowerCase();
+      const party = deps.store.get(partyIdNorm);
       if (!party) {
         next(new Error("auth"));
         return;
@@ -73,7 +74,8 @@ export function attachSocketIO(httpServer: HttpServer, deps: SocketDeps): Server
         }
       }
 
-      socket.join(`party:${party.id}`);
+      if (role === "admin") void socket.join(`party:${party.id}:admin`);
+      else void socket.join(`party:${party.id}:player`);
       next();
 
     } catch {

@@ -2,19 +2,30 @@ import type { Server } from "socket.io";
 
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
+import { partySnapshotWithGame } from "./domain/partySnapshotPresenter.js";
 import { PartyStore } from "./domain/store.js";
+import type { QuizPack } from "./games/pack.js";
 import { scanQuizPacks } from "./games/pack.js";
 import { attachSocketIO } from "./realtime/socket.js";
 
 let socketRef: Server | undefined;
+let quizPacksByRun: Map<string, QuizPack> | undefined;
 
-const store = new PartyStore((partyId, snapshot) => {
-  socketRef?.to(`party:${partyId}`).emit("party:patch", snapshot);
+const store = new PartyStore((partyId, party) => {
+  if (socketRef === undefined || quizPacksByRun === undefined) return;
+  const packs = quizPacksByRun;
+  socketRef
+    .to(`party:${partyId}:player`)
+    .emit("party:patch", partySnapshotWithGame(party, packs, "player"));
+  socketRef
+    .to(`party:${partyId}:admin`)
+    .emit("party:patch", partySnapshotWithGame(party, packs, "host"));
 });
 
 async function main(): Promise<void> {
   const config = loadConfig();
   const packs = await scanQuizPacks(config.gamesDir);
+  quizPacksByRun = packs;
   console.info(`Indexed ${packs.size} quiz pack(s) under ${config.gamesDir}`);
 
   const app = await buildApp({ config, packs, store });

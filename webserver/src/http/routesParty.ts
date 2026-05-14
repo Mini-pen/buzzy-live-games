@@ -9,6 +9,8 @@ import { z } from "zod";
 
 import type { AppConfig } from "../config.js";
 import type { PartyStore } from "../domain/store.js";
+import type { Party } from "../domain/types.js";
+import { partySnapshotWithGame } from "../domain/partySnapshotPresenter.js";
 import type { QuizPack } from "../games/pack.js";
 import { readBearer } from "./bearer.js";
 import { replyDomain } from "./replyDomain.js";
@@ -88,6 +90,12 @@ export async function registerPartyRoutes(
 ): Promise<void> {
   const { store, packs, config } = deps;
 
+  const snapPlayer = (party: Party): ReturnType<typeof partySnapshotWithGame> =>
+    partySnapshotWithGame(party, packs, "player");
+
+  const snapHost = (party: Party): ReturnType<typeof partySnapshotWithGame> =>
+    partySnapshotWithGame(party, packs, "host");
+
   const gatePlayerJwt: preHandlerHookHandler = async (
     req: FastifyRequest,
     reply: FastifyReply,
@@ -120,7 +128,7 @@ export async function registerPartyRoutes(
       try {
         const party = store.getByJoinCode(req.params.joinCode);
         if (!party) throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
-        return { partyId: party.id, snapshot: store.snapshot(party) };
+        return { partyId: party.id, snapshot: snapPlayer(party) };
       } catch (err) {
         return replyDomain(reply, err);
       }
@@ -159,7 +167,7 @@ export async function registerPartyRoutes(
         joinUrl,
         adminUrl,
         joinRelative,
-        snapshot: store.snapshot(party),
+        snapshot: snapPlayer(party),
       });
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -174,7 +182,10 @@ export async function registerPartyRoutes(
     async (req, reply) => {
       try {
         const party = requireParty(store, req.params.partyId);
-        return store.snapshot(party);
+        const token = readBearer(req.headers.authorization);
+        if (token !== null && store.verifyAdminToken(party, token))
+          return snapHost(party);
+        return snapPlayer(party);
       } catch (err) {
         return replyDomain(reply, err);
       }
@@ -192,7 +203,7 @@ export async function registerPartyRoutes(
         return reply.status(201).send({
           playerId: player.id,
           playerToken: token,
-          snapshot: store.snapshot(party),
+          snapshot: snapPlayer(party),
         });
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -227,7 +238,7 @@ export async function registerPartyRoutes(
         }
         const party = requireParty(store, partyId);
         store.patchPlayerSelf(party, playerId, parsed);
-        return store.snapshot(party);
+        return snapPlayer(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
@@ -258,7 +269,7 @@ export async function registerPartyRoutes(
         const player = party.players.get(playerId);
         if (!player) return reply.status(410).send({ error: "PLAYER_GONE" });
         store.appendChat(party, playerId, player.displayName, body.text);
-        return store.snapshot(party);
+        return snapPlayer(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
@@ -286,7 +297,7 @@ export async function registerPartyRoutes(
           return reply.status(403).send({ error: "FORBIDDEN" });
         const party = requireParty(store, partyId);
         store.buzz(party, playerId);
-        return store.snapshot(party);
+        return snapPlayer(party);
       } catch (err) {
         return replyDomain(reply, err);
       }
@@ -304,7 +315,7 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminStartRound(party);
-        return store.snapshot(party);
+        return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);
       }
@@ -320,7 +331,7 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminPauseToLobby(party);
-        return store.snapshot(party);
+        return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);
       }
@@ -337,7 +348,7 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminSetBuzzOpen(party, body.open);
-        return store.snapshot(party);
+        return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
@@ -357,7 +368,7 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminAwardPoints(party, req.params.playerId, deltaBody.delta);
-        return store.snapshot(party);
+        return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
@@ -384,7 +395,7 @@ export async function registerPartyRoutes(
           });
         }
         store.setLoadedPack(party, loaded.id);
-        return { ok: true, packId: loaded.id, snapshot: store.snapshot(party) };
+        return { ok: true, packId: loaded.id, snapshot: snapHost(party) };
       } catch (err) {
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
@@ -404,7 +415,7 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.appendHostChat(party, body.text);
-        return store.snapshot(party);
+        return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });

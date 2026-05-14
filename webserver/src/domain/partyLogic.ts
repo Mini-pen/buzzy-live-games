@@ -111,5 +111,6 @@ export function publicSnapshotForParty(part: {
     chatTail,
     currentRoundIndex: part.currentRoundIndex,
     currentQuestionIndex: part.currentQuestionIndex,
+    gameBoard: null,
   };
 }

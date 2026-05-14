@@ -4,6 +4,19 @@ import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams 
 import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
 
+/** * Payload aligned with `PartyPublicSnapshot.gameBoard` on the server. */
+interface PartyGameBoardSurface {
+  packTitle: string;
+  roundIndex: number;
+  roundTitle: string;
+  roundNumberHuman: number;
+  questionIndexInRound: number;
+  prompt: string;
+  choices: string[];
+  points: number;
+  correctChoiceIndex?: number;
+}
+
 interface PartySnapshot {
   id: string;
   joinCode: string;
@@ -18,6 +31,9 @@ interface PartySnapshot {
   players: Array<{ id: string; displayName: string; teamId: number | null; score: number }>;
   teamScores: Record<string, number>;
   chatTail: Array<{ id: string; displayName: string; text: string; at: number }>;
+  currentRoundIndex?: number | null;
+  currentQuestionIndex?: number | null;
+  gameBoard?: PartyGameBoardSurface | null;
 }
 
 function playerSessionKey(pid: string): string {
@@ -523,6 +539,70 @@ function PlayersPreview(props: { snap: PartySnapshot }): JSX.Element {
   );
 }
 
+/** * Displays the quiz prompt from `gameBoard`; host view may reveal the keyed correct choice. */
+function GameBoardPanel(props: {
+  board: PartyGameBoardSurface | null;
+  partyState: string;
+  revealCorrect: boolean;
+}): JSX.Element | null {
+  const { board, partyState, revealCorrect } = props;
+  if (board !== null) {
+    const ci = board.correctChoiceIndex;
+    const correctText =
+      revealCorrect &&
+      typeof ci === "number" &&
+      ci >= 0 &&
+      ci < board.choices.length
+        ? board.choices[ci]
+        : null;
+    return (
+      <section
+        style={{
+          marginTop: 14,
+          padding: 14,
+          border: "1px solid #ccc",
+          borderRadius: 8,
+          background: "#fafafa",
+        }}
+      >
+        <h2 style={{ marginTop: 0, fontSize: 18 }}>Zone de jeu</h2>
+        <p style={{ margin: "0 0 8px", fontSize: 13, opacity: 0.85 }}>
+          {board.packTitle} · Manche {board.roundNumberHuman} — {board.roundTitle} · Question{" "}
+          {board.questionIndexInRound + 1} · {board.points} {board.points === 1 ? "pt" : "pts"}
+        </p>
+        <p style={{ fontSize: 18, fontWeight: 600, margin: "12px 0" }}>{board.prompt}</p>
+        <ol style={{ margin: 0, paddingLeft: 22 }}>
+          {board.choices.map((c, i) => (
+            <li key={`${board.roundIndex}-${board.questionIndexInRound}-${i}`} style={{ marginBottom: 6 }}>
+              <strong>{String.fromCharCode(65 + i)}.</strong> {c}
+              {revealCorrect && typeof ci === "number" && ci === i ? (
+                <span style={{ marginLeft: 8, color: "seagreen" }}>(attendue)</span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+        {correctText !== null ? (
+          <p style={{ marginTop: 12, fontSize: 14 }}>
+            Réponse attendue : <strong>{correctText}</strong>
+          </p>
+        ) : null}
+      </section>
+    );
+  }
+  if (partyState === "round_active") {
+    return (
+      <section style={{ marginTop: 14, padding: 12, border: "1px dashed #bbb", borderRadius: 8 }}>
+        <h2 style={{ marginTop: 0, fontSize: 16 }}>Zone de jeu</h2>
+        <p style={{ margin: 0, opacity: 0.85 }}>
+          Aucun énoncé disponible : chargez un pack quiz côté animateur (bouton « Charger ») avant de
+          lancer la manche, ou la manche dépasse le contenu du pack.
+        </p>
+      </section>
+    );
+  }
+  return null;
+}
+
 /** * No player JWT: load public snapshot to redirect to `/join?code=` only (compact invite links / QR). */
 function RedirectJoinForReauth(props: { partyId: string }): JSX.Element {
   const nav = useNavigate();
@@ -760,9 +840,19 @@ function Play(): JSX.Element {
       <p>État : {snap.state}</p>
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
 
+      <GameBoardPanel
+        board={snap.gameBoard ?? null}
+        partyState={snap.state}
+        revealCorrect={false}
+      />
+
       <section style={{ marginTop: 14 }}>
         <h2>Manche / lobby</h2>
-        <p>L’animateur diffuse les questions depuis son écran administration.</p>
+        {(snap.gameBoard ?? null) === null ? (
+          <p>L’animateur diffuse les questions depuis cette session.</p>
+        ) : (
+          <p style={{ opacity: 0.8 }}>Répondez avec le buzzer lorsque celui‑ci est ouvert.</p>
+        )}
         {canBuzz ? (
           <button type="button" onClick={() => void buzz()}>
             BUZZ !
@@ -857,7 +947,9 @@ function Admin(): JSX.Element {
     setAdminBootstrap("loading");
     setSnap(null);
 
-    void fetchJson<PartySnapshot>(`/api/parties/${encodeURIComponent(pid)}`)
+    void fetchJson<PartySnapshot>(`/api/parties/${encodeURIComponent(pid)}`, {
+      headers: { Authorization: `Bearer ${bearer}` },
+    })
       .then((s2) => {
         if (!cancelled) {
           setSnap(s2);
@@ -1097,6 +1189,12 @@ function Admin(): JSX.Element {
       </figure>
       {err ? <pre style={{ color: "crimson", whiteSpace: "pre-wrap" }}>{err}</pre> : null}
 
+      <GameBoardPanel
+        board={snap.gameBoard ?? null}
+        partyState={snap.state}
+        revealCorrect
+      />
+
       <section style={{ marginTop: 14, display: "flex", flexWrap: "wrap", gap: 8 }}>
         <button type="button" onClick={() => void onHostRoundStart()}>
           Lancer la manche suivante
@@ -1160,6 +1258,28 @@ function Admin(): JSX.Element {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section style={{ marginTop: 18 }}>
+        <h2>Fil de chat (joueurs + animateur)</h2>
+        {snap.chatTail.length === 0 ? (
+          <p style={{ margin: 0, opacity: 0.75 }}>Aucun message pour l’instant.</p>
+        ) : (
+          <ul
+            style={{
+              margin: "8px 0 0",
+              paddingLeft: 18,
+              maxHeight: 240,
+              overflowY: "auto",
+            }}
+          >
+            {snap.chatTail.slice(-80).map((m) => (
+              <li key={m.id} style={{ marginBottom: 8 }}>
+                <strong>{m.displayName}</strong> : {m.text}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section style={{ marginTop: 18 }}>

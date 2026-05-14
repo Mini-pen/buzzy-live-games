@@ -19,10 +19,7 @@ export interface CreatePartyOpts {
   allowTeamChange: boolean;
 }
 
-export type PartyNotifier = (
-  partyId: string,
-  snapshot: PartyPublicSnapshot,
-) => void;
+export type PartyNotifier = (partyId: string, party: Party) => void;
 
 function inferChatAllows(party: Party): boolean {
   return party.state === "lobby" || party.state === "between_rounds";
@@ -55,7 +52,7 @@ export class PartyStore {
   }
 
   broadcast(party: Party): void {
-    this.notify(party.id, publicSnapshotForParty(party));
+    this.notify(party.id, party);
   }
 
   private touch(party: Party): void {
@@ -73,6 +70,7 @@ export class PartyStore {
     return this.parties.get(id);
   }
 
+  /** * Base snapshot shape used by presenters; realtime uses `partySnapshotWithGame`. */
   snapshot(party: Party): PartyPublicSnapshot {
     return publicSnapshotForParty(party);
   }
