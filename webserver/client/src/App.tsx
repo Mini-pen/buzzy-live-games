@@ -1730,6 +1730,7 @@ function Admin(): JSX.Element {
       <Shell title="Animateur">
         <p className="bz-muted">Synchronisation…</p>
       </Shell>
+    );
 
   const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}`;
 
