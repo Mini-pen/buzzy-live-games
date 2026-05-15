@@ -1,0 +1,44 @@
+{
+  "id": "guess-by-color-images-v1",
+  "title": "Série d’images (réponse orale)",
+  "version": 1,
+  "rounds": [
+    {
+      "kind": "image_buzz",
+      "id": "visuels",
+      "title": "Devine les personnages à partir de l'image",
+      "slides": [
+        {
+          "id": "Dessins animés - facile - 001",
+          "imageUrl": "games/guess_by_color/images/animated-easy/animated_001.png",
+          "prompt": "Buzz quand tu as trouvé !"
+        },
+        {
+          "id": "Dessins animés - facile - 002",
+          "imageUrl": "games/guess_by_color/images/animated-easy/animated_002.png",
+          "prompt": "Buzz quand tu as trouvé !"
+        },
+        {
+          "id": "Dessins animés - facile - 003",
+          "imageUrl": "games/guess_by_color/images/animated-easy/animated_003.png",
+          "prompt": "Buzz quand tu as trouvé !"
+        },
+        {
+          "id": "Dessins animés - facile - 004",
+          "imageUrl": "games/guess_by_color/images/animated-easy/animated_004.png",
+          "prompt": "Buzz quand tu as trouvé !"
+        },
+        {
+          "id": "Dessins animés - facile - 005",
+          "imageUrl": "games/guess_by_color/images/animated-easy/animated_005.png",
+          "prompt": "Buzz quand tu as trouvé !"
+        },
+        {
+          "id": "Dessins animés - facile - 006",
+          "imageUrl": "games/guess_by_color/images/animated-easy/animated_006.png",
+          "prompt": "Buzz quand tu as trouvé !"
+        }
+      ]
+    }
+  ]
+}
