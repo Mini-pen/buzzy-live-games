@@ -1,5 +1,5 @@
 import type { JSX } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
@@ -409,7 +409,12 @@ async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
   return text === "" ? (undefined as T) : (JSON.parse(text) as T);
 }
 
-function Shell(props: { title: string; children: React.ReactNode }): JSX.Element {
+function Shell(props: {
+  title: string;
+  children: React.ReactNode;
+  /** * Wider readable column on host dashboard. */
+  wide?: boolean;
+}): JSX.Element {
   return (
     <div className="bz-app">
       <div
@@ -1386,6 +1391,7 @@ function Admin(): JSX.Element {
   const [modalMancheTitle, setModalMancheTitle] = useState("");
   const [modalSiteKind, setModalSiteKind] = useState<"iframe" | "youtube">("iframe");
   const [modalSiteUrl, setModalSiteUrl] = useState("");
+  const [deltaById, setDeltaById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     void fetchJson<{
@@ -1677,6 +1683,44 @@ function Admin(): JSX.Element {
     [hostBasePath, bearer],
   );
 
+  const sortedPlayers = useMemo(() => {
+    if (snap === null) return [];
+    return [...snap.players].sort(
+      (a, b) =>
+        b.score - a.score || a.displayName.localeCompare(b.displayName, "fr", { sensitivity: "base" }),
+    );
+  }, [snap]);
+
+  const onDeltaScoreApply = useCallback(
+    async (playerId: string): Promise<void> => {
+      setErr(null);
+      const raw = (deltaById[playerId] ?? "").trim().replace(/,/gu, "");
+      if (raw === "" || raw === "±") return;
+      const n = Number.parseInt(raw, 10);
+      if (!Number.isFinite(n) || n === 0) {
+        setErr("validation:Entier non nul attendu pour les points (ex. 3 ou -2).");
+        return;
+      }
+      const dir: 1 | -1 = n > 0 ? 1 : -1;
+      const steps = Math.min(Math.abs(n), 999);
+      for (let i = 0; i < steps; i += 1) {
+        await onPlayerScoreDelta(playerId, dir);
+      }
+      setDeltaById((m) => ({ ...m, [playerId]: "" }));
+    },
+    [deltaById, onPlayerScoreDelta],
+  );
+
+  const onHostRoundStart = useCallback(async (): Promise<void> => {
+    if (snap === null) return;
+    const head = snap.mancheScript[0];
+    if (head === undefined) {
+      setErr("validation:Ajoutez au moins une manche avec « Ajouter (+) », puis rechargez-la en tête de liste si besoin.");
+      return;
+    }
+    await onHostManchePlay(head.id);
+  }, [snap, onHostManchePlay]);
+
   if (!pid) return <Navigate to="/create" replace />;
 
   if (bearer === "")
@@ -1730,6 +1774,7 @@ function Admin(): JSX.Element {
       <Shell title="Animateur">
         <p className="bz-muted">Synchronisation…</p>
       </Shell>
+    );
 
   const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}`;
 
@@ -1805,27 +1850,94 @@ function Admin(): JSX.Element {
             revealCorrect
           />
 
-          {/* Pack picker */}
           <section className="bz-host-pack">
-            <h2>Pack quiz</h2>
-            <div className="bz-host-pack-row">
-              <select
-                value={basename}
-                onChange={(e2) => setBasename(e2.target.value)}
-              >
-                {packsList.map((pk) => (
-                  <option key={pk.basename} value={pk.basename}>
-                    {pk.title} ({pk.roundCount ?? 0} manches)
-                  </option>
-                ))}
-              </select>
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "10px 14px",
+                alignItems: "center",
+              }}
+            >
+              <h2 style={{ margin: 0 }}>Scénario — liste des manches</h2>
               <button
                 type="button"
-                onClick={() => void applyPackMutation()}
+                title="Ajouter une manche"
+                aria-label="Ajouter une manche"
+                onClick={() => {
+                  setErr(null);
+                  setAddMancheOpen(true);
+                  setModalMancheTitle("");
+                  setModalSiteUrl("");
+                }}
               >
-                Charger
+                + Ajouter
               </button>
             </div>
+            <p className="bz-muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
+              « ▶ Lancer la manche » joue et met en <strong>tête</strong> la première ligne ; réordonnez avec les
+              flèches avant de lancer. Les packs quiz se chargent automatiquement quand leur manche est active.
+            </p>
+            {snap.mancheScript.length === 0 ? (
+              <p style={{ margin: "14px 0 0" }} className="bz-muted">
+                Aucune étape encore — utilisez « + Ajouter » pour un pack, une page (HTTPS), une vidéo YouTube ou
+                une vidéo directe.
+              </p>
+            ) : (
+              <ul className="bz-manche-list">
+                {snap.mancheScript.map((mancheRow, mi) => {
+                  const playing =
+                    snap.activeMancheId === mancheRow.id && snap.state === "round_active";
+                  return (
+                    <li
+                      key={mancheRow.id}
+                      className={playing ? "bz-manche-row bz-manche-row--playing" : "bz-manche-row"}
+                    >
+                      <span className="bz-manche-row-title">
+                        <strong>{mancheRow.title}</strong>
+                        <span className="bz-manche-row-kind bz-muted">
+                          ({mancheKindShort(mancheRow.kind)})
+                        </span>
+                        {playing ? <span className="bz-manche-row-live">● en cours</span> : null}
+                      </span>
+                      <button
+                        type="button"
+                        title="Jouer cette manche"
+                        onClick={() => void onHostManchePlay(mancheRow.id)}
+                      >
+                        ▶
+                      </button>
+                      <button
+                        type="button"
+                        disabled={mi === 0}
+                        title="Monter dans la liste"
+                        aria-label="Monter dans la liste"
+                        onClick={() => void onHostMancheMove(mancheRow.id, "up")}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        disabled={mi === snap.mancheScript.length - 1}
+                        title="Descendre dans la liste"
+                        aria-label="Descendre dans la liste"
+                        onClick={() => void onHostMancheMove(mancheRow.id, "down")}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        title="Supprimer cette manche"
+                        aria-label="Supprimer cette manche"
+                        onClick={() => void onHostMancheRemove(mancheRow.id)}
+                      >
+                        🗑
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
 
           {/* Sticky controls */}
@@ -1852,9 +1964,11 @@ function Admin(): JSX.Element {
             >
               ⏹ Fermer & purger
             </button>
-            <button type="button" onClick={() => void onHostCueNext()}>
-              Question suivante →
-            </button>
+            {showQuizCueButtons ? (
+              <button type="button" onClick={() => void onHostCueNext()}>
+                Question suivante →
+              </button>
+            ) : null}
           </div>
         </main>
 
@@ -1972,6 +2086,195 @@ function Admin(): JSX.Element {
             </div>
           </section>
         </aside>
+
+        {addMancheOpen ? (
+          <div
+            role="presentation"
+            className="bz-modal-overlay"
+            onMouseDown={(evt) => {
+              if (evt.target === evt.currentTarget) setAddMancheOpen(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="add-manche-title"
+              className="bz-modal-dialog"
+              onMouseDown={(evt) => {
+                evt.stopPropagation();
+              }}
+            >
+              <h2 id="add-manche-title">Ajouter une manche au scénario</h2>
+              <div className="bz-modal-tab-row">
+                <button
+                  type="button"
+                  aria-pressed={addMancheFlavor === "pack"}
+                  onClick={() => setAddMancheFlavor("pack")}
+                  className="bz-modal-tab"
+                >
+                  Pack quiz
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={addMancheFlavor === "site"}
+                  onClick={() => setAddMancheFlavor("site")}
+                  className="bz-modal-tab"
+                >
+                  Site (iframe) ou YouTube
+                </button>
+              </div>
+
+              {addMancheFlavor === "pack" ? (
+                <>
+                  <label style={{ display: "block", marginBottom: 10 }}>
+                    Pack à ajouter
+                    <select
+                      style={{ display: "block", width: "100%", marginTop: 6 }}
+                      value={
+                        modalPackBasename !== "" &&
+                        packsList.some((p2) => p2.basename === modalPackBasename)
+                          ? modalPackBasename
+                          : packsList[0]?.basename ?? ""
+                      }
+                      onChange={(ev2) => setModalPackBasename(ev2.target.value)}
+                    >
+                      {packsList.map((pk) => (
+                        <option key={pk.basename} value={pk.basename}>
+                          {pk.title} ({pk.roundCount ?? 0} segments)
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label style={{ display: "block", marginBottom: 8 }}>
+                    Titre affiché (optionnel ; par défaut le titre du JSON)
+                    <input
+                      type="text"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        marginTop: 6,
+                        boxSizing: "border-box",
+                      }}
+                      placeholder="Laisser vide pour reprendre le nom du JSON"
+                      value={modalMancheTitle}
+                      onChange={(ev2) => setModalMancheTitle(ev2.target.value)}
+                    />
+                  </label>
+                </>
+              ) : (
+                <>
+                  <label style={{ display: "block", marginBottom: 12 }}>
+                    Titre dans la liste
+                    <input
+                      type="text"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        marginTop: 6,
+                        boxSizing: "border-box",
+                      }}
+                      placeholder="Ex. Sponsor · clip d’introduction"
+                      value={modalMancheTitle}
+                      onChange={(ev2) => setModalMancheTitle(ev2.target.value)}
+                    />
+                  </label>
+                  <fieldset className="bz-modal-fieldset">
+                    <legend>Type de lien</legend>
+                    <label
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="modal-site-kind"
+                        checked={modalSiteKind === "iframe"}
+                        onChange={() => setModalSiteKind("iframe")}
+                      />
+                      Page web (HTTPS) dans un iframe
+                    </label>
+                    <label
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        cursor: "pointer",
+                        marginTop: 8,
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="modal-site-kind"
+                        checked={modalSiteKind === "youtube"}
+                        onChange={() => setModalSiteKind("youtube")}
+                      />
+                      Vidéo YouTube (lien youtube.com ou youtu.be)
+                    </label>
+                  </fieldset>
+                  <label style={{ display: "block" }}>
+                    URL complète (
+                    {modalSiteKind === "iframe"
+                      ? "https://… uniquement pour l’iframe"
+                      : "coller depuis le navigateur"}
+                    )
+                    <input
+                      type="url"
+                      autoComplete="url"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        marginTop: 6,
+                        boxSizing: "border-box",
+                      }}
+                      placeholder={
+                        modalSiteKind === "iframe"
+                          ? "https://…"
+                          : "https://www.youtube.com/watch?v=…"
+                      }
+                      value={modalSiteUrl}
+                      onChange={(ev2) => setModalSiteUrl(ev2.target.value)}
+                    />
+                  </label>
+                  <p className="bz-modal-embed-tip">
+                    {modalSiteKind === "youtube" ? (
+                      <>
+                        Lecture optimisée via{" "}
+                        <code className="bz-code">youtube-nocookie.com</code>. Une extension anti-pub peut afficher{" "}
+                        <code className="bz-code">ERR_BLOCKED_BY_CLIENT</code>
+                        dans la console même si la vidéo fonctionne encore.
+                      </>
+                    ) : (
+                      <>
+                        Beaucoup de sites bloquent tout cadre tiers ( erreur{" "}
+                        <code className="bz-code">frame-ancestors</code>
+                        ). Pour YouTube officiel utilisez l’option « Vidéo YouTube », pas cette URL en iframe générique.
+                      </>
+                    )}
+                  </p>
+                </>
+              )}
+
+              <div className="bz-modal-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddMancheOpen(false);
+                    setModalMancheTitle("");
+                    setModalSiteUrl("");
+                  }}
+                >
+                  Annuler
+                </button>
+                <button type="button" className="bz-primary" onClick={() => void onHostMancheSubmitAdd()}>
+                  Ajouter cette manche
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </Shell>
   );

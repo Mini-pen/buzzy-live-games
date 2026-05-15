@@ -191,15 +191,38 @@ html, body {
   overflow-y: auto;
   padding: 22px 24px;
   border-radius: var(--bz-r-lg);
-  background: var(--bz-surface);
+  background-color: var(--bz-surface);
+  background-image: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--bz-surface) 94%, rgba(255, 255, 255, 0.04) 6%),
+    var(--bz-surface)
+  );
   border: 1px solid var(--bz-line-strong);
   color: var(--bz-text);
+  color-scheme: dark;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.06) inset,
     0 24px 64px rgba(0, 0, 0, 0.55);
 }
 .bz-app .bz-modal-dialog h2 {
   margin-top: 0;
+  color: var(--bz-text-strong);
+}
+.bz-app .bz-modal-dialog p,
+.bz-app .bz-modal-dialog li {
+  color: var(--bz-text);
+}
+.bz-app .bz-modal-dialog strong {
+  color: var(--bz-text-strong);
+}
+.bz-app .bz-modal-dialog label {
+  font-size: 13px;
+  color: var(--bz-muted);
+}
+.bz-app .bz-modal-dialog select,
+.bz-app .bz-modal-dialog select option {
+  color: var(--bz-text);
+  background-color: var(--bz-surface-2);
 }
 .bz-app .bz-modal-tab-row {
   display: flex;
