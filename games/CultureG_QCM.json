@@ -1,0 +1,1340 @@
+{
+  "$schema": "https://partygames.local/schemas/quiz-pack-v1.json",
+  "id": "cultureg-qcm-v1",
+  "title": "Culture Générale - QCM",
+  "version": 1,
+  "source": "https://www.gqmagazine.fr/article/questions-de-culture-generale-et-leurs-reponses",
+  "rounds": [
+    {
+      "id": "connaissances-generales",
+      "title": "Connaissances générales",
+      "questions": [
+        {
+          "id": "cg-001",
+          "prompt": "Qui a été la première femme à recevoir un prix Nobel en 1903 ?",
+          "choices": ["Marie Curie", "Rosalind Franklin", "Ada Lovelace", "Irène Joliot-Curie"],
+          "correctIndex": 0,
+          "points": 1
+        },
+        {
+          "id": "cg-002",
+          "prompt": "En quelle année le mur de Berlin est-il tombé ?",
+          "choices": ["1987", "1991", "1989", "1985"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-003",
+          "prompt": "Quel est l'élément dont le symbole chimique est Au ?",
+          "choices": ["L'argent", "L'aluminium", "L'or", "Le cuivre"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-004",
+          "prompt": "Quel est le signe opposé au Scorpion dans le zodiaque ?",
+          "choices": ["Le Bélier", "Le Taureau", "Le Verseau", "Le Lion"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-005",
+          "prompt": "Quelle est la plus petite planète de notre système solaire ?",
+          "choices": ["Mars", "Vénus", "Pluton", "Mercure"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "cg-006",
+          "prompt": "Quel est le spectacle de Broadway qui a été le plus lucratif de tous les temps ?",
+          "choices": ["Hamilton", "Le Roi Lion", "Wicked", "Le Fantôme de l'Opéra"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-007",
+          "prompt": "Comment s'appellent les 22 premières cartes d'un jeu de tarot ?",
+          "choices": ["Les Arcanes Majeurs", "Les Atouts Royaux", "Les Lames Sacrées", "Les Arcanes Mineurs"],
+          "correctIndex": 0,
+          "points": 2
+        },
+        {
+          "id": "cg-008",
+          "prompt": "Quelle est la capitale de l'Inde ?",
+          "choices": ["Mumbai", "Calcutta", "New Delhi", "Bangalore"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-009",
+          "prompt": "Quel est le nom le plus populaire du portrait officiellement intitulé 'La Gioconda' ?",
+          "choices": ["La Vénus de Milo", "La Joconde", "La Madone", "La Belle Ferronnière"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-010",
+          "prompt": "Dans un restaurant, sous quel nom la viande de cerf apparaît-elle sur le menu ?",
+          "choices": ["Le gibier", "Le chevreuil", "Le bison", "La venaison"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-011",
+          "prompt": "Quels sont les deux pays qui ont la plus longue frontière internationale commune ?",
+          "choices": ["La Russie et la Chine", "Le Canada et les États-Unis", "Le Brésil et l'Argentine", "La Russie et le Kazakhstan"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-012",
+          "prompt": "Quelle ville a accueilli les Jeux olympiques d'hiver de 2014 ?",
+          "choices": ["Vancouver", "Pyeongchang", "Sotchi", "Turin"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-013",
+          "prompt": "Quel est le plus grand organe du corps humain ?",
+          "choices": ["Le foie", "Le cerveau", "La peau", "Les poumons"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-014",
+          "prompt": "En quelle année le premier iPhone a-t-il été commercialisé ?",
+          "choices": ["2005", "2007", "2009", "2006"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-015",
+          "prompt": "Quelle est la plus longue chaîne de montagnes au-dessus de l'eau ?",
+          "choices": ["L'Himalaya", "Les Rocheuses", "Les Andes", "L'Oural"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-016",
+          "prompt": "En quelle année Netflix a-t-il lancé des services de streaming ?",
+          "choices": ["2005", "2009", "2007", "2010"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-017",
+          "prompt": "Combien d'os les requins ont-ils ?",
+          "choices": ["206", "Zéro", "33", "12"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-018",
+          "prompt": "Quel est le mammifère le plus mortel ?",
+          "choices": ["Le lion", "L'ours polaire", "L'hippopotame", "Le loup"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-019",
+          "prompt": "Quel est l'animal le plus mortel au monde ?",
+          "choices": ["Le serpent", "Le moustique", "Le crocodile", "Le scorpion"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-020",
+          "prompt": "Dans quel pays est né Che Guevara ?",
+          "choices": ["Cuba", "Le Mexique", "La Bolivie", "L'Argentine"],
+          "correctIndex": 3,
+          "points": 2
+        },
+        {
+          "id": "cg-021",
+          "prompt": "Quel a été le premier pays à accorder le droit de vote aux femmes ?",
+          "choices": ["La France", "Le Royaume-Uni", "La Nouvelle-Zélande", "Les États-Unis"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-022",
+          "prompt": "Quelle garniture de dessert est composée de blancs d'œufs et de crème de tartre ?",
+          "choices": ["La chantilly", "Le glaçage", "Le fondant", "La meringue"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "cg-023",
+          "prompt": "Dans la mythologie grecque, qui était le messager des dieux ?",
+          "choices": ["Apollon", "Arès", "Hermès", "Poséidon"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-024",
+          "prompt": "Quel était le nom de naissance de Muhammad Ali ?",
+          "choices": ["Marcus Johnson", "Cassius Clay", "James Brown", "Louis Patterson"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-025",
+          "prompt": "Aux échecs, dans quelle direction un fou peut-il se déplacer ?",
+          "choices": ["En ligne droite", "En L", "En diagonale", "Dans toutes les directions"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-026",
+          "prompt": "Quelle célébrité a inspiré le nom du premier animal cloné, le mouton Dolly ?",
+          "choices": ["Dolly Parton", "Dolly Madison", "Dolly Levi", "Dolly Varden"],
+          "correctIndex": 0,
+          "points": 2
+        },
+        {
+          "id": "cg-027",
+          "prompt": "Quel est le raccourci de la fonction coller sur la plupart des ordinateurs ?",
+          "choices": ["Ctrl+C", "Ctrl+X", "Ctrl+V", "Ctrl+Z"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-028",
+          "prompt": "Quel est le fleuve qui traverse Paris ?",
+          "choices": ["La Loire", "Le Rhône", "La Seine", "La Garonne"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-029",
+          "prompt": "Quelle est la langue la plus parlée au Brésil ?",
+          "choices": ["L'espagnol", "Le portugais", "Le français", "L'anglais"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-030",
+          "prompt": "Combien de couleurs trouve-t-on dans un sachet normal de M&Ms ?",
+          "choices": ["Quatre", "Cinq", "Six", "Huit"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-031",
+          "prompt": "Quel pays a offert la statue de la Liberté aux États-Unis ?",
+          "choices": ["Le Royaume-Uni", "L'Espagne", "La France", "L'Italie"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-032",
+          "prompt": "Combien de femmes Henry VIII a-t-il eues ?",
+          "choices": ["Quatre", "Six", "Huit", "Trois"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-033",
+          "prompt": "Quel est le groupe sanguin le plus rare ?",
+          "choices": ["O négatif", "B négatif", "AB négatif", "A positif"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-034",
+          "prompt": "Quel célèbre mouvement artistique Pablo Picasso a-t-il co-créé ?",
+          "choices": ["Le surréalisme", "L'impressionnisme", "Le cubisme", "Le fauvisme"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-035",
+          "prompt": "Quelle boisson alcoolisée est fabriquée à partir de baies de genévrier ?",
+          "choices": ["La vodka", "Le gin", "Le rhum", "Le whisky"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-036",
+          "prompt": "Combien de nuits dure la célébration de Hanoukka ?",
+          "choices": ["Sept", "Huit", "Dix", "Cinq"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-037",
+          "prompt": "Quel est le pays qui compte le plus de citoyens âgés de plus de 65 ans ?",
+          "choices": ["L'Allemagne", "L'Italie", "Le Japon", "La Chine"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-038",
+          "prompt": "La zone 51 est située dans quel État américain ?",
+          "choices": ["L'Arizona", "Le Nouveau-Mexique", "Le Nevada", "Le Texas"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-039",
+          "prompt": "Quelle est la température d'ébullition de l'eau en degrés Celsius ?",
+          "choices": ["90°C", "100°C", "110°C", "120°C"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-040",
+          "prompt": "Quel est l'autre nom de l'ADN ?",
+          "choices": ["Acide ribonucléique", "Acide désoxyribonucléique", "Acide aminé", "Acide phosphorique"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-041",
+          "prompt": "Quelle est la plus longue série télévisée d'animation américaine ?",
+          "choices": ["South Park", "Les Griffin", "Les Simpson", "Bob l'éponge"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-042",
+          "prompt": "Où se trouve le plus petit os du corps humain ?",
+          "choices": ["Le pied", "La main", "L'oreille", "Le nez"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-043",
+          "prompt": "Quelle est la capitale du Canada ?",
+          "choices": ["Toronto", "Montréal", "Vancouver", "Ottawa"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "cg-044",
+          "prompt": "Quelle planète possède le plus grand nombre de lunes ?",
+          "choices": ["Saturne", "Jupiter", "Neptune", "Uranus"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-045",
+          "prompt": "Que signifie BMW (en anglais) ?",
+          "choices": ["British Motor Works", "Bavarian Motor Works", "Berlin Motor Works", "Belgian Motor Works"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-046",
+          "prompt": "Qui a écrit Les aventures de Sherlock Holmes ?",
+          "choices": ["Agatha Christie", "Arthur Conan Doyle", "Edgar Allan Poe", "Charles Dickens"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-047",
+          "prompt": "Quelle ville est construite sur les ruines de Tenochtitlan ?",
+          "choices": ["Lima", "Bogota", "Mexico City", "Buenos Aires"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-048",
+          "prompt": "Qui détient le titre de meilleur buteur de l'histoire de l'équipe de France ?",
+          "choices": ["Zinédine Zidane", "Michel Platini", "Thierry Henry", "Kylian Mbappé"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-049",
+          "prompt": "Quel pays est connu sous le nom de 'pays du soleil levant' ?",
+          "choices": ["La Chine", "La Corée du Sud", "Le Japon", "La Thaïlande"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-050",
+          "prompt": "Quelle est la langue la plus parlée au monde ?",
+          "choices": ["L'anglais", "L'espagnol", "L'hindi", "Le chinois mandarin"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "cg-051",
+          "prompt": "Quel est le seul métal liquide à température ambiante ?",
+          "choices": ["Le plomb", "Le gallium", "Le mercure", "Le sodium"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-052",
+          "prompt": "Quel animal figure sur le logo de Porsche ?",
+          "choices": ["Le taureau", "L'aigle", "Le lion", "Le cheval"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "cg-053",
+          "prompt": "Quel est le slogan d'Apple Inc. ?",
+          "choices": ["Just Do It", "Penser différemment", "Imagine", "Innovation First"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-054",
+          "prompt": "Combien y a-t-il de côtes dans le corps humain ?",
+          "choices": ["Vingt", "Vingt-deux", "Vingt-quatre", "Vingt-six"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-055",
+          "prompt": "En quelle année le Titanic a-t-il coulé ?",
+          "choices": ["1905", "1912", "1918", "1910"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-056",
+          "prompt": "Quel est le symbole chimique de l'oxygène ?",
+          "choices": ["Ox", "O", "Og", "Om"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-057",
+          "prompt": "Quelle est la plus grande île de la mer Méditerranée ?",
+          "choices": ["La Sardaigne", "La Crète", "La Corse", "La Sicile"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "cg-058",
+          "prompt": "Qui a composé la 'Sonate au clair de lune' ?",
+          "choices": ["Mozart", "Chopin", "Ludwig van Beethoven", "Bach"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-059",
+          "prompt": "Quel est le plat national de l'Écosse ?",
+          "choices": ["Le fish and chips", "Le porridge", "Le haggis", "Le shepherd's pie"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-060",
+          "prompt": "Comment s'appelle le processus par lequel les plantes libèrent de la vapeur d'eau ?",
+          "choices": ["La photosynthèse", "La transpiration", "L'évaporation", "La respiration"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-061",
+          "prompt": "Quelle est la couleur opposée au bleu sur le cercle chromatique ?",
+          "choices": ["Le rouge", "Le jaune", "L'orange", "Le vert"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-062",
+          "prompt": "Quel est le plat à base de chou fermenté essentiel dans la cuisine coréenne ?",
+          "choices": ["Le miso", "Le kimchi", "Le tempeh", "Le natto"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "cg-063",
+          "prompt": "Sous quel nom l'actrice née Norma Jeane Mortenson est-elle devenue célèbre ?",
+          "choices": ["Audrey Hepburn", "Grace Kelly", "Marilyn Monroe", "Elizabeth Taylor"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-064",
+          "prompt": "Qui a été la première femme à remporter l'Oscar du meilleur réalisateur ?",
+          "choices": ["Sofia Coppola", "Kathryn Bigelow", "Greta Gerwig", "Jane Campion"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-065",
+          "prompt": "Aux échecs, dans quelle direction un fou peut-il se déplacer ?",
+          "choices": ["En ligne droite", "En L", "En diagonale", "Dans toutes les directions"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "cg-066",
+          "prompt": "Quel est le premier livre publié par Honoré de Balzac ?",
+          "choices": ["Le Père Goriot", "Eugénie Grandet", "Les Chouans", "La Peau de chagrin"],
+          "correctIndex": 2,
+          "points": 3
+        },
+        {
+          "id": "cg-067",
+          "prompt": "Quel est le spectacle le plus ancien de Broadway ?",
+          "choices": ["Les Misérables", "Chicago", "Le Fantôme de l'Opéra", "Cats"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "cg-068",
+          "prompt": "Dans quel bar de New York s'est déroulé un soulèvement en 1969 pour les droits LGBTQ+ ?",
+          "choices": ["Le Stonewall Inn", "Le Studio 54", "Le CBGB", "Le Max's Kansas City"],
+          "correctIndex": 0,
+          "points": 2
+        },
+        {
+          "id": "cg-069",
+          "prompt": "En quelle année la première pilule contraceptive a-t-elle été disponible en France ?",
+          "choices": ["1960", "1967", "1972", "1975"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "cg-070",
+          "prompt": "En quelle année le premier parc Walt Disney World a-t-il ouvert en Floride ?",
+          "choices": ["1965", "1971", "1975", "1968"],
+          "correctIndex": 1,
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "questions-aleatoires",
+      "title": "Questions aléatoires",
+      "questions": [
+        {
+          "id": "qa-001",
+          "prompt": "Quels animaux marins se tiennent la main dans leur sommeil ?",
+          "choices": ["Les dauphins", "Les loutres de mer", "Les phoques", "Les tortues marines"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qa-002",
+          "prompt": "Quel type de fleur était autrefois utilisé comme monnaie en Hollande ?",
+          "choices": ["Les roses", "Les orchidées", "Les tulipes", "Les lys"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-003",
+          "prompt": "Dans quel pays plus de la moitié des gens croient-ils aux elfes ?",
+          "choices": ["La Norvège", "L'Irlande", "L'Islande", "La Finlande"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-004",
+          "prompt": "Combien de temps les cigales vivent-elles sous terre avant d'émerger ?",
+          "choices": ["7 ans", "12 ans", "17 ans", "21 ans"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-005",
+          "prompt": "Quel est l'animal national de l'Écosse ?",
+          "choices": ["Le cerf", "L'aigle royal", "La licorne", "Le chardon"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-006",
+          "prompt": "Quelle est la plus grande structure vivante sur Terre ?",
+          "choices": ["La forêt amazonienne", "La Grande Barrière de Corail", "Le réseau fongique de l'Oregon", "Les séquoias géants"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qa-007",
+          "prompt": "Quelle est la planète la plus chaude du système solaire ?",
+          "choices": ["Mercure", "Mars", "Vénus", "Jupiter"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qa-008",
+          "prompt": "Quel os les bébés n'ont-ils pas à la naissance ?",
+          "choices": ["Le fémur", "La clavicule", "La rotule", "Le sternum"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-009",
+          "prompt": "Quel est le plus petit pays du monde ?",
+          "choices": ["Monaco", "Saint-Marin", "Le Liechtenstein", "La Cité du Vatican"],
+          "correctIndex": 3,
+          "points": 1
+        },
+        {
+          "id": "qa-010",
+          "prompt": "Combien de pyramides de Gizeh ont été construites ?",
+          "choices": ["Deux", "Trois", "Quatre", "Cinq"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qa-011",
+          "prompt": "Quel est le plat national de l'Espagne ?",
+          "choices": ["Les tapas", "La paella", "La tortilla", "Le gazpacho"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qa-012",
+          "prompt": "Où se trouve le plus haut bâtiment du monde ?",
+          "choices": ["New York", "Shanghai", "Dubaï", "Kuala Lumpur"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qa-013",
+          "prompt": "Quel mammifère n'a pas de cordes vocales ?",
+          "choices": ["L'éléphant", "La girafe", "Le lapin", "La baleine"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qa-014",
+          "prompt": "Selon la mythologie grecque, qui a été la première femme sur terre ?",
+          "choices": ["Athéna", "Héra", "Pandore", "Aphrodite"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qa-015",
+          "prompt": "Quel est le pays qui consomme le plus de chocolat par habitant ?",
+          "choices": ["La Belgique", "La France", "La Suisse", "L'Allemagne"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-016",
+          "prompt": "Combien d'yeux a une abeille ?",
+          "choices": ["Deux", "Trois", "Cinq", "Sept"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-017",
+          "prompt": "Quel oiseau peut voler à reculons ?",
+          "choices": ["Le martin-pêcheur", "Le colibri", "Le moineau", "L'hirondelle"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qa-018",
+          "prompt": "Quel est le seul continent qui n'a pas de volcan en activité ?",
+          "choices": ["L'Afrique", "L'Europe", "L'Australie", "L'Amérique du Nord"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-019",
+          "prompt": "Quelle est la race de chien la plus grande au monde ?",
+          "choices": ["Le saint-bernard", "Le dogue allemand", "Le mastiff anglais", "Le terre-neuve"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qa-020",
+          "prompt": "Quelle est la substance naturelle la plus dure au monde ?",
+          "choices": ["Le quartz", "Le rubis", "Le diamant", "Le saphir"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qa-021",
+          "prompt": "Quelle ville française est surnommée 'la Venise du Nord' en raison de ses canaux ?",
+          "choices": ["Strasbourg", "Amiens", "Bruges", "Annecy"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qa-022",
+          "prompt": "Dans quel pays se trouve la plus ancienne université du monde ?",
+          "choices": ["En France", "En Angleterre", "En Italie", "En Grèce"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-023",
+          "prompt": "Quel pays possède le plus long littoral au monde ?",
+          "choices": ["La Russie", "L'Australie", "Le Canada", "Les États-Unis"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-024",
+          "prompt": "Quel est le seul mammifère capable de voler de manière soutenue ?",
+          "choices": ["L'écureuil volant", "La chauve-souris", "Le colugo", "Le sugar glider"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qa-025",
+          "prompt": "Quel est le nom du poisson-globe comestible au Japon, potentiellement mortel ?",
+          "choices": ["Sashimi", "Fugu", "Unagi", "Hamachi"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qa-026",
+          "prompt": "Quelle est la seule espèce animale classée comme 'biologiquement immortelle' ?",
+          "choices": ["Le homard", "La méduse Turritopsis dohrnii", "La tortue géante", "L'hydre"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "qa-027",
+          "prompt": "Quelle est la guerre la plus courte de l'histoire ?",
+          "choices": ["La guerre des Six Jours", "La guerre Anglo-Zanzibar", "La guerre du Football", "La guerre de Cent Heures"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "qa-028",
+          "prompt": "Quel est le seul aliment qui ne se détériore pas ?",
+          "choices": ["Le sel", "Le riz", "Le miel", "Le sucre"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qa-029",
+          "prompt": "Dans quel pays le requin fermenté est-il un mets national ?",
+          "choices": ["La Norvège", "L'Islande", "Le Danemark", "La Suède"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "qa-030",
+          "prompt": "Quel est l'animal le plus bruyant de la planète ?",
+          "choices": ["La baleine bleue", "Le cachalot", "L'éléphant", "Le lion"],
+          "correctIndex": 1,
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "questions-faciles",
+      "title": "Questions faciles",
+      "questions": [
+        {
+          "id": "qf-001",
+          "prompt": "Quel pays est à la fois une île et un continent ?",
+          "choices": ["La Nouvelle-Zélande", "Madagascar", "L'Australie", "L'Indonésie"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-002",
+          "prompt": "Quel est le nom du plus long fleuve du monde ?",
+          "choices": ["L'Amazone", "Le Nil", "Le Mississippi", "Le Yangtsé"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-003",
+          "prompt": "Combien y a-t-il de films du Seigneur des anneaux ?",
+          "choices": ["Deux", "Trois", "Quatre", "Cinq"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-004",
+          "prompt": "Quel artiste a peint 'La nuit étoilée' ?",
+          "choices": ["Claude Monet", "Pablo Picasso", "Vincent van Gogh", "Salvador Dalí"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-005",
+          "prompt": "Quel est le plus grand océan de la planète ?",
+          "choices": ["L'océan Atlantique", "L'océan Indien", "L'océan Pacifique", "L'océan Arctique"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-006",
+          "prompt": "Quel gaz constitue la majeure partie de l'atmosphère terrestre ?",
+          "choices": ["L'oxygène", "Le dioxyde de carbone", "L'azote", "L'hydrogène"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-007",
+          "prompt": "Quelle planète est connue sous le nom de 'planète rouge' ?",
+          "choices": ["Jupiter", "Vénus", "Mars", "Saturne"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-008",
+          "prompt": "Qui a été la première princesse Disney ?",
+          "choices": ["Cendrillon", "Blanche-Neige", "Aurore", "Ariel"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-009",
+          "prompt": "Combien de bandes y a-t-il dans le logo d'Adidas ?",
+          "choices": ["Deux", "Trois", "Quatre", "Cinq"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-010",
+          "prompt": "Quelle merveille naturelle est appelée 'le poumon du monde' ?",
+          "choices": ["La taïga sibérienne", "La forêt amazonienne", "La forêt du Congo", "La forêt de Bornéo"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-011",
+          "prompt": "Quelle civilisation a construit Machu Picchu ?",
+          "choices": ["Les Mayas", "Les Aztèques", "Les Incas", "Les Olmèques"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-012",
+          "prompt": "Comment appelle-t-on la peur des araignées ?",
+          "choices": ["La claustrophobie", "L'arachnophobie", "L'agoraphobie", "L'entomophobie"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-013",
+          "prompt": "Quelle est la boisson la plus consommée au monde après l'eau ?",
+          "choices": ["Le café", "Le thé", "Le lait", "Le jus d'orange"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-014",
+          "prompt": "Quel empire était dirigé par Néron ?",
+          "choices": ["L'Empire grec", "L'Empire perse", "L'Empire romain", "L'Empire byzantin"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-015",
+          "prompt": "Quel légume est également classé parmi les fleurs ?",
+          "choices": ["L'artichaut", "Le brocoli", "Le chou-fleur", "L'asperge"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qf-016",
+          "prompt": "Comment s'appelle l'étude des fossiles ?",
+          "choices": ["L'archéologie", "La géologie", "La paléontologie", "L'anthropologie"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-017",
+          "prompt": "Qui a peint le plafond de la chapelle Sixtine ?",
+          "choices": ["Léonard de Vinci", "Raphaël", "Michel-Ange", "Le Caravage"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qf-018",
+          "prompt": "Sur quelle échelle mesure-t-on les tremblements de terre ?",
+          "choices": ["L'échelle de Beaufort", "L'échelle de Richter", "L'échelle de Mercalli", "L'échelle de Saffir-Simpson"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-019",
+          "prompt": "Qui est le plus jeune lauréat du prix Nobel ?",
+          "choices": ["Greta Thunberg", "Malala Yousafzai", "Werner Heisenberg", "Lawrence Bragg"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qf-020",
+          "prompt": "Quel est le surnom en quatre mots donné à Harry Potter ?",
+          "choices": ["Le prince de sang-mêlé", "Le garçon qui vivait", "L'élu de la prophétie", "Le survivant de Godric"],
+          "correctIndex": 1,
+          "points": 1
+        }
+      ]
+    },
+    {
+      "id": "questions-difficiles",
+      "title": "Questions difficiles",
+      "questions": [
+        {
+          "id": "qd-001",
+          "prompt": "Combien de pays compte l'Union européenne ?",
+          "choices": ["25", "27", "28", "30"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qd-002",
+          "prompt": "Quelle est la plus petite unité de mémoire des ordinateurs ?",
+          "choices": ["Un octet", "Un bit", "Un kilobit", "Un byte"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qd-003",
+          "prompt": "L'archipel des îles Hawaï est composé de combien d'îles principales ?",
+          "choices": ["Six", "Sept", "Huit", "Dix"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qd-004",
+          "prompt": "Quel pays possède la langue nationale avec l'alphabet le plus long ?",
+          "choices": ["La Thaïlande", "La Géorgie", "Le Cambodge", "L'Éthiopie"],
+          "correctIndex": 2,
+          "points": 3
+        },
+        {
+          "id": "qd-005",
+          "prompt": "Que signifie 'HTTP' ?",
+          "choices": ["HyperText Transfer Protocol", "High Tech Transfer Program", "HyperText Transmission Process", "Hyper Transfer Text Protocol"],
+          "correctIndex": 0,
+          "points": 2
+        },
+        {
+          "id": "qd-006",
+          "prompt": "Combien y a-t-il de touches sur un piano moderne standard ?",
+          "choices": ["76", "82", "88", "92"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qd-007",
+          "prompt": "Quelle ville est divisée par le détroit du Bosphore entre l'Europe et l'Asie ?",
+          "choices": ["Athènes", "Le Caire", "Istanbul", "Beyrouth"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "qd-008",
+          "prompt": "Quel pays compte le plus grand nombre de fuseaux horaires au monde ?",
+          "choices": ["La Russie", "Les États-Unis", "La France", "Le Royaume-Uni"],
+          "correctIndex": 2,
+          "points": 3
+        },
+        {
+          "id": "qd-009",
+          "prompt": "Qui a inventé le World Wide Web ?",
+          "choices": ["Steve Jobs", "Bill Gates", "Tim Berners-Lee", "Vint Cerf"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qd-010",
+          "prompt": "Comment appelle-t-on la peur de se retrouver sans téléphone portable ?",
+          "choices": ["La technophobie", "La nomophobie", "La cyberphobie", "La phonophobie"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qd-011",
+          "prompt": "De quel élément les êtres humains sont-ils principalement composés ?",
+          "choices": ["L'oxygène", "L'hydrogène", "Le carbone", "L'azote"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qd-012",
+          "prompt": "Qui a inspiré le personnage de Dracula selon l'histoire ?",
+          "choices": ["Ivan le Terrible", "Vlad l'Empaleur", "Gengis Khan", "Attila le Hun"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qd-013",
+          "prompt": "Quelle est la plus grande fleur du monde ?",
+          "choices": ["Le tournesol géant", "La Rafflesia arnoldii", "La Victoria amazonica", "L'Amorphophallus titanum"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "qd-014",
+          "prompt": "Où le café a-t-il été inventé, selon la légende ?",
+          "choices": ["En Colombie", "Au Yémen", "En Éthiopie", "Au Brésil"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "qd-015",
+          "prompt": "Quel navire a secouru les passagers du Titanic après le naufrage ?",
+          "choices": ["Le Britannic", "Le Carpathia", "L'Olympic", "Le Lusitania"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qd-016",
+          "prompt": "Quelle est la partie la plus profonde connue de l'océan ?",
+          "choices": ["La fosse de Porto Rico", "La fosse des Mariannes", "La fosse de Java", "La fosse des Tonga"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "qd-017",
+          "prompt": "Quel film détient le record du plus grand succès au box-office irlandais ?",
+          "choices": ["Titanic", "Avatar", "Barbie", "Oppenheimer"],
+          "correctIndex": 2,
+          "points": 3
+        },
+        {
+          "id": "qd-018",
+          "prompt": "Quel produit australien pour surfeurs est devenu incontournable au début des années 2000 ?",
+          "choices": ["Les Crocs", "Les Uggs", "Les Birkenstocks", "Les Havaianas"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "qd-019",
+          "prompt": "Combien de couleurs comptait le premier drapeau de la Fierté en 1978 ?",
+          "choices": ["Six", "Sept", "Huit", "Dix"],
+          "correctIndex": 2,
+          "points": 3
+        },
+        {
+          "id": "qd-020",
+          "prompt": "Quel mot est mal orthographié dans tous les dictionnaires anglais ?",
+          "choices": ["Misspelled", "Incorrectly", "Dictionary", "Wrong"],
+          "correctIndex": 1,
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "pop-culture-musique",
+      "title": "Pop Culture - Musique",
+      "questions": [
+        {
+          "id": "pm-001",
+          "prompt": "Amy Winehouse, Jimi Hendrix et Janis Joplin font partie de quel groupe malheureux ?",
+          "choices": ["Le Club des 25", "Le Club des 27", "Le Club des 30", "Le Club des Étoiles"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pm-002",
+          "prompt": "Quelle chanson a été la première vidéo musicale diffusée sur MTV ?",
+          "choices": ["Thriller de Michael Jackson", "Video Killed the Radio Star des Buggles", "Bohemian Rhapsody de Queen", "Like a Virgin de Madonna"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-003",
+          "prompt": "Quel est le nom de scène de Stefani Joanne Angelina Germanotta ?",
+          "choices": ["Adele", "Lady Gaga", "Lorde", "Sia"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pm-004",
+          "prompt": "Quelle artiste a été la première femme intronisée au Rock & Roll Hall of Fame ?",
+          "choices": ["Tina Turner", "Aretha Franklin", "Janis Joplin", "Diana Ross"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-005",
+          "prompt": "Quel artiste a joué 27 instruments sur son premier album 'For You' ?",
+          "choices": ["Stevie Wonder", "Prince", "Lenny Kravitz", "Beck"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-006",
+          "prompt": "Où le groupe ABBA s'est-il formé ?",
+          "choices": ["En Norvège", "Au Danemark", "En Suède", "En Finlande"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "pm-007",
+          "prompt": "Quel single des Beatles est resté le plus longtemps numéro 1 du Billboard ?",
+          "choices": ["Let It Be", "Hey Jude", "Yesterday", "Come Together"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-008",
+          "prompt": "Combien de membres compte BTS ?",
+          "choices": ["Cinq", "Six", "Sept", "Huit"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "pm-009",
+          "prompt": "De quel instrument Lizzo joue-t-elle ?",
+          "choices": ["Le saxophone", "La flûte", "La clarinette", "Le hautbois"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pm-010",
+          "prompt": "Quel est le groupe le plus ancien à avoir gardé sa formation d'origine ?",
+          "choices": ["The Rolling Stones", "U2", "Radiohead", "Depeche Mode"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-011",
+          "prompt": "Quel est l'album le plus vendu de tous les temps aux États-Unis ?",
+          "choices": ["Thriller de Michael Jackson", "Their Greatest Hits des Eagles", "Back in Black d'AC/DC", "Rumours de Fleetwood Mac"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "pm-012",
+          "prompt": "En 2017, quel single est arrivé en tête des ventes dans 47 pays simultanément ?",
+          "choices": ["Shape of You", "Despacito", "Havana", "Sorry"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-013",
+          "prompt": "Ariana Grande a commencé sa carrière à 15 ans dans quelle comédie musicale de Broadway ?",
+          "choices": ["Wicked", "13", "Hairspray", "Annie"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-014",
+          "prompt": "Qui est la plus jeune personne à avoir remporté un Grammy pour l'album de l'année ?",
+          "choices": ["Taylor Swift", "Billie Eilish", "Olivia Rodrigo", "Adele"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-015",
+          "prompt": "Combien d'albums solo Lauryn Hill a-t-elle produits ?",
+          "choices": ["Un seul", "Deux", "Trois", "Quatre"],
+          "correctIndex": 0,
+          "points": 2
+        },
+        {
+          "id": "pm-016",
+          "prompt": "Qui a remporté le Grammy 2024 du disque de l'année ?",
+          "choices": ["Taylor Swift", "SZA", "Miley Cyrus", "Olivia Rodrigo"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "pm-017",
+          "prompt": "Avec quel album Beyoncé a-t-elle lancé sa carrière solo ?",
+          "choices": ["Lemonade", "B'Day", "Dangerously In Love", "4"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "pm-018",
+          "prompt": "Starchild, Demon, Spaceman et Catman sont les personnages de quel groupe ?",
+          "choices": ["Slipknot", "KISS", "Gwar", "Lordi"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pm-019",
+          "prompt": "Comment Otis Redding est-il mort ?",
+          "choices": ["D'une overdose", "Dans un accident d'avion", "D'une crise cardiaque", "Dans un accident de voiture"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "pm-020",
+          "prompt": "Quel groupe punk a été formé par Kathleen Hanna au début des années 1990 ?",
+          "choices": ["Sleater-Kinney", "Bikini Kill", "Hole", "L7"],
+          "correctIndex": 1,
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "pop-culture-cinema",
+      "title": "Pop Culture - Cinéma",
+      "questions": [
+        {
+          "id": "pc-001",
+          "prompt": "Quel film a rapporté le plus d'argent de tous les temps ?",
+          "choices": ["Titanic", "Avengers: Endgame", "Avatar", "Star Wars: Le Réveil de la Force"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "pc-002",
+          "prompt": "Quel a été le premier long-métrage d'animation jamais sorti ?",
+          "choices": ["Pinocchio", "Blanche-Neige et les sept nains", "Fantasia", "Bambi"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pc-003",
+          "prompt": "Combien de soleils compte la planète Tatooine dans Star Wars ?",
+          "choices": ["Un", "Deux", "Trois", "Quatre"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pc-004",
+          "prompt": "Quel est le premier film d'horreur à remporter l'Oscar du meilleur film ?",
+          "choices": ["L'Exorciste", "Le Silence des Agneaux", "Psycho", "Rosemary's Baby"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-005",
+          "prompt": "Quel film non anglais a remporté l'Oscar du meilleur film en premier ?",
+          "choices": ["Amour", "Roma", "Parasite", "La Vie est belle"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "pc-006",
+          "prompt": "Quel est le nom de l'hôtel dans Psycho ?",
+          "choices": ["L'hôtel Overlook", "Le motel Bates", "L'hôtel Stanley", "Le motel Rose"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pc-007",
+          "prompt": "Quel est le nom du personnage joué par Tom Cruise dans Mission Impossible ?",
+          "choices": ["Jason Bourne", "James Bond", "Ethan Hunt", "Jack Reacher"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "pc-008",
+          "prompt": "Quel est le premier film pour lequel Alan Rickman a été crédité ?",
+          "choices": ["Robin des Bois", "Die Hard", "Love Actually", "Harry Potter"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-009",
+          "prompt": "Quelle est la seule princesse Disney inspirée par une personne réelle ?",
+          "choices": ["Mulan", "Pocahontas", "Moana", "Tiana"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-010",
+          "prompt": "Combien de fois 'Une étoile est née' a-t-il été refait ?",
+          "choices": ["Deux", "Trois", "Quatre", "Cinq"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "pc-011",
+          "prompt": "Qui a été la première actrice noire à remporter un Oscar ?",
+          "choices": ["Dorothy Dandridge", "Hattie McDaniel", "Sidney Poitier", "Cicely Tyson"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-012",
+          "prompt": "Quel est le nom de la nation africaine fictive dans Black Panther ?",
+          "choices": ["Zamunda", "Wakanda", "Genosha", "Kahndaq"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pc-013",
+          "prompt": "Quel est le nom du personnage joué par Michael Cera dans Barbie 2023 ?",
+          "choices": ["Ken", "Allan", "Ryan", "Max"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-014",
+          "prompt": "Dans The Hunger Games, où se déroule l'histoire ?",
+          "choices": ["Panem", "Dystopia", "Capitol City", "Arcadia"],
+          "correctIndex": 0,
+          "points": 1
+        },
+        {
+          "id": "pc-015",
+          "prompt": "Quel film de comédie pour adolescents de 2019 a été réalisé par Olivia Wilde ?",
+          "choices": ["Lady Bird", "Booksmart", "Superbad", "Eighth Grade"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-016",
+          "prompt": "Quel est le nom de famille des trois sœurs sorcières dans Hocus Pocus ?",
+          "choices": ["Owens", "Sanderson", "Halliwell", "Warren"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-017",
+          "prompt": "De quelle pièce de Shakespeare '10 Things I Hate About You' est-il inspiré ?",
+          "choices": ["Roméo et Juliette", "Le Songe d'une nuit d'été", "La Mégère apprivoisée", "Beaucoup de bruit pour rien"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "pc-018",
+          "prompt": "Quel est le nom de la gentille enseignante de Matilda ?",
+          "choices": ["Miss Trunchbull", "Miss Honey", "Miss Frizzle", "Miss Bloom"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "pc-019",
+          "prompt": "Combien d'enfants compte la famille Von Trapp dans La Mélodie du bonheur ?",
+          "choices": ["Cinq", "Six", "Sept", "Huit"],
+          "correctIndex": 2,
+          "points": 1
+        },
+        {
+          "id": "pc-020",
+          "prompt": "Quelle est la règle n°1 pour survivre dans Zombieland ?",
+          "choices": ["Toujours vérifier la banquette arrière", "Le cardio", "Ne jamais être un héros", "La double tape"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-021",
+          "prompt": "Combien de lettres Lara Jean écrit-elle dans 'À tous les garçons que j'ai aimés' ?",
+          "choices": ["Trois", "Cinq", "Sept", "Dix"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "pc-022",
+          "prompt": "Qui joue la fée marraine dans la version 1997 de Cendrillon avec Brandy ?",
+          "choices": ["Oprah Winfrey", "Whoopi Goldberg", "Whitney Houston", "Diana Ross"],
+          "correctIndex": 2,
+          "points": 2
+        },
+        {
+          "id": "pc-023",
+          "prompt": "D'où vient Jack Dawson dans Titanic ?",
+          "choices": ["Boston, Massachusetts", "Chippewa Falls, Wisconsin", "Milwaukee, Oregon", "Portland, Maine"],
+          "correctIndex": 1,
+          "points": 3
+        },
+        {
+          "id": "pc-024",
+          "prompt": "Dans quelle ville fictive se déroule Les Dents de la mer ?",
+          "choices": ["Amity Island", "Shark Bay", "Coral Cove", "Neptune Beach"],
+          "correctIndex": 0,
+          "points": 2
+        },
+        {
+          "id": "pc-025",
+          "prompt": "Quel film de 2011 met en scène Ryan Gosling et Emma Stone en tant qu'amoureux ?",
+          "choices": ["La La Land", "Crazy, Stupid, Love", "The Notebook", "Blue Valentine"],
+          "correctIndex": 1,
+          "points": 2
+        }
+      ]
+    }
+  ]
+}

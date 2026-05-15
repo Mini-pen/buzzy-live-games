@@ -1,0 +1,771 @@
+{
+  "$schema": "https://partygames.local/schemas/quiz-pack-v1.json",
+  "id": "cultureg-quizz-open-v1",
+  "title": "Culture Générale - Questions ouvertes",
+  "version": 1,
+  "source": "https://www.gqmagazine.fr/article/questions-de-culture-generale-et-leurs-reponses",
+  "rounds": [
+    {
+      "id": "connaissances-generales",
+      "title": "Connaissances générales",
+      "questions": [
+        {
+          "id": "cg-o001",
+          "prompt": "Qui a écrit le roman américain classique 'Their Eyes Were Watching God' ?",
+          "answer": "Zora Neale Hurston",
+          "points": 3
+        },
+        {
+          "id": "cg-o002",
+          "prompt": "Quel est le nom de l'hôtel possédé dans le roman 'The Shining' de Stephen King ?",
+          "answer": "L'hôtel Overlook",
+          "points": 2
+        },
+        {
+          "id": "cg-o003",
+          "prompt": "Quels sont les deux États américains qui partagent le plus de frontières avec d'autres États ?",
+          "answer": "Le Tennessee et le Missouri",
+          "points": 3
+        },
+        {
+          "id": "cg-o004",
+          "prompt": "Sous quel pseudonyme l'auteur des célèbres 'romans napolitains' publie-t-il ses œuvres ?",
+          "answer": "Elena Ferrante",
+          "points": 3
+        },
+        {
+          "id": "cg-o005",
+          "prompt": "Où a-t-on enregistré la température la plus élevée jamais enregistrée sur Terre ?",
+          "answer": "La Vallée de la Mort, en Californie",
+          "points": 2
+        },
+        {
+          "id": "cg-o006",
+          "prompt": "Qui détient le record du plus grand nombre de victoires aux Emmy Awards dans la catégorie 'Meilleur animateur d'un programme de téléréalité' ?",
+          "answer": "RuPaul",
+          "points": 3
+        },
+        {
+          "id": "cg-o007",
+          "prompt": "Quels sont les prénoms des quatre personnages principaux de la série 'H' ?",
+          "answer": "Jamel, Brahim, Aymé et Kader",
+          "points": 2
+        },
+        {
+          "id": "cg-o008",
+          "prompt": "Combien de pieds y a-t-il dans une cour (yard) ?",
+          "answer": "Trois",
+          "points": 1
+        },
+        {
+          "id": "cg-o009",
+          "prompt": "Quelle est la capitale de Singapour ?",
+          "answer": "Singapour",
+          "points": 1
+        },
+        {
+          "id": "cg-o010",
+          "prompt": "Quel est le nom de l'événement météorologique également appelé ouragan hivernal ?",
+          "answer": "Un cyclone-bombe",
+          "points": 3
+        },
+        {
+          "id": "cg-o011",
+          "prompt": "En quelle année l'affaire Obergefell v. Hodges sur l'égalité des mariages a-t-elle été jugée ?",
+          "answer": "2015",
+          "points": 2
+        },
+        {
+          "id": "cg-o012",
+          "prompt": "Quels sont les noms des quatre sœurs March dans 'Les Filles du Dr March' ?",
+          "answer": "Meg, Jo, Beth et Amy",
+          "points": 2
+        },
+        {
+          "id": "cg-o013",
+          "prompt": "Quel était le nom de jeune fille d'Eleanor Roosevelt avant son mariage avec FDR ?",
+          "answer": "Roosevelt (ils étaient cousins au cinquième degré)",
+          "points": 3
+        },
+        {
+          "id": "cg-o014",
+          "prompt": "Dans quelle ville les premières infections par le COVID-19 ont-elles été découvertes ?",
+          "answer": "Wuhan, en Chine",
+          "points": 1
+        },
+        {
+          "id": "cg-o015",
+          "prompt": "Quel est le nom de l'événement solaire qui se produit le 20 ou le 21 mars chaque année ?",
+          "answer": "L'équinoxe de printemps",
+          "points": 2
+        },
+        {
+          "id": "cg-o016",
+          "prompt": "Quelle est la capitale de l'Iowa ?",
+          "answer": "Des Moines",
+          "points": 2
+        },
+        {
+          "id": "cg-o017",
+          "prompt": "À quel artiste attribue-t-on la citation : 'Je suis ma propre muse, je suis la personne que je connais le mieux' ?",
+          "answer": "Frida Kahlo",
+          "points": 2
+        },
+        {
+          "id": "cg-o018",
+          "prompt": "Quel président américain figure sur le billet de 2 dollars ?",
+          "answer": "Thomas Jefferson",
+          "points": 2
+        },
+        {
+          "id": "cg-o019",
+          "prompt": "Dans quelle phase la lune entre-t-elle après avoir été pleine ?",
+          "answer": "La phase gibbeuse décroissante",
+          "points": 3
+        },
+        {
+          "id": "cg-o020",
+          "prompt": "Quelle est la place de l'aubergine dans la pyramide alimentaire ?",
+          "answer": "Dans la section des fruits",
+          "points": 2
+        },
+        {
+          "id": "cg-o021",
+          "prompt": "Quelle organisation religieuse et politique Malcolm X a-t-il rejoint en 1952 ?",
+          "answer": "La Nation de l'Islam",
+          "points": 3
+        },
+        {
+          "id": "cg-o022",
+          "prompt": "Quelle chaîne de restauration rapide américaine a introduit la première fenêtre drive-through ?",
+          "answer": "In-N-Out Burger",
+          "points": 3
+        },
+        {
+          "id": "cg-o023",
+          "prompt": "Dans quelle ville et quel État se trouve l'université de Harvard ?",
+          "answer": "Cambridge, Massachusetts",
+          "points": 2
+        },
+        {
+          "id": "cg-o024",
+          "prompt": "Quelle actrice française a eu la carrière la plus longue à la télévision ?",
+          "answer": "Jacqueline Maillan",
+          "points": 3
+        },
+        {
+          "id": "cg-o025",
+          "prompt": "Quel célèbre activiste a été inscrit sur la liste des personnes les plus recherchées par le FBI en 1970 ?",
+          "answer": "Angela Davis",
+          "points": 3
+        },
+        {
+          "id": "cg-o026",
+          "prompt": "Quels sont les trois signes d'eau du zodiaque ?",
+          "answer": "Les Poissons, le Cancer et le Scorpion",
+          "points": 2
+        },
+        {
+          "id": "cg-o027",
+          "prompt": "Quels sont les deux principaux ingrédients du coq au vin ?",
+          "answer": "Le poulet (ou coq) et le vin rouge",
+          "points": 1
+        },
+        {
+          "id": "cg-o028",
+          "prompt": "Où vivaient Winnie l'Ourson et sa bande avec Christophe Robin ?",
+          "answer": "Le Bois des Cent Acres",
+          "points": 1
+        },
+        {
+          "id": "cg-o029",
+          "prompt": "Quel était le nom de jeune fille de la princesse Diana ?",
+          "answer": "Spencer",
+          "points": 1
+        },
+        {
+          "id": "cg-o030",
+          "prompt": "Quel est le premier long métrage de Spike Lee, adapté plus tard en série sur Netflix ?",
+          "answer": "Nola Darling n'en fait qu'à sa tête",
+          "points": 3
+        },
+        {
+          "id": "cg-o031",
+          "prompt": "Dans Les Chroniques de Narnia, pourquoi Edmond finit-il par trahir sa famille après avoir rencontré la sorcière blanche ?",
+          "answer": "Pour un loukoum",
+          "points": 2
+        },
+        {
+          "id": "cg-o032",
+          "prompt": "Quelle célèbre chanteuse d'origine texane a été appelée la 'Reine du Tejano' ?",
+          "answer": "Selena Quintanilla-Pérez",
+          "points": 3
+        },
+        {
+          "id": "cg-o033",
+          "prompt": "Quel plat phare, lancé en 1957, a rendu célèbre la deuxième plus grande chaîne mondiale de restauration rapide ?",
+          "answer": "Le Whopper (Burger King)",
+          "points": 2
+        },
+        {
+          "id": "cg-o034",
+          "prompt": "Quel amendement à la Constitution américaine a aboli l'esclavage ?",
+          "answer": "Le 13e amendement",
+          "points": 2
+        },
+        {
+          "id": "cg-o035",
+          "prompt": "Quel est le nom du poète grec de l'Antiquité qui a inspiré le terme lesbianisme ?",
+          "answer": "Sappho",
+          "points": 3
+        },
+        {
+          "id": "cg-o036",
+          "prompt": "Quel est le nom de famille des quatre sœurs dominicaines qui se sont rebellées contre la dictature de Rafael Trujillo ?",
+          "answer": "Mirabal",
+          "points": 3
+        },
+        {
+          "id": "cg-o037",
+          "prompt": "Quelle célèbre franchise de livres et de films a débuté comme une fanfiction de Twilight ?",
+          "answer": "50 Nuances de Grey",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "questions-aleatoires",
+      "title": "Questions aléatoires",
+      "questions": [
+        {
+          "id": "qa-o001",
+          "prompt": "Où se trouvent les plus hautes montagnes russes du monde ?",
+          "answer": "Dans le New Jersey, à Six Flags Great Adventure (Kingda Ka, 456 pieds)",
+          "points": 3
+        },
+        {
+          "id": "qa-o002",
+          "prompt": "Le globe et la Jérusalem sont deux variétés de quel légume ?",
+          "answer": "L'artichaut",
+          "points": 2
+        },
+        {
+          "id": "qa-o003",
+          "prompt": "Quelle est la planète qui a le plus de gravité ?",
+          "answer": "Jupiter",
+          "points": 2
+        },
+        {
+          "id": "qa-o004",
+          "prompt": "Les fissures, les évents et les bouchons sont tous associés à quelle caractéristique géologique ?",
+          "answer": "Les volcans",
+          "points": 2
+        },
+        {
+          "id": "qa-o005",
+          "prompt": "Quel a été le premier jouet à faire l'objet d'une publicité à la télévision ?",
+          "answer": "Mr Tête de Patate",
+          "points": 3
+        },
+        {
+          "id": "qa-o006",
+          "prompt": "Que disait le premier message envoyé par télégramme ?",
+          "answer": "What hath God wrought",
+          "points": 3
+        },
+        {
+          "id": "qa-o007",
+          "prompt": "Dans quel pays se trouve la route la plus longue ?",
+          "answer": "Les États-Unis (Route 20, 3 365 miles)",
+          "points": 3
+        },
+        {
+          "id": "qa-o008",
+          "prompt": "Où se trouve le bureau de poste le plus haut du monde ?",
+          "answer": "En Inde, à Hikkim, Himachal Pradesh",
+          "points": 3
+        },
+        {
+          "id": "qa-o009",
+          "prompt": "Quelle lettre n'apparaît dans aucun nom d'État américain ?",
+          "answer": "Q",
+          "points": 3
+        },
+        {
+          "id": "qa-o010",
+          "prompt": "Quel artiste musical a été gymnaste de compétition avant sa carrière musicale ?",
+          "answer": "SZA",
+          "points": 3
+        },
+        {
+          "id": "qa-o011",
+          "prompt": "Quel est le nom collectif d'une meute de chiens carlins ?",
+          "answer": "Un grognement",
+          "points": 3
+        },
+        {
+          "id": "qa-o012",
+          "prompt": "Quelle invention américaine de la fin du XIXe siècle visait à résoudre les crises de l'indigestion et de la masturbation ?",
+          "answer": "Les corn flakes",
+          "points": 3
+        },
+        {
+          "id": "qa-o013",
+          "prompt": "Quelle actrice est devenue virale pour avoir menti sur son amour des citrons verts ?",
+          "answer": "Dakota Johnson",
+          "points": 2
+        },
+        {
+          "id": "qa-o014",
+          "prompt": "Le visage de quel homme politique américain a été utilisé pour tester l'intelligence des corbeaux ?",
+          "answer": "Dick Cheney",
+          "points": 3
+        },
+        {
+          "id": "qa-o015",
+          "prompt": "Quelle célèbre reine historique est aujourd'hui connue pour ses goûts en matière de mobilier ?",
+          "answer": "Catherine la Grande",
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "questions-faciles",
+      "title": "Questions faciles",
+      "questions": [
+        {
+          "id": "qf-o001",
+          "prompt": "Qui est le seul président américain à avoir effectué plus de deux mandats ?",
+          "answer": "Franklin D. Roosevelt",
+          "points": 2
+        },
+        {
+          "id": "qf-o002",
+          "prompt": "Quelle sœur Williams a remporté le plus de titres du Grand Chelem ?",
+          "answer": "Serena",
+          "points": 1
+        },
+        {
+          "id": "qf-o003",
+          "prompt": "Quel type de requin est responsable du plus grand nombre d'attaques sur des humains chaque année ?",
+          "answer": "Le grand requin blanc",
+          "points": 2
+        },
+        {
+          "id": "qf-o004",
+          "prompt": "Au Royaume-Uni, quel est le nom du jour qui suit Noël ?",
+          "answer": "Le Boxing Day (lendemain de Noël)",
+          "points": 1
+        },
+        {
+          "id": "qf-o005",
+          "prompt": "Quel est l'hymne national des États-Unis ?",
+          "answer": "The Star-Spangled Banner (La bannière étoilée)",
+          "points": 1
+        },
+        {
+          "id": "qf-o006",
+          "prompt": "Quel est l'État américain le plus grand en superficie ?",
+          "answer": "L'Alaska",
+          "points": 1
+        },
+        {
+          "id": "qf-o007",
+          "prompt": "Quel pays a remporté la Coupe du monde féminine de la FIFA en 2019 ?",
+          "answer": "Les États-Unis",
+          "points": 2
+        },
+        {
+          "id": "qf-o008",
+          "prompt": "Quel joueur de baseball a brisé la barrière raciale de la Ligue majeure en 1947 ?",
+          "answer": "Jackie Robinson",
+          "points": 2
+        },
+        {
+          "id": "qf-o009",
+          "prompt": "Quelle chanson Tom Holland a-t-il interprétée dans Lip Sync Battle en 2017 ?",
+          "answer": "Umbrella de Rihanna",
+          "points": 2
+        },
+        {
+          "id": "qf-o010",
+          "prompt": "Dans quelle émission Ryan Gosling et Christina Aguilera ont-ils débuté ?",
+          "answer": "Le Mickey Mouse Club",
+          "points": 2
+        },
+        {
+          "id": "qf-o011",
+          "prompt": "Combien de Cheetah Girls y a-t-il dans la série de films ?",
+          "answer": "Quatre",
+          "points": 1
+        },
+        {
+          "id": "qf-o012",
+          "prompt": "Combien de juges siègent à la Cour suprême des États-Unis ?",
+          "answer": "Neuf",
+          "points": 1
+        },
+        {
+          "id": "qf-o013",
+          "prompt": "Quel est le nom du protagoniste de 'L'Attrape-cœurs' ?",
+          "answer": "Holden Caulfield",
+          "points": 2
+        },
+        {
+          "id": "qf-o014",
+          "prompt": "Quel animal emblématique représente les céréales Kellogg's ?",
+          "answer": "Le tigre Tony",
+          "points": 1
+        },
+        {
+          "id": "qf-o015",
+          "prompt": "Quels sont les noms de famille des clans dans 'Roméo et Juliette' ?",
+          "answer": "Les Montaigu et les Capulet",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "id": "questions-difficiles",
+      "title": "Questions difficiles",
+      "questions": [
+        {
+          "id": "qd-o001",
+          "prompt": "Qui est considérée comme la première femme millionnaire autodidacte aux États-Unis ?",
+          "answer": "Madame C.J. Walker",
+          "points": 3
+        },
+        {
+          "id": "qd-o002",
+          "prompt": "Jusqu'à quand le Code Hays, imposant une censure morale à Hollywood, a-t-il été en vigueur ?",
+          "answer": "Jusqu'en 1968 (adopté en 1930)",
+          "points": 3
+        },
+        {
+          "id": "qd-o003",
+          "prompt": "Les Goo Goo Dolls ont écrit 'Iris' pour quel film ?",
+          "answer": "City of Angels",
+          "points": 2
+        },
+        {
+          "id": "qd-o004",
+          "prompt": "Citez trois films basés sur des attractions de Disney World.",
+          "answer": "Tower of Terror, Jungle Cruise, The Haunted Mansion",
+          "points": 3
+        },
+        {
+          "id": "qd-o005",
+          "prompt": "Quel lauréat du prix Nobel de littérature a déclaré vouloir éliminer le regard blanc dominant dans ses œuvres ?",
+          "answer": "Toni Morrison",
+          "points": 3
+        },
+        {
+          "id": "qd-o006",
+          "prompt": "Quel était le titre provisoire du film 'Everything Everywhere All At Once' ?",
+          "answer": "A Woman Tries to Do Her Taxes",
+          "points": 3
+        },
+        {
+          "id": "qd-o007",
+          "prompt": "Qui est la plus jeune lauréate d'un Oscar ?",
+          "answer": "Tatum O'Neal, à 10 ans pour Paper Moon",
+          "points": 3
+        },
+        {
+          "id": "qd-o008",
+          "prompt": "Où se trouvait l'ancienne civilisation ayant inventé la bière il y a environ 5 000 ans ?",
+          "answer": "En Irak (Mésopotamie, civilisation sumérienne)",
+          "points": 3
+        },
+        {
+          "id": "qd-o009",
+          "prompt": "Qui était la star hollywoodienne ayant gagné le plus d'argent en 2023 ?",
+          "answer": "Adam Sandler",
+          "points": 2
+        },
+        {
+          "id": "qd-o010",
+          "prompt": "Quel auteur et star de la télévision a été agent secret avant de développer un répulsif à requins ?",
+          "answer": "Julia Child",
+          "points": 3
+        },
+        {
+          "id": "qd-o011",
+          "prompt": "Quel parc national abrite des lucioles synchronisées dans l'hémisphère occidental ?",
+          "answer": "Le parc national des Great Smoky Mountains",
+          "points": 3
+        },
+        {
+          "id": "qd-o012",
+          "prompt": "Quels textes d'horreur célèbres ont été écrits pendant des vacances pluvieuses ?",
+          "answer": "Frankenstein et The Vampyre",
+          "points": 3
+        },
+        {
+          "id": "qd-o013",
+          "prompt": "Quel lien distant la poétesse Emily Dickinson partage-t-elle avec Taylor Swift ?",
+          "answer": "Cousines au sixième degré, trois fois éloignées",
+          "points": 3
+        },
+        {
+          "id": "qd-o014",
+          "prompt": "Quel lauréat du prix Pulitzer a inventé le terme 'colorisme' en 1982 ?",
+          "answer": "Alice Walker",
+          "points": 3
+        },
+        {
+          "id": "qd-o015",
+          "prompt": "Qui a remporté un EGOT à titre posthume en 1994 ?",
+          "answer": "Audrey Hepburn",
+          "points": 3
+        }
+      ]
+    },
+    {
+      "id": "pop-culture-musique",
+      "title": "Pop Culture - Musique",
+      "questions": [
+        {
+          "id": "pm-o001",
+          "prompt": "Qui Britney Spears a-t-elle embrassé lors des VMAs 2003, à part Madonna ?",
+          "answer": "Christina Aguilera",
+          "points": 2
+        },
+        {
+          "id": "pm-o002",
+          "prompt": "Qui a chanté la première version enregistrée de 'Strange Fruit', chanson contre le racisme ?",
+          "answer": "Billie Holiday",
+          "points": 3
+        },
+        {
+          "id": "pm-o003",
+          "prompt": "Quel était le vrai prénom de Notorious BIG ?",
+          "answer": "Christopher",
+          "points": 2
+        },
+        {
+          "id": "pm-o004",
+          "prompt": "Quel âge avait Taylor Swift lorsqu'elle a remporté son premier Grammy de l'album de l'année ?",
+          "answer": "20 ans",
+          "points": 2
+        },
+        {
+          "id": "pm-o005",
+          "prompt": "Quel a été le premier numéro 1 des Beach Boys ?",
+          "answer": "I Get Around",
+          "points": 3
+        },
+        {
+          "id": "pm-o006",
+          "prompt": "Quel artiste a interprété tous les personnages de West Side Story lors d'une représentation télévisée en 1978 ?",
+          "answer": "Cher",
+          "points": 3
+        },
+        {
+          "id": "pm-o007",
+          "prompt": "Quel artiste country a connu un succès en 1957 avec 'Walkin' After Midnight' ?",
+          "answer": "Patsy Cline",
+          "points": 3
+        },
+        {
+          "id": "pm-o008",
+          "prompt": "Qui a devancé Beyoncé en 2021 pour le titre d'artiste féminine ayant reçu le plus de Grammys ?",
+          "answer": "Alison Krauss",
+          "points": 3
+        },
+        {
+          "id": "pm-o009",
+          "prompt": "Quel est le nom du quatrième album studio de Led Zeppelin, incluant 'Stairway to Heaven' ?",
+          "answer": "Led Zeppelin IV",
+          "points": 2
+        },
+        {
+          "id": "pm-o010",
+          "prompt": "Qui a sorti 'Uptown Funk', 14 semaines numéro 1 du Billboard en 2015 ?",
+          "answer": "Mark Ronson (feat. Bruno Mars)",
+          "points": 2
+        },
+        {
+          "id": "pm-o011",
+          "prompt": "Quelle a été la première chanson d'Olivia Rodrigo à entrer dans le Billboard Hot 100 ?",
+          "answer": "All I Want",
+          "points": 3
+        },
+        {
+          "id": "pm-o012",
+          "prompt": "Combien des 10 albums les plus vendus en 2023 étaient de Taylor Swift ?",
+          "answer": "Cinq",
+          "points": 2
+        },
+        {
+          "id": "pm-o013",
+          "prompt": "Qui est la première femme noire à avoir écrit une chanson sur un tube country numéro 1 ?",
+          "answer": "Tracy Chapman (via Luke Combs et 'Fast Car')",
+          "points": 3
+        },
+        {
+          "id": "pm-o014",
+          "prompt": "Qui sont les trois membres du supergroupe indie Boygenius ?",
+          "answer": "Julien Baker, Phoebe Bridgers, Lucy Dacus",
+          "points": 3
+        },
+        {
+          "id": "pm-o015",
+          "prompt": "Quels sont les prénoms des cinq membres des Backstreet Boys ?",
+          "answer": "Nick, AJ, Brian, Kevin, Howie",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "pop-culture-cinema",
+      "title": "Pop Culture - Cinéma",
+      "questions": [
+        {
+          "id": "pc-o001",
+          "prompt": "De quel film provient la chanson 'Journey to the Past', nominée aux Oscars ?",
+          "answer": "Anastasia",
+          "points": 2
+        },
+        {
+          "id": "pc-o002",
+          "prompt": "À quelle nuance spécifique Miranda Priestly consacre-t-elle un monologue dans Le Diable s'habille en Prada ?",
+          "answer": "Céruléen",
+          "points": 3
+        },
+        {
+          "id": "pc-o003",
+          "prompt": "Quel documentaire dépeint les salles de bal de New York pendant l'épidémie de sida dans les années 1980 ?",
+          "answer": "Paris is Burning",
+          "points": 3
+        },
+        {
+          "id": "pc-o004",
+          "prompt": "Quel est le nom du personnage joué par Jeff Goldblum dans Jurassic Park ?",
+          "answer": "Ian Malcolm",
+          "points": 1
+        },
+        {
+          "id": "pc-o005",
+          "prompt": "Quel est le nom de la danse emblématique qui commence par un 'jump to the left' dans Rocky Horror Picture Show ?",
+          "answer": "La distorsion temporelle (The Time Warp)",
+          "points": 2
+        },
+        {
+          "id": "pc-o006",
+          "prompt": "De quel groupe musical Dreamgirls est-il censé s'inspirer ?",
+          "answer": "Les Supremes",
+          "points": 2
+        },
+        {
+          "id": "pc-o007",
+          "prompt": "Que signifie la classification des films 'R' ?",
+          "answer": "Restreint (Restricted)",
+          "points": 1
+        },
+        {
+          "id": "pc-o008",
+          "prompt": "Quel film des années 90 a eu les mêmes costumiers que 'Romy & Michele's High School Reunion' ?",
+          "answer": "Clueless",
+          "points": 3
+        },
+        {
+          "id": "pc-o009",
+          "prompt": "Pourquoi Ally Sheedy est-elle en détention dans The Breakfast Club ?",
+          "answer": "Parce qu'elle n'avait rien de mieux à faire",
+          "points": 3
+        },
+        {
+          "id": "pc-o010",
+          "prompt": "Quels films partagent le titre de lauréat du plus grand nombre d'Oscars ?",
+          "answer": "Le Seigneur des anneaux : Le Retour du roi, Ben-Hur et Titanic",
+          "points": 3
+        },
+        {
+          "id": "pc-o011",
+          "prompt": "Quel groupe des années 2000 joue un rôle central dans 'New York Minute' avec Mary Kate et Ashley ?",
+          "answer": "Simple Plan",
+          "points": 3
+        },
+        {
+          "id": "pc-o012",
+          "prompt": "Quelle chanson Barry Keoghan danse-t-il à la fin de Saltburn ?",
+          "answer": "Murder on the Dancefloor de Sophie Ellis-Bextor",
+          "points": 2
+        },
+        {
+          "id": "pc-o013",
+          "prompt": "Quel a été le prochain grand film hollywoodien majoritairement asiatique après 'Le Club de la chance' (1993) ?",
+          "answer": "Crazy Rich Asians en 2018",
+          "points": 3
+        },
+        {
+          "id": "pc-o014",
+          "prompt": "Où Lizzie McGuire part-elle pour son voyage de fin d'études dans le film ?",
+          "answer": "Rome",
+          "points": 1
+        },
+        {
+          "id": "pc-o015",
+          "prompt": "Quel est le nom du camp de rock dans Camp Rock ?",
+          "answer": "Camp Rock",
+          "points": 1
+        },
+        {
+          "id": "pc-o016",
+          "prompt": "Sur quelle chanson Diane Keaton, Goldie Hawn et Bette Midler dansent-elles dans The First Wives Club ?",
+          "answer": "You Don't Own Me de Lesley Gore",
+          "points": 3
+        },
+        {
+          "id": "pc-o017",
+          "prompt": "Que fait le père d'Alan Parrish dans Jumanji ?",
+          "answer": "Il est propriétaire d'une fabrique de chaussures",
+          "points": 3
+        },
+        {
+          "id": "pc-o018",
+          "prompt": "Quel est le nom de la meilleure amie d'Andie dans Pretty in Pink ?",
+          "answer": "Duckie",
+          "points": 2
+        },
+        {
+          "id": "pc-o019",
+          "prompt": "En quoi Cady se déguise-t-elle pour la fête d'Halloween dans Mean Girls ?",
+          "answer": "En mariée zombie (zombie bride)",
+          "points": 2
+        },
+        {
+          "id": "pc-o020",
+          "prompt": "Qui gagne le match de basket à la fin de Love & Basketball ?",
+          "answer": "Monica",
+          "points": 3
+        },
+        {
+          "id": "pc-o021",
+          "prompt": "Quel est le nom du pays magique dans Twitches ?",
+          "answer": "Coventry",
+          "points": 3
+        },
+        {
+          "id": "pc-o022",
+          "prompt": "Quel a été le premier film de Mary-Kate et Ashley Olsen ?",
+          "answer": "To Grandma's House We Go (1992)",
+          "points": 3
+        },
+        {
+          "id": "pc-o023",
+          "prompt": "Quel type de sang couvre Carrie après le bal dans Carrie ?",
+          "answer": "Du sang de porc",
+          "points": 2
+        },
+        {
+          "id": "pc-o024",
+          "prompt": "Quelle célèbre actrice a dit : 'Quand je suis bonne, je suis très bonne, mais quand je suis mauvaise, je suis meilleure' ?",
+          "answer": "Mae West",
+          "points": 3
+        }
+      ]
+    }
+  ]
+}
