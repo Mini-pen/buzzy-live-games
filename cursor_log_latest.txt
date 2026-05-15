@@ -1,41 +1,24 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
-**Date** : 2026-05-14 (après-midi)  
-**Contexte** : Site `partygames.from-beyond.fr` inaccessible / routage Traefik cassé.
+**Date** : 2026-05-14 (soir)  
+**Contexte** : Poursuite produit après déploiement buzz / sons (backend déjà en place).
 
 ## Objectifs
 
-- Supprimer l’image / stack en conflit et redéployer proprement.
-- Script unique build + up + restart Traefik.
-- Documenter le piège « deux stacks = routeurs dupliqués ».
+- Restaurer sur la page **Rejoindre** le choix du son de buzzer et la préécoute.
 
 ## Réalisations
 
-### Cause racine
-
-- Deux conteneurs enregistraient les **mêmes** routeurs Traefik **`buzzylive-http`** / **`buzzylive-https`** :
-  - projet Compose **`partygames`** (répertoire obsolète `PartyGames/`),
-  - projet **`buzzy-live-games`** actuel — logs : *Router defined multiple times*.
-- Correction : suppression des conteneurs `label=com.docker.compose.project=partygames`,
-  puis un seul `docker compose up` depuis `buzzy-live-games/`.
-
-### Opérations effectuées sur l’hôte
-
-- `./scripts/deploy-docker-stack.sh` exécuté : `rmi -f buzzy-live-games:local`,
-  build `--no-cache`, `up -d`, `docker compose restart traefik` depuis `~/dev/traefik`.
-- Vérification : `curl -skI -H 'Host: partygames.from-beyond.fr' https://127.0.0.1/` → **HTTP 200**.
-
-### Fichiers ajoutés / modifiés
-
-- **`scripts/deploy-docker-stack.sh`** (bash, exécutable) — variables : `REMOVE_LEGACY_PARTYGAMES`,
-  `TRAEFIK_COMPOSE_DIR`, `TRAEFIK_SERVICE_NAME`, `TRAEFIK_CONTAINER_NAME`.
-- **`TRAEFIK.md`**, **`manuel.md`**, **`README.md`** : procédure de déploiement via le script.
+- `GET /api/sounds` : état `soundsLib`, préremplissage avec `defaultBuzzerKey`, liste en `<select>`
+  avec optgroups « Sons de buzzer et divers », « Ambiance positive », « Ambiance négative ».
+- `POST .../join` : champ `buzzSoundKey` lorsque le catalogue est chargé et une clé est choisie.
+- Bouton **Écouter** : `playSfxUrl` sur l’URL du sample sélectionné.
+- Styles `.bz-join-sound-row`, `.bz-join-sound-select`, `.bz-join-sound-preview`.
 
 ## Prochain focus suggéré
 
-- Si un autre service réutilise encore des labels `Host(...)` identiques, appliquer le même principe
-  (une seule source de vérité par host) ou renommer les routeurs côté labels.
+- Panneau animateur : vérifier / compléter l’UI de politique de sons (bons / mauvais, cases lecture sur téléphone / écho poste).
 
 ## Références
 
-- `docker-compose.yml`, `scripts/deploy-docker-stack.sh`, logs Traefik (*Router defined multiple times*).
+- Commit `f5cf035` ; fichiers `webserver/client/src/App.tsx`, `webserver/client/src/styles/buzzy.css`.

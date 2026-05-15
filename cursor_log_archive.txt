@@ -28,3 +28,11 @@ Session 2026-05-14 — Déploiement Docker / Traefik (site HS)
 - Script scripts/deploy-docker-stack.sh : down, rmi image locale, purge conteneurs partygames,
   build --no-cache, up -d, restart Traefik (~/dev/traefik par défaut).
 - Docs TRAEFIK.md, manuel.md, README.md mises à jour pour ce flux.
+
+================================================================================
+Session 2026-05-14 — Page Rejoindre : choix son buzzer
+================================================================================
+- Chargement `GET /api/sounds` ; menu déroulant par groupes (neutre / bon / mauvais) ;
+  `buzzSoundKey` envoyé sur `POST /api/parties/:id/join` ; bouton « Écouter » (préécoute).
+- Fichiers : `webserver/client/src/App.tsx`, `webserver/client/src/styles/buzzy.css`.
+- Commit `f5cf035` sur `main`.
