@@ -20,6 +20,9 @@ const store = new PartyStore((partyId, party) => {
   socketRef
     .to(`party:${partyId}:admin`)
     .emit("party:patch", partySnapshotWithGame(party, packs, "host"));
+  socketRef
+    .to(`party:${partyId}:broadcast`)
+    .emit("party:patch", partySnapshotWithGame(party, packs, "player"));
 });
 
 async function main(): Promise<void> {

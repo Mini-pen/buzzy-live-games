@@ -29,7 +29,8 @@ services:
       - "traefik.http.routers.buzzylive-http.middlewares=buzzylive-redirect-https"
       - "traefik.http.routers.buzzylive-http.service=buzzylive-svc"
 
-      # * HTTPS — tls.domains forces ACME (HTTP-01 on entrypoint http) for this host after DNS resolves.
+      # * HTTPS — même Host → tout le SPA (/, /party/.../broadcast, …) sans règle par chemin.
+      # * Le fallback HTML sur le backend (voir app.ts) gère `/party/*/broadcast`; Traefik n’a pas de route dédiée.
       - "traefik.http.routers.buzzylive-https.rule=Host(`${PARTYGAMES_HOST:-partygames.from-beyond.fr}`)"
       - "traefik.http.routers.buzzylive-https.entrypoints=https"
       - "traefik.http.routers.buzzylive-https.tls=true"

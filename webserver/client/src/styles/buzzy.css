@@ -1096,7 +1096,6 @@ html, body {
   font-size: 12px;
   white-space: pre-wrap;
 }
-
 .bz-broadcast {
   min-height: 100vh;
   background:
@@ -1352,4 +1351,4 @@ html, body {
   text-transform: uppercase;
   z-index: 100;
 }
-.bz-bc-exit:hover { color: var(--bz-text); }
+

@@ -18,7 +18,7 @@ interface HandshakeAuth {
   role?: string;
 }
 
-/** * Delivers realtime `party:patch` payloads to authenticated room members. */
+/** * Delivers realtime `party:patch` to players, admins, and projector/broadcast spectators. */
 export function attachSocketIO(httpServer: HttpServer, deps: SocketDeps): Server {
   const io = new Server(httpServer, {
     cors: { origin: true, methods: ["GET", "POST"] },
@@ -29,16 +29,14 @@ export function attachSocketIO(httpServer: HttpServer, deps: SocketDeps): Server
     try {
       const rawAuth = socket.handshake.auth as unknown;
       const raw =
-        typeof rawAuth === "object" && rawAuth !== null
-          ? (rawAuth as HandshakeAuth)
-          : {};
+        typeof rawAuth === "object" && rawAuth !== null ? (rawAuth as HandshakeAuth) : {};
       const partyIdRaw =
         typeof raw.partyId === "string" && raw.partyId.length > 0 ? raw.partyId : null;
       const bearer =
         typeof raw.bearer === "string" && raw.bearer.length > 0 ? raw.bearer : null;
       const role = typeof raw.role === "string" ? raw.role : "player";
 
-      if (partyIdRaw === null || bearer === null) {
+      if (partyIdRaw === null) {
         next(new Error("auth"));
         return;
       }
@@ -50,38 +48,48 @@ export function attachSocketIO(httpServer: HttpServer, deps: SocketDeps): Server
         return;
       }
 
+      if (role === "broadcast") {
+        void socket.join(`party:${party.id}:broadcast`);
+        next();
+        return;
+      }
+
+      if (bearer === null) {
+        next(new Error("auth"));
+        return;
+      }
+
       if (role === "admin") {
         if (!deps.store.verifyAdminToken(party, bearer)) {
           next(new Error("auth"));
           return;
         }
-      } else {
-        let payload: JwtPlayerPayload;
-        try {
-          payload = jwt.verify(bearer, deps.config.jwtSecret) as JwtPlayerPayload;
-        } catch {
-          next(new Error("auth"));
-          return;
-        }
-
-        const pidClaim = typeof payload.pid === "string" ? payload.pid : null;
-
-        const subClaim = typeof payload.sub === "string" ? payload.sub : null;
-
-        if (pidClaim !== party.id || subClaim === null) {
-          next(new Error("auth"));
-          return;
-        }
+        void socket.join(`party:${party.id}:admin`);
+        next();
+        return;
       }
 
-      if (role === "admin") void socket.join(`party:${party.id}:admin`);
-      else void socket.join(`party:${party.id}:player`);
-      next();
+      let payload: JwtPlayerPayload;
+      try {
+        payload = jwt.verify(bearer, deps.config.jwtSecret) as JwtPlayerPayload;
+      } catch {
+        next(new Error("auth"));
+        return;
+      }
 
+      const pidClaim = typeof payload.pid === "string" ? payload.pid : null;
+      const subClaim = typeof payload.sub === "string" ? payload.sub : null;
+
+      if (pidClaim !== party.id || subClaim === null) {
+        next(new Error("auth"));
+        return;
+      }
+
+      void socket.join(`party:${party.id}:player`);
+      next();
     } catch {
       next(new Error("auth"));
     }
-    return undefined;
   });
 
   io.on("connection", () => {});

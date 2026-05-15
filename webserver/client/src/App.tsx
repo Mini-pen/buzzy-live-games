@@ -2280,15 +2280,12 @@ function Admin(): JSX.Element {
   );
 }
 
+/** * Full-screen spectator view (same payload as joueurs socket); no JWT — party id in URL only. */
 function Broadcast(): JSX.Element {
   const { partyId } = useParams<{ partyId: string }>();
   const pid = canonicalPartyIdFromRoute(partyId);
   const [snap, setSnap] = useState<PartySnapshot | null>(null);
   const [err, setErr] = useState<string | null>(null);
-
-  // If the host opened this tab in the same browser as Admin, we can
-  // reuse the admin bearer for a true live socket. Otherwise we poll.
-  const adminToken = pid ? peekAdminBearer(pid) : null;
 
   useEffect(() => {
     if (!pid) return undefined;
@@ -2296,40 +2293,34 @@ function Broadcast(): JSX.Element {
 
     void fetchJson<PartySnapshot>(`/api/parties/${encodeURIComponent(pid)}`)
       .then((s) => {
-        if (!cancelled) setSnap(s);
+        if (!cancelled) {
+          setSnap(s);
+          setErr(null);
+        }
       })
       .catch((e) => {
         if (!cancelled) setErr(String(e));
       });
 
-    if (adminToken !== null && adminToken !== "") {
-      const s: Socket = io({
-        transports: ["websocket", "polling"],
-        auth: { partyId: pid, bearer: adminToken, role: "admin" },
-      });
-      const onSnap = (p: PartySnapshot) => setSnap(p);
-      s.on("party:patch", onSnap);
-      return (): void => {
-        cancelled = true;
-        s.off("party:patch", onSnap);
-        s.disconnect();
-      };
-    }
+    const s: Socket = io({
+      transports: ["websocket", "polling"],
+      auth: { partyId: pid, role: "broadcast" },
+    });
 
-    const id = setInterval(() => {
-      void fetchJson<PartySnapshot>(`/api/parties/${encodeURIComponent(pid)}`)
-        .then((s) => {
-          if (!cancelled) setSnap(s);
-        })
-        .catch(() => {
-          /* keep last good snapshot on transient errors */
-        });
-    }, 1500);
+    const onSnap = (p: PartySnapshot): void => {
+      if (!cancelled) {
+        setSnap(p);
+        setErr(null);
+      }
+    };
+    s.on("party:patch", onSnap);
+
     return (): void => {
       cancelled = true;
-      clearInterval(id);
+      s.off("party:patch", onSnap);
+      s.disconnect();
     };
-  }, [pid, adminToken]);
+  }, [pid]);
 
   if (!pid) return <Navigate to="/" replace />;
 
@@ -2440,6 +2431,13 @@ function Broadcast(): JSX.Element {
           </>
         ) : null}
 
+        {snap.state === "round_active" &&
+        board !== null &&
+        board.kind !== "quiz" &&
+        board.kind !== "video" ? (
+          <GameBoardPanel board={board} partyState={snap.state} revealCorrect={false} />
+        ) : null}
+
         {snap.state === "round_active" && board === null ? (
           <div className="bz-bc-meta">
             En attente — l'animateur doit charger un pack quiz.
@@ -2514,6 +2512,7 @@ export default function App(): JSX.Element {
       <Route path="/create" element={<Create />} />
       <Route path="/party/:partyId/play" element={<Play />} />
       <Route path="/party/:partyId/admin" element={<Admin />} />
+      <Route path="/party/:partyId/broadcast" element={<Broadcast />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
