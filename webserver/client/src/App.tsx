@@ -15,6 +15,8 @@ interface PartyGameBoardQuiz {
   prompt: string;
   choices: string[];
   points: number;
+  /** * Optional quiz illustration (HTTPS or `/…` served by backend). */
+  imageUrl?: string;
   correctChoiceIndex?: number;
 }
 
@@ -811,6 +813,25 @@ function PlayersPreview(props: { snap: PartySnapshot }): JSX.Element {
   );
 }
 
+/** * Quiz illustration; decorative only (meaning is conveyed by `prompt`). */
+function QuizIllustration(props: { imageUrl: string; variant: "panel" | "broadcast" }): JSX.Element | null {
+  const u = props.imageUrl.trim();
+  if (u === "") return null;
+  const wrapCls =
+    props.variant === "broadcast" ? "bz-bc-quiz-img-wrap" : "bz-board-question-img-wrap";
+  return (
+    <div className={wrapCls}>
+      <img
+        className="bz-board-question-img"
+        src={u}
+        alt=""
+        decoding="async"
+        loading="lazy"
+      />
+    </div>
+  );
+}
+
 /** * Displays quiz prompt or video from `gameBoard`; host may reveal the keyed correct choice on quiz. */
 function GameBoardPanel(props: {
   board: PartyGameBoardSurface | null;
@@ -863,6 +884,9 @@ function GameBoardPanel(props: {
             {board.questionIndexInRound + 1}
           </span>
         </div>
+        {typeof board.imageUrl === "string" && board.imageUrl.trim() !== "" ? (
+          <QuizIllustration imageUrl={board.imageUrl} variant="panel" />
+        ) : null}
         <h2 className="bz-board-prompt">{board.prompt}</h2>
         <ol className="bz-board-choices">
           {board.choices.map((c, i) => {
@@ -2321,6 +2345,9 @@ function Broadcast(): JSX.Element {
               {quizBoard.questionIndexInRound + 1} · +{quizBoard.points}{" "}
               {quizBoard.points === 1 ? "pt" : "pts"}
             </div>
+            {typeof quizBoard.imageUrl === "string" && quizBoard.imageUrl.trim() !== "" ? (
+              <QuizIllustration imageUrl={quizBoard.imageUrl} variant="broadcast" />
+            ) : null}
             <h1 className="bz-bc-prompt">{quizBoard.prompt}</h1>
             <ol className="bz-bc-choices" data-count={quizBoard.choices.length}>
               {quizBoard.choices.map((c, i) => (

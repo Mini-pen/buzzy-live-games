@@ -38,6 +38,12 @@ export async function buildApp(opts: BuildDeps): Promise<ReturnType<typeof Fasti
     config: opts.config,
   });
 
+  await app.register(fastifyStatic, {
+    root: opts.config.gamesDir,
+    prefix: "/games/",
+    decorateReply: false,
+  });
+
   if (isProd) {
     const clientRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "client");
     await app.register(fastifyStatic, {

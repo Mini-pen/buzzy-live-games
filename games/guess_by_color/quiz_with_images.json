@@ -1,0 +1,45 @@
+{
+  "id": "guess-by-color-images-v1",
+  "title": "Devine la couleur (images)",
+  "version": 1,
+  "rounds": [
+    {
+      "id": "couleurs",
+      "title": "Pastilles de référence",
+      "questions": [
+        {
+          "id": "q_red",
+          "prompt": "Quelle couleur est représentée sur l’image ?",
+          "imageUrl": "/games/guess_by_color/assets/swatches/red.svg",
+          "choices": ["Rouge", "Vert", "Bleu", "Jaune"],
+          "correctIndex": 0,
+          "points": 1
+        },
+        {
+          "id": "q_green",
+          "prompt": "Quelle couleur est représentée sur l’image ?",
+          "imageUrl": "/games/guess_by_color/assets/swatches/green.svg",
+          "choices": ["Orange", "Vert menthe", "Violet", "Marron"],
+          "correctIndex": 1,
+          "points": 1
+        },
+        {
+          "id": "q_blue",
+          "prompt": "Quelle couleur est représentée sur l’image ?",
+          "imageUrl": "/games/guess_by_color/assets/swatches/blue.svg",
+          "choices": ["Cyan", "Bleu", "Indigo", "Gris"],
+          "correctIndex": 1,
+          "points": 2
+        },
+        {
+          "id": "q_external_https",
+          "prompt": "Exemple avec image distante HTTPS : de quoi s’agit-il ?",
+          "imageUrl": "https://picsum.photos/id/237/400/300",
+          "choices": ["Un chien noir", "Un chat domestique", "Un loup", "Un renard"],
+          "correctIndex": 0,
+          "points": 1
+        }
+      ]
+    }
+  ]
+}

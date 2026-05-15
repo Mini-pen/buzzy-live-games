@@ -115,6 +115,9 @@ function deriveGameBoard(
     choices: [...question.choices],
     points: question.points,
   };
+  if (question.imageUrl !== undefined && question.imageUrl.trim() !== "") {
+    surface.imageUrl = question.imageUrl.trim();
+  }
   if (audience === "host") surface.correctChoiceIndex = question.correctIndex;
   return surface;
 }

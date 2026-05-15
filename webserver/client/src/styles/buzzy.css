@@ -596,6 +596,28 @@ html, body {
   color: var(--bz-muted);
   margin-bottom: 14px;
 }
+.bz-app .bz-board-question-img-wrap {
+  margin: 0 0 16px;
+  max-width: min(640px, 100%);
+}
+.bz-app .bz-bc-quiz-img-wrap {
+  margin: 0 0 clamp(16px, 2.5vw, 28px);
+  width: 100%;
+  max-width: min(92vw, 1120px);
+  align-self: center;
+}
+.bz-app .bz-board-question-img {
+  display: block;
+  width: 100%;
+  max-height: min(40vh, 400px);
+  object-fit: contain;
+  border-radius: var(--bz-r-md);
+  border: 1px solid var(--bz-line);
+  background: var(--bz-bg-2);
+}
+.bz-bc-stage .bz-board-question-img {
+  max-height: min(52vh, 640px);
+}
 .bz-app .bz-board-prompt {
   font-size: clamp(24px, 4vw, 32px);
   line-height: 1.1;

@@ -81,6 +81,8 @@ export interface PartyGameBoardQuiz {
   prompt: string;
   choices: string[];
   points: number;
+  /** * Optional illustration; absolute URL or `/…` path served by this app (e.g. `/games/…`). */
+  imageUrl?: string;
   /** * Present only when the snapshot is assembled for an authenticated host. */
   correctChoiceIndex?: number;
 }
