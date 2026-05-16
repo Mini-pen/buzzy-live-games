@@ -279,6 +279,7 @@ export function partySnapshotWithGame(
             allowedGoodKeys: [...party.buzzSound.allowedGoodKeys],
             allowedBadKeys: [...party.buzzSound.allowedBadKeys],
           },
+          autoOpenBuzzOnCueAdvance: party.autoOpenBuzzOnCueAdvance === true,
         }
       : {};
   const buzzQuizQueueDetail =

@@ -26,6 +26,10 @@ import {
   getDefaultAvatarKey,
 } from "../avatars/catalog.js";
 import { youtubeWatchUrlToEmbedUrl } from "../domain/youtubeEmbed.js";
+import {
+  assertDirectVideoUrlForPartyManche,
+  listHostedGameVideos,
+} from "../games/localVideoCatalog.js";
 
 export interface PartyRouteDeps {
   store: PartyStore;
@@ -87,6 +91,10 @@ const buzzWindowSchema = z.object({
   open: z.boolean(),
 });
 
+const buzzAutoCueAdvanceSchema = z.object({
+  enabled: z.boolean(),
+});
+
 const buzzBodySchema = z.object({
   quizChoiceIndex: z.number().int().min(0).max(255).optional(),
 });
@@ -128,16 +136,11 @@ const addMancheYoutubeBody = z.object({
   url: z.string().min(1).max(500),
 });
 
-const addMancheDirectVideoBody = z
-  .object({
-    kind: z.literal("direct_video"),
-    title: z.string().min(1).max(160),
-    url: z.string().url().max(2048),
-  })
-  .refine((b) => b.url.startsWith("https:"), {
-    message: "HTTPS_REQUIRED",
-    path: ["url"],
-  });
+const addMancheDirectVideoBody = z.object({
+  kind: z.literal("direct_video"),
+  title: z.string().min(1).max(160),
+  url: z.string().min(1).max(2048),
+});
 
 const addMancheBody = z.union([
   addManchePackBody,
@@ -188,7 +191,7 @@ function quizPickFeedbackAfterBuzz(
   party: Party,
   quizBuzz: QuizBuzzChoiceOpts | undefined,
   newlyBuzzed: boolean,
-): { choiceIndex: number; correct: boolean } | undefined {
+): { choiceIndex: number } | undefined {
   if (!newlyBuzzed || quizBuzz?.choicesLen === undefined) return undefined;
   const ix = quizBuzz.choiceIndex;
   if (typeof ix !== "number") return undefined;
@@ -200,9 +203,7 @@ function quizPickFeedbackAfterBuzz(
   if (!isQuizRound(round)) return undefined;
   const q = round.questions[qi];
   if (!q) return undefined;
-  const ci = q.correctIndex;
-  if (typeof ci !== "number" || ci < 0 || ci >= q.choices.length) return undefined;
-  return { choiceIndex: ix, correct: ix === ci };
+  return { choiceIndex: ix };
 }
 
 export async function registerPartyRoutes(
@@ -241,6 +242,10 @@ export async function registerPartyRoutes(
       version: p.version,
       roundCount: p.rounds.length,
     })),
+  }));
+
+  app.get("/api/games/video-files", async () => ({
+    videos: await listHostedGameVideos(config.gamesDir),
   }));
 
   app.get("/api/avatars", async () => ({
@@ -602,6 +607,26 @@ export async function registerPartyRoutes(
   );
 
   app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/buzz-auto-cue-advance",
+    async (req, reply) => {
+      try {
+        const body = buzzAutoCueAdvanceSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetAutoOpenBuzzOnCueAdvance(party, body.enabled);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
     "/api/parties/:partyId/host/buzz-resolve",
     async (req, reply) => {
       try {
@@ -619,6 +644,22 @@ export async function registerPartyRoutes(
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
         }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string; playerId: string } }>(
+    "/api/parties/:partyId/host/players/:playerId/kick",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminKickPlayer(party, req.params.playerId);
+        return snapHost(party);
+      } catch (err) {
         return replyDomain(reply, err);
       }
     },
@@ -705,13 +746,14 @@ export async function registerPartyRoutes(
             savedQuestionIndex: 0,
           });
         } else {
+          const safeUrl = assertDirectVideoUrlForPartyManche(config.gamesDir, body.url);
           store.hostAppendManche(party, {
             kind: "direct_video",
             title: body.title.trim(),
             packBasename: null,
             iframeUrl: null,
             youtubeEmbedUrl: null,
-            directVideoUrl: body.url,
+            directVideoUrl: safeUrl,
             savedRoundIndex: 0,
             savedQuestionIndex: 0,
           });

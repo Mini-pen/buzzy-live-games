@@ -173,6 +173,7 @@ interface PartySnapshot {
     choiceLabel: string;
     correct: boolean;
   }>;
+  autoOpenBuzzOnCueAdvance?: boolean;
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -561,6 +562,24 @@ function writePreferredBuzzSoundKey(key: string): void {
   sessionStorage.setItem(STORAGE_PREFERRED_BUZZ_KEY, key);
 }
 
+/** * Reads JWT `sub` (player row id) for Socket.IO eviction / verdict routing. */
+function parseJwtPlayerSub(tok: string): string | null {
+  try {
+    const [, body] = tok.split(".");
+    if (body === undefined) return null;
+    let b64 = body.replace(/-/gu, "+").replace(/_/gu, "/");
+    while (b64.length % 4 !== 0) b64 += "=";
+    const json = globalThis.atob(b64);
+    interface Decoded {
+      sub?: string;
+    }
+    const payload = JSON.parse(json) as Decoded;
+    return typeof payload.sub === "string" ? payload.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 function BuzzSoundPickerBlock(props: {
   sectionId: string;
   title: string;
@@ -664,6 +683,7 @@ function Home(): JSX.Element {
     sounds: CatalogSoundEntry[];
   } | null>(null);
   const [homeBuzzPick, setHomeBuzzPick] = useState("");
+  const [resumeAdminDeleting, setResumeAdminDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -739,6 +759,55 @@ function Home(): JSX.Element {
     setHomeBuzzPick(fromPref ?? (hasDefault ? d : fb));
   }, [homeSoundsLib, homeBuzzPick]);
 
+  async function onDeleteAdminResumeParty(): Promise<void> {
+    if (adminResume === null) return;
+    if (
+      typeof globalThis.window !== "undefined" &&
+      !window.confirm(
+        "Supprimer cette partie sur le serveur ? Les joueurs seront déconnectés.",
+      )
+    )
+      return;
+    const bearerH = findAdminBearerForPartyRouteId(adminResume.partyId);
+    if (bearerH === null || bearerH === "") {
+      purgeAdminSessionForPartyRouteId(adminResume.partyId);
+      setAdminResume(null);
+      return;
+    }
+    setResumeAdminDeleting(true);
+    try {
+      const res = await fetch(`/api/parties/${encodeURIComponent(adminResume.partyId)}/host/delete`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Authorization: `Bearer ${bearerH}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        interface ErrBody {
+          error?: string;
+        }
+        const text = await res.text();
+        let detail = text.slice(0, 280);
+        if (text !== "") {
+          try {
+            detail = (JSON.parse(text) as ErrBody).error ?? text;
+          } catch {
+            /* noop */
+          }
+        }
+        window.alert(`Suppression impossible : ${detail}`);
+        return;
+      }
+      purgeAdminSessionForPartyRouteId(adminResume.partyId);
+      setAdminResume(null);
+    } finally {
+      setResumeAdminDeleting(false);
+    }
+  }
+
   return (
     <Shell title="Accueil">
       <section className="bz-hero">
@@ -800,22 +869,32 @@ function Home(): JSX.Element {
           ) : null}
 
           {adminResume !== null ? (
-            <Link to={adminTableResumeTo(adminResume.partyId)} className="bz-card bz-resume-card">
-              <span className="bz-pill bz-info">jeton animateur</span>
-              <h2>Reprendre le tableau</h2>
-              <p>
-                Ton jeton d'animateur est encore actif sur ce navigateur —
-                tu peux rouvrir le tableau de cette partie.
-              </p>
-              <span className="bz-resume-foot">
-                {adminResume.joinCode.length >= 4 ? (
-                  <>code joueurs <code className="bz-code">{adminResume.joinCode}</code></>
-                ) : (
-                  <>jeton actif</>
-                )}
-                <span className="bz-arrow" aria-hidden="true">→</span>
-              </span>
-            </Link>
+            <div className="bz-resume-slot">
+              <Link to={adminTableResumeTo(adminResume.partyId)} className="bz-card bz-resume-card">
+                <span className="bz-pill bz-info">jeton animateur</span>
+                <h2>Reprendre le tableau</h2>
+                <p>
+                  Ton jeton d'animateur est encore actif sur ce navigateur —
+                  tu peux rouvrir le tableau de cette partie.
+                </p>
+                <span className="bz-resume-foot">
+                  {adminResume.joinCode.length >= 4 ? (
+                    <>code joueurs <code className="bz-code">{adminResume.joinCode}</code></>
+                  ) : (
+                    <>jeton actif</>
+                  )}
+                  <span className="bz-arrow" aria-hidden="true">→</span>
+                </span>
+              </Link>
+              <button
+                type="button"
+                className="bz-home-admin-delete-btn"
+                disabled={resumeAdminDeleting}
+                onClick={() => void onDeleteAdminResumeParty()}
+              >
+                {resumeAdminDeleting ? "Suppression…" : "Supprimer ce salon"}
+              </button>
+            </div>
           ) : null}
         </section>
       ) : null}
@@ -1136,10 +1215,10 @@ function GameBoardPanel(props: {
   allowBlindPlaybackOnClients?: boolean;
   /** * Animateur quiz : surbrillance des options choisies dans la file buzz (un « bad » domine sur une même ligne). */
   hostQuizBuzzHighlights?: Array<{ choiceIndex: number; tone: "good" | "bad" }>;
-  /** * Joueur QCM : clic pour choisir avant buzz ; après buzz, verrou + correct / incorrect local. */
+  /** * Joueur QCM : clic pour choisir avant buzz ; après buzz réponse figée jusqu'au clic animateur puis bon/mauvais visible. */
   quizPlayerPickUi?: {
     selectedIndex: number | null;
-    locked?: { choiceIndex: number; correct: boolean } | null;
+    locked?: { choiceIndex: number; verdict?: "good" | "bad" } | null;
     onPick: (choiceIndex: number) => void;
     canPick: boolean;
   };
@@ -1384,7 +1463,9 @@ function GameBoardPanel(props: {
 
             const lockedRow = qp?.locked ?? null;
             if (qp !== undefined && lockedRow !== null && lockedRow.choiceIndex === i) {
-              rowClass += lockedRow.correct ? " bz-choice--player-pick-good" : " bz-choice--player-pick-bad";
+              if (lockedRow.verdict === "good") rowClass += " bz-choice--player-pick-good";
+              else if (lockedRow.verdict === "bad") rowClass += " bz-choice--player-pick-bad";
+              else rowClass += " bz-choice--player-pick-locked";
             } else if (qp !== undefined && lockedRow === null && qp.canPick && qp.selectedIndex === i) {
               rowClass += " bz-choice--selected";
             }
@@ -1426,6 +1507,15 @@ function GameBoardPanel(props: {
             );
           })}
         </ol>
+        {qp !== undefined &&
+        qp.locked !== undefined &&
+        qp.locked !== null &&
+        qp.locked.verdict === undefined ? (
+          <p className="bz-board-quiz-wait-host bz-muted" style={{ marginTop: 10 }}>
+            Réponse enregistrée — l&apos;animateur doit valider dans la file de buzz avant l&apos;indication bon /
+            mauvais à l&apos;écran.
+          </p>
+        ) : null}
         {correctText !== null ? (
           <p className="bz-board-answer">
             Réponse attendue : <strong>{correctText}</strong>
@@ -1653,7 +1743,7 @@ function Play(): JSX.Element {
   const [quizSelected, setQuizSelected] = useState<number | null>(null);
   const [quizBuzzLocked, setQuizBuzzLocked] = useState<{
     choiceIndex: number;
-    correct: boolean;
+    verdict?: "good" | "bad";
   } | null>(null);
   const [lobbySoundsLib, setLobbySoundsLib] = useState<{
     defaultBuzzerKey: string;
@@ -1685,15 +1775,49 @@ function Play(): JSX.Element {
       s.disconnect();
       nav("/", { replace: true });
     };
+    const onBuzzVerdict = (payload: {
+      playerId?: string;
+      verdict?: unknown;
+    }): void => {
+      const sub = parseJwtPlayerSub(jwt);
+      if (
+        typeof sub !== "string" ||
+        typeof payload.playerId !== "string" ||
+        payload.playerId !== sub
+      ) {
+        return;
+      }
+      if (payload.verdict !== "good" && payload.verdict !== "bad") return;
+      setQuizBuzzLocked((prev) =>
+        prev === null ? prev : { ...prev, verdict: payload.verdict as "good" | "bad" },
+      );
+    };
+    const onKicked = (payload: { playerId?: string }): void => {
+      const sub = parseJwtPlayerSub(jwt);
+      if (
+        typeof sub !== "string" ||
+        typeof payload.playerId !== "string" ||
+        payload.playerId !== sub
+      ) {
+        return;
+      }
+      purgePlayerSessionForPartyRouteId(pid);
+      s.disconnect();
+      nav("/", { replace: true });
+    };
     s.on("party:patch", onSnap);
     s.on("party:terminated", onTerminated);
+    s.on("party:buzz_verdict", onBuzzVerdict);
+    s.on("party:kicked", onKicked);
 
     return (): void => {
       s.off("party:patch", onSnap);
       s.off("party:terminated", onTerminated);
+      s.off("party:buzz_verdict", onBuzzVerdict);
+      s.off("party:kicked", onKicked);
       s.disconnect();
     };
-  }, [pid, jwt]);
+  }, [pid, jwt, nav]);
 
   useEffect(() => {
     if (!pid || jwt === null || jwt === "" || snap === null) return;
@@ -1731,7 +1855,7 @@ function Play(): JSX.Element {
       const res = await fetchJson<{
         snapshot: PartySnapshot;
         buzzToneUrl?: string;
-        quizPickFeedback?: { choiceIndex: number; correct: boolean };
+        quizPickFeedback?: { choiceIndex: number };
       }>(`/api/parties/${pid}/me/buzz`, {
         method: "POST",
         headers: {
@@ -1747,7 +1871,6 @@ function Play(): JSX.Element {
       if (typeof res.quizPickFeedback?.choiceIndex === "number") {
         setQuizBuzzLocked({
           choiceIndex: res.quizPickFeedback.choiceIndex,
-          correct: res.quizPickFeedback.correct === true,
         });
       }
       if (
@@ -1787,24 +1910,7 @@ function Play(): JSX.Element {
   /** * Spinner before first REST response. */
   if (snap === null) return <Shell title="Chargement…">Connexion lobby…</Shell>;
 
-  function parseSub(tok: string): string | null {
-    try {
-      const [, body] = tok.split(".");
-      if (body === undefined) return null;
-      let b64 = body.replace(/-/gu, "+").replace(/_/gu, "/");
-      while (b64.length % 4 !== 0) b64 += "=";
-      const json = globalThis.atob(b64);
-      interface Decoded {
-        sub?: string;
-      }
-      const payload = JSON.parse(json) as Decoded;
-      return typeof payload.sub === "string" ? payload.sub : null;
-    } catch {
-      return null;
-    }
-  }
-
-  const myId = parseSub(jwt);
+  const myId = parseJwtPlayerSub(jwt);
   const rowMe = snap.players.find((p) => p.id === myId);
   const canChatRoom = snap.state === "lobby" || snap.state === "between_rounds";
   const canBuzz = snap.state === "round_active" && snap.buzzWindowOpen;
@@ -2034,13 +2140,19 @@ function Admin(): JSX.Element {
   /** * Bumped to replay the bootstrap fetch without changing Bearer or party id (network flake). */
   const [adminBootstrapRetryNonce, setAdminBootstrapRetryNonce] = useState(0);
 
-  /** * Popup: append a scripted manche (quiz pack or YouTube). */
+  /** * Popup: append a scripted manche (quiz, YouTube ou vidéo dans `games/video`). */
   const [addMancheOpen, setAddMancheOpen] = useState(false);
-  /** * `"pack"` = quiz JSON pack ; `"site"` = pasted YouTube watch URL. */
-  const [addMancheFlavor, setAddMancheFlavor] = useState<"pack" | "site">("pack");
+  const [addMancheFlavor, setAddMancheFlavor] = useState<"pack" | "youtube" | "local_video">(
+    "pack",
+  );
   const [modalPackBasename, setModalPackBasename] = useState("");
   const [modalMancheTitle, setModalMancheTitle] = useState("");
   const [modalSiteUrl, setModalSiteUrl] = useState("");
+  const [modalLocalVideoPick, setModalLocalVideoPick] = useState("");
+  const [hostedVideoFiles, setHostedVideoFiles] = useState<Array<{ name: string; url: string }>>(
+    [],
+  );
+  const [hostedVideoListLoading, setHostedVideoListLoading] = useState(false);
   const [deltaById, setDeltaById] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -2056,6 +2168,23 @@ function Admin(): JSX.Element {
       return packsList[0]!.basename;
     });
   }, [packsList]);
+
+  useEffect(() => {
+    if (!addMancheOpen || addMancheFlavor !== "local_video") return;
+    setHostedVideoListLoading(true);
+    void fetchJson<{ videos: Array<{ name: string; url: string }> }>("/api/games/video-files")
+      .then((r) => setHostedVideoFiles(r.videos))
+      .catch(() => setHostedVideoFiles([]))
+      .finally(() => setHostedVideoListLoading(false));
+  }, [addMancheFlavor, addMancheOpen]);
+
+  useEffect(() => {
+    if (!addMancheOpen || addMancheFlavor !== "local_video") return;
+    setModalLocalVideoPick((prev) => {
+      if (prev !== "" && hostedVideoFiles.some((v) => v.url === prev)) return prev;
+      return hostedVideoFiles[0]?.url ?? "";
+    });
+  }, [addMancheFlavor, addMancheOpen, hostedVideoFiles]);
 
   useEffect(() => {
     setToken(peekAdminBearer(pid));
@@ -2115,16 +2244,23 @@ function Admin(): JSX.Element {
     const onAnswerFx = (payload: { url: string }) => {
       playSfxUrl(payload.url);
     };
+    const onTerminatedAdmin = (): void => {
+      purgeAdminSessionForPartyRouteId(pid);
+      setToken(null);
+      nav("/", { replace: true });
+    };
     s.on("party:patch", onSnap);
     s.on("party:buzz_fx", onBuzzFx);
     s.on("party:answer_fx", onAnswerFx);
+    s.on("party:terminated", onTerminatedAdmin);
     return (): void => {
       s.off("party:patch", onSnap);
       s.off("party:buzz_fx", onBuzzFx);
       s.off("party:answer_fx", onAnswerFx);
+      s.off("party:terminated", onTerminatedAdmin);
       s.disconnect();
     };
-  }, [pid, bearer, adminBootstrap]);
+  }, [pid, bearer, adminBootstrap, nav]);
 
   useEffect(() => {
     if (adminBootstrap !== "ready" || !pid || bearer === "") return;
@@ -2191,6 +2327,82 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
+  const onHostKickPlayerClick = useCallback(
+    async (playerIdKick: string, displayNameKick: string): Promise<void> => {
+      if (
+        typeof globalThis.window !== "undefined" &&
+        !window.confirm(
+          `Expulser ${displayNameKick} de la partie ? Il perdra sa session sur cet appareil.`,
+        )
+      ) {
+        return;
+      }
+      setErr(null);
+      try {
+        const p = await fetchJson<PartySnapshot>(
+          `${hostBasePath}/host/players/${encodeURIComponent(playerIdKick)}/kick`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${bearer}`,
+            },
+            body: JSON.stringify({}),
+          },
+        );
+        setSnap(p);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [hostBasePath, bearer],
+  );
+
+  const onHostDeleteParty = useCallback(async (): Promise<void> => {
+    if (
+      typeof globalThis.window !== "undefined" &&
+      !window.confirm(
+        "Supprimer définitivement cette partie ? Tous les joueurs seront déconnectés.",
+      )
+    ) {
+      return;
+    }
+    setErr(null);
+    try {
+      if (!pid || bearer === "")
+        throw new Error("auth:Session animateur incomplète (recharger la page).");
+      const res = await fetch(`${hostBasePath}/host/delete`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        interface ErrBody {
+          error?: string;
+        }
+        let detail = text.slice(0, 200);
+        if (text !== "") {
+          try {
+            detail = (JSON.parse(text) as ErrBody).error ?? text;
+          } catch {
+            /* noop */
+          }
+        }
+        throw new Error(`${res.status}:${detail}`);
+      }
+      purgeAdminSessionForPartyRouteId(pid);
+      setToken(null);
+      nav("/", { replace: true });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [pid, bearer, hostBasePath, nav]);
+
   const onHostMancheSubmitAdd = useCallback(async (): Promise<void> => {
     setErr(null);
     try {
@@ -2212,22 +2424,38 @@ function Admin(): JSX.Element {
           packBasename: modalPackBasename,
         });
         setSnap(p);
-      } else {
+      } else if (addMancheFlavor === "youtube") {
         const title = modalMancheTitle.trim();
         if (title === "") {
           throw new Error("validation:Titre obligatoire.");
         }
         const urlRaw = modalSiteUrl.trim();
         if (urlRaw === "") {
-          throw new Error("validation:URL obligatoire.");
+          throw new Error("validation:URL YouTube obligatoire.");
         }
         const body = { kind: "youtube" as const, title, url: urlRaw };
         const p = await callHostSnapshot(`${hostBasePath}/host/manche/add`, "POST", body);
+        setSnap(p);
+      } else {
+        const title = modalMancheTitle.trim();
+        if (title === "") {
+          throw new Error("validation:Titre obligatoire.");
+        }
+        const urlVid = modalLocalVideoPick.trim();
+        if (urlVid === "") {
+          throw new Error("validation:Sélectionne un fichier vidéo dans la liste.");
+        }
+        const p = await callHostSnapshot(`${hostBasePath}/host/manche/add`, "POST", {
+          kind: "direct_video",
+          title,
+          url: urlVid,
+        });
         setSnap(p);
       }
       setAddMancheOpen(false);
       setModalMancheTitle("");
       setModalSiteUrl("");
+      setModalLocalVideoPick("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -2235,6 +2463,7 @@ function Admin(): JSX.Element {
     addMancheFlavor,
     callHostSnapshot,
     hostBasePath,
+    modalLocalVideoPick,
     modalMancheTitle,
     modalPackBasename,
     modalSiteUrl,
@@ -2301,6 +2530,21 @@ function Admin(): JSX.Element {
         setSnap(n);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostBuzzAutoCueAdvance = useCallback(
+    async (enabled: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/buzz-auto-cue-advance`, "POST", {
+          enabled,
+        });
+        setSnap(n);
+      } catch (e11) {
+        setErr(e11 instanceof Error ? e11.message : String(e11));
       }
     },
     [callHostSnapshot, hostBasePath],
@@ -2531,7 +2775,7 @@ function Admin(): JSX.Element {
               <div className="bz-host-join">
                 {window.location.host}/join?code=<strong>{snap.joinCode}</strong>
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                 <span
                   className={`bz-pill ${
                     snap.state === "round_active" ? "bz-live" : ""
@@ -2552,15 +2796,22 @@ function Admin(): JSX.Element {
                     buzzer ouvert
                   </span>
                 ) : null}
-				<a
-					href={`/party/${encodeURIComponent(pid)}/broadcast`}
-					target="_blank"
-					rel="noreferrer"
-					className="bz-cta"
-					style={{ height: 40, alignSelf: "flex-start", fontSize: 13 }}
-				>
-				📺 Ouvrir la diffusion (nouvel onglet)
-				</a>
+                <a
+                  href={`/party/${encodeURIComponent(pid)}/broadcast`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bz-cta"
+                  style={{ height: 40, alignSelf: "flex-start", fontSize: 13 }}
+                >
+                  📺 Ouvrir la diffusion (nouvel onglet)
+                </a>
+                <button
+                  type="button"
+                  className="bz-host-party-delete-btn"
+                  onClick={() => void onHostDeleteParty()}
+                >
+                  Supprimer la partie
+                </button>
               </div>
             </div>
             <div className="bz-host-hero-qr">
@@ -2690,18 +2941,33 @@ function Admin(): JSX.Element {
             <button type="button" onClick={() => void onHostRoundPause()}>
               ⏸ Pause (lobby)
             </button>
-            <button
-              type="button"
-              onClick={() => void onHostBuzzWindow(true)}
-            >
-              🔔 Ouvrir buzzer
-            </button>
-            <button
-              type="button"
-              onClick={() => void onHostBuzzWindow(false)}
-            >
-              ⏹ Fermer & purger
-            </button>
+            <div className="bz-host-buzz-tools">
+              <div className="bz-host-buzz-buttons">
+                <button
+                  type="button"
+                  onClick={() => void onHostBuzzWindow(true)}
+                >
+                  🔔 Ouvrir buzzer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onHostBuzzWindow(false)}
+                >
+                  ⏹ Fermer & purger
+                </button>
+              </div>
+              <label className="bz-host-buzz-auto">
+                <input
+                  type="checkbox"
+                  checked={snap.autoOpenBuzzOnCueAdvance === true}
+                  onChange={(e) => void onHostBuzzAutoCueAdvance(e.target.checked)}
+                />
+                <span>
+                  Rouvrir le buzz automatiquement après chaque «&nbsp;suivant&nbsp;» (QCM, questions orales,
+                  blind audio, images, indices progressifs — pas après un simple rejoué vidéo / audio).
+                </span>
+              </label>
+            </div>
             {snap.gameBoard?.kind === "audio_blind" ? (
               <label
                 className="bz-host-blind-player-audio"
@@ -2835,6 +3101,15 @@ function Admin(): JSX.Element {
                     >
                       OK
                     </button>
+                    <button
+                      type="button"
+                      className="bz-host-kick-player-btn"
+                      title="Retire la session de ce joueur"
+                      aria-label={`Expulser ${pl2.displayName}`}
+                      onClick={() => void onHostKickPlayerClick(pl2.id, pl2.displayName)}
+                    >
+                      Expulser
+                    </button>
                   </span>
                 </li>
               ))}
@@ -2901,7 +3176,7 @@ function Admin(): JSX.Element {
               }}
             >
               <h2 id="add-manche-title">Ajouter une manche au scénario</h2>
-              <div className="bz-modal-tab-row">
+              <div className="bz-modal-tab-row bz-modal-tab-row--wrap">
                 <button
                   type="button"
                   aria-pressed={addMancheFlavor === "pack"}
@@ -2912,11 +3187,19 @@ function Admin(): JSX.Element {
                 </button>
                 <button
                   type="button"
-                  aria-pressed={addMancheFlavor === "site"}
-                  onClick={() => setAddMancheFlavor("site")}
+                  aria-pressed={addMancheFlavor === "youtube"}
+                  onClick={() => setAddMancheFlavor("youtube")}
                   className="bz-modal-tab"
                 >
                   Vidéo YouTube
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={addMancheFlavor === "local_video"}
+                  onClick={() => setAddMancheFlavor("local_video")}
+                  className="bz-modal-tab"
+                >
+                  Vidéo locale
                 </button>
               </div>
 
@@ -2957,7 +3240,7 @@ function Admin(): JSX.Element {
                     />
                   </label>
                 </>
-              ) : (
+              ) : addMancheFlavor === "youtube" ? (
                 <>
                   <label style={{ display: "block", marginBottom: 12 }}>
                     Titre dans la liste
@@ -2998,6 +3281,68 @@ function Admin(): JSX.Element {
                     <code className="bz-code">ERR_BLOCKED_BY_CLIENT</code> alors que la lecture reste audible.
                   </p>
                 </>
+              ) : (
+                <>
+                  <label style={{ display: "block", marginBottom: 12 }}>
+                    Titre dans la liste
+                    <input
+                      type="text"
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        marginTop: 6,
+                        boxSizing: "border-box",
+                      }}
+                      placeholder="Ex. Bande annonce événement"
+                      value={modalMancheTitle}
+                      onChange={(ev2) => setModalMancheTitle(ev2.target.value)}
+                    />
+                  </label>
+                  <label style={{ display: "block", marginBottom: 12 }}>
+                    Fichier dans <code className="bz-code">games/video/</code>
+                    <select
+                      style={{ display: "block", width: "100%", marginTop: 6 }}
+                      disabled={hostedVideoListLoading || hostedVideoFiles.length === 0}
+                      value={
+                        modalLocalVideoPick !== "" && hostedVideoFiles.some((v) => v.url === modalLocalVideoPick)
+                          ? modalLocalVideoPick
+                          : hostedVideoFiles[0]?.url ?? ""
+                      }
+                      onChange={(ev2) => setModalLocalVideoPick(ev2.target.value)}
+                    >
+                      {!hostedVideoListLoading && hostedVideoFiles.length === 0 ? (
+                        <option value="">— Aucun fichier —</option>
+                      ) : (
+                        hostedVideoFiles.map((v) => (
+                          <option key={v.url} value={v.url}>
+                            {v.name}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  {hostedVideoListLoading ? (
+                    <p className="bz-modal-embed-tip">Chargement de la liste des vidéos…</p>
+                  ) : hostedVideoFiles.length === 0 ? (
+                    <p className="bz-modal-embed-tip">
+                      Ajoute des fichiers <code className="bz-code">.mp4</code>, <code className="bz-code">.webm</code>,
+                      etc. dans <code className="bz-code">games/video/</code>, puis recharge cette page ou rouvre cette
+                      boîte.
+                    </p>
+                  ) : null}
+                  {modalLocalVideoPick !== "" || hostedVideoFiles[0]?.url ? (
+                    <div className="bz-modal-hosted-video-preview">
+                      <p className="bz-modal-hosted-video-caption">Aperçu lecture locale</p>
+                      <video
+                        className="bz-modal-hosted-video-el"
+                        controls
+                        playsInline
+                        preload="metadata"
+                        src={(modalLocalVideoPick || hostedVideoFiles[0]?.url) ?? undefined}
+                      />
+                    </div>
+                  ) : null}
+                </>
               )}
 
               <div className="bz-modal-actions">
@@ -3007,6 +3352,7 @@ function Admin(): JSX.Element {
                     setAddMancheOpen(false);
                     setModalMancheTitle("");
                     setModalSiteUrl("");
+                    setModalLocalVideoPick("");
                   }}
                 >
                   Annuler

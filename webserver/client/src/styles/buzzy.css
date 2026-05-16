@@ -229,6 +229,9 @@ html, body {
   gap: 8px;
   margin-bottom: 16px;
 }
+.bz-app .bz-modal-tab-row.bz-modal-tab-row--wrap {
+  flex-wrap: wrap;
+}
 .bz-app .bz-modal-tab {
   height: auto;
   min-height: 40px;
@@ -790,6 +793,24 @@ html, body {
   line-height: 1.45;
   color: var(--bz-muted);
 }
+.bz-app .bz-modal-hosted-video-preview {
+  margin-top: 14px;
+}
+.bz-app .bz-modal-hosted-video-caption {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bz-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.bz-app .bz-modal-hosted-video-el {
+  width: 100%;
+  max-height: min(40vh, 320px);
+  border-radius: var(--bz-r-md);
+  background: #000;
+  border: 1px solid var(--bz-line);
+}
 
 .bz-app .bz-buzz-hero {
   margin: 28px 0 18px;
@@ -1064,6 +1085,32 @@ html, body {
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
 }
 .bz-app .bz-host-controls button { height: 36px; font-size: 13px; padding: 0 12px; }
+.bz-app .bz-host-buzz-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+  width: 100%;
+}
+.bz-app .bz-host-buzz-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bz-app .bz-host-buzz-buttons button { height: 36px; font-size: 13px; padding: 0 12px; }
+.bz-app .bz-host-buzz-auto {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--bz-text);
+  flex: 1;
+  min-width: 220px;
+  max-width: 440px;
+}
+.bz-app .bz-host-buzz-auto input { flex-shrink: 0; margin-top: 3px; }
 
 /* Aside sections */
 .bz-app .bz-host-section {

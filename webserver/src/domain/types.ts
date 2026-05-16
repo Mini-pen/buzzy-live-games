@@ -73,6 +73,11 @@ export interface Party {
    */
   buzzQuizGuess: Map<string, number>;
   buzzWindowOpen: boolean;
+  /**
+   * * When true, advancing to the next playable cue (and starting a quiz-style pack manche) opens the buzzer
+   *   automatically when the surface supports buzzing (skipped for vidéo seule, révélation progressive, etc.).
+   */
+  autoOpenBuzzOnCueAdvance: boolean;
   chat: ChatEntry[];
   currentRoundIndex: number | null;
   currentQuestionIndex: number | null;
@@ -265,6 +270,8 @@ export interface PartyPublicSnapshot {
     choiceLabel: string;
     correct: boolean;
   }>;
+  /** * Authenticated host only : reopen buzz automatically after « question / extrait suivant » on compatible cues. */
+  autoOpenBuzzOnCueAdvance?: boolean;
 }
 
 /** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */

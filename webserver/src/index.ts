@@ -3,7 +3,7 @@ import type { Server } from "socket.io";
 import { buildApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { partySnapshotWithGame } from "./domain/partySnapshotPresenter.js";
-import { PartyStore } from "./domain/store.js";
+import { PartyStore, type PartyNotifyMeta } from "./domain/store.js";
 import { loadBuzzSoundCatalog, resolveBuzzSoundPublicUrl } from "./games/buzzSoundCatalog.js";
 import type { QuizPack } from "./games/pack.js";
 import { getAvatarCatalog } from "./avatars/catalog.js";
@@ -12,6 +12,11 @@ import { attachSocketIO } from "./realtime/socket.js";
 
 let socketRef: Server | undefined;
 let quizPacksByRun: Map<string, QuizPack> | undefined;
+
+function partyNotifyExtras(meta?: PartyNotifyMeta | PartyNotifyMeta[]): PartyNotifyMeta[] {
+  if (meta === undefined) return [];
+  return Array.isArray(meta) ? meta : [meta];
+}
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -25,7 +30,7 @@ async function main(): Promise<void> {
   const store = new PartyStore((partyId, party, meta) => {
     if (socketRef === undefined || quizPacksByRun === undefined) return;
     const packsSnap = quizPacksByRun;
-    if (meta?.kind === "party_deleted") {
+    if (meta !== undefined && !Array.isArray(meta) && meta.kind === "party_deleted") {
       const payload = { partyId };
       socketRef.to(`party:${partyId}:player`).emit("party:terminated", payload);
       socketRef.to(`party:${partyId}:admin`).emit("party:terminated", payload);
@@ -41,24 +46,38 @@ async function main(): Promise<void> {
     socketRef
       .to(`party:${partyId}:broadcast`)
       .emit("party:patch", partySnapshotWithGame(party, packsSnap, "player"));
-    if (meta?.kind === "buzz_fx") {
-      if (!party.buzzSound.echoPlayerBuzzOnHost) return;
-      const pl = party.players.get(meta.playerId);
-      if (!pl) return;
-      const sfx = buzzCatalog.byKey.get(pl.buzzSoundKey);
-      if (!sfx) return;
-      const url = resolveBuzzSoundPublicUrl(sfx);
-      if (url === "") return;
-      socketRef
-        .to(`party:${partyId}:admin`)
-        .emit("party:buzz_fx", { playerId: meta.playerId, url });
-      return;
+    const extras = partyNotifyExtras(meta);
+    for (const m of extras) {
+      if (m.kind === "buzz_fx") {
+        if (!party.buzzSound.echoPlayerBuzzOnHost) continue;
+        const pl = party.players.get(m.playerId);
+        if (!pl) continue;
+        const sfx = buzzCatalog.byKey.get(pl.buzzSoundKey);
+        if (!sfx) continue;
+        const url = resolveBuzzSoundPublicUrl(sfx);
+        if (url === "") continue;
+        socketRef
+          .to(`party:${partyId}:admin`)
+          .emit("party:buzz_fx", { playerId: m.playerId, url });
+      }
     }
-    if (meta?.kind === "answer_fx") {
-      const u = typeof meta.url === "string" ? meta.url.trim() : "";
-      if (u === "") return;
+    for (const m of extras) {
+      if (m.kind !== "answer_fx") continue;
+      const u = typeof m.url === "string" ? m.url.trim() : "";
+      if (u === "") continue;
       socketRef.to(`party:${partyId}:admin`).emit("party:answer_fx", { url: u });
       socketRef.to(`party:${partyId}:broadcast`).emit("party:answer_fx", { url: u });
+    }
+    for (const m of extras) {
+      if (m.kind !== "buzz_verdict") continue;
+      socketRef.to(`party:${partyId}:player`).emit("party:buzz_verdict", {
+        playerId: m.playerId,
+        verdict: m.verdict,
+      });
+    }
+    for (const m of extras) {
+      if (m.kind !== "player_kicked") continue;
+      socketRef.to(`party:${partyId}:player`).emit("party:kicked", { playerId: m.playerId });
     }
   }, buzzCatalog);
 
