@@ -2,6 +2,8 @@ import fs from "node:fs";
 import fsPromises from "node:fs/promises";
 import path from "node:path";
 
+import { getBasePath, withBasePath } from "../basePath.js";
+
 const VIDEO_EXTENSIONS = new Set([".mp4", ".webm", ".mov", ".ogv", ".m4v"]);
 
 export interface HostedGameVideoEntry {
@@ -35,7 +37,7 @@ export async function listHostedGameVideos(gamesDir: string): Promise<HostedGame
       continue;
     }
     if (!st.isFile()) continue;
-    out.push({ name, url: `/games/video/${encodeURIComponent(name)}` });
+    out.push({ name, url: withBasePath(`/games/video/${encodeURIComponent(name)}`) });
   }
   return out;
 }
@@ -45,7 +47,11 @@ export async function listHostedGameVideos(gamesDir: string): Promise<HostedGame
  *   that exists on disk.
  */
 export function assertDirectVideoUrlForPartyManche(gamesDir: string, urlRaw: string): string {
-  const url = urlRaw.trim();
+  let url = urlRaw.trim();
+  // * The browser submits hosted URLs already carrying the reverse-proxy mount
+  //   path; strip it so the checks below (and the stored value) stay root-relative.
+  const bp = getBasePath();
+  if (bp !== "" && (url === bp || url.startsWith(`${bp}/`))) url = url.slice(bp.length) || "/";
   if (url.startsWith("https://")) {
     try {
       const u = new URL(url);

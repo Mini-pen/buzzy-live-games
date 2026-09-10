@@ -1,68 +1,59 @@
 # buzzy-live-games — routage Traefik
 
-**URL publique :** https://partygames.from-beyond.fr/
+**URL publique :** `https://games.from-beyond.fr/buzzy-live-games`
 
-Ce projet suppose la même convention que `therapia.origin/traefik` :
+Déployé comme application **Compose** dans Dokploy, derrière le Traefik géré par Dokploy.
 
-- Réseau Docker externe : **`traefik`**
-- Entrypoints : **`http`** (80), **`https`** (443)
-- Résolveur ACME : **`cloudflare`** (HTTP-01 sur l’entrypoint `http`)
-- Les conteneurs ne sont pas exposés par défaut : **`traefik.enable=true`** sur le service
-- Les routeurs Traefik sont préfixés **`buzzylive-`** (ex. `buzzylive-https`) pour éviter tout doublon avec une ancienne stack encore étiquetée `partygames-*` sur le même hôte.
+## Conventions de l'hôte (Dokploy)
 
-## Fichiers fournis
+- Réseau Docker externe : **`dokploy-network`**
+- Entrypoints : **`web`** (80), **`websecure`** (443)
+- Résolveur ACME : **`letsencrypt`** (challenge HTTP-01 sur `web`)
+- `exposedByDefault: false` → `traefik.enable=true` obligatoire sur le service
+- Routeurs préfixés **`buzzylive-`**
 
-- `docker-compose.yml` : service `buzzy-live-games-web` avec labels prêts à l’emploi.
-- `.env.example` : valeur par défaut `PARTYGAMES_HOST=partygames.from-beyond.fr`.
+## Service mono-conteneur derrière un sous-chemin
+
+L'app (API Fastify + SPA + Socket.IO) est servie sous le sous-chemin `/buzzy-live-games`
+du domaine `games.from-beyond.fr`. Le préfixe est :
+
+1. **compilé dans le SPA** par Vite (`base`), via le build arg `APP_BASE_PATH` ;
+2. **connu du serveur** via l'env `BASE_PATH` (préfixe les URLs de médias `/games/…`,
+   `/avatars/…` renvoyées au navigateur) ;
+3. **retiré par Traefik** avant d'atteindre Fastify (middleware `stripprefix`).
+
+Les trois valeurs doivent coïncider. Pour servir à la racine d'un domaine dédié :
+mettre `APP_BASE_PATH=/` (ou vide), retirer le middleware `buzzylive-stripprefix`,
+et ajuster la règle en `Host(...)` seul.
+
+## Variables (`.env` Dokploy)
+
+| Variable | Rôle | Exemple |
+|---|---|---|
+| `GAMES_HOST` | Host public | `games.from-beyond.fr` |
+| `APP_BASE_PATH` | Sous-chemin (build SPA + `BASE_PATH` serveur + `stripprefix`) | `/buzzy-live-games` |
+| `PUBLIC_URL` | URL publique complète (QR codes, liens de reprise animateur) | `https://games.from-beyond.fr/buzzy-live-games` |
+| `JWT_SECRET` | **Obligatoire.** Secret de signature JWT | — |
+
+## Labels (résumé)
+
+| Label | Rôle |
+|---|---|
+| `traefik.enable=true` | Découverte Docker (`exposedByDefault: false`). |
+| `traefik.docker.network=dokploy-network` | Réseau que Traefik utilise vers le conteneur. |
+| Router `buzzylive-http` | `Host(...) && PathPrefix(...)` sur `web`, middleware redirection HTTPS. |
+| Router `buzzylive-https` | Même règle sur `websecure`, `tls.certresolver=letsencrypt`, middleware `stripprefix`. |
+| `buzzylive-stripprefix` | Retire `APP_BASE_PATH` avant de transmettre à Fastify. |
+| `loadbalancer.server.port=3000` | Port interne du conteneur Node (`PORT`). |
 
 ## Déploiement
 
-### Script recommandé (rebuild propre + redémarrage Traefik)
+Push sur `main` → redeploy Dokploy (build Compose : `docker compose up -d --build`).
+Le `.env` (avec `JWT_SECRET`) est géré dans l'onglet Environment de l'application Dokploy.
 
-Depuis la racine du dépôt, avec `.env` rempli (**`JWT_SECRET`** obligatoire) :
+## WebSockets
 
-```bash
-./scripts/deploy-docker-stack.sh
-```
-
-Le script : arrête les conteneurs du compose courant ; supprime l’image **`buzzy-live-games:local`** ; retire par défaut les conteneurs restants du projet Docker Compose **`partygames`** (souvent orphelins quand `PartyGames/` a été renommé) pour éviter l’erreur Traefik **`Router defined multiple times`** sur `buzzylive-http` / `buzzylive-https` ; reconstruit sans cache (`docker compose build --no-cache`) ; démarre le service ; puis **redémarre Traefik** (`docker compose restart traefik` si `~/dev/traefik/docker-compose.yml` existe, sinon `docker restart traefik`).
-
-Variables optionnelles : `REMOVE_LEGACY_PARTYGAMES=0` pour garder les anciennes stacks ; `TRAEFIK_COMPOSE_DIR=/chemin/vers/traefik` si le dossier Compose Traefik n’est pas `~/dev/traefik`.
-
-### Déploiement manuel minimal
-
-```bash
-cd buzzy-live-games
-cp .env.example .env   # puis renseigner JWT_SECRET au minimum
-docker compose build --no-cache
-docker compose up -d
-# si routage bizarre : docker restart traefik
-```
-
-Vérifier que **`partygames.from-beyond.fr`** résout vers l’hôte où tournent Traefik et ce stack.
-
-## Règles (résumé)
-
-| Label | Rôle |
-|--------|------|
-| `traefik.enable=true` | Active la découverte Docker (Ton `traefik.yml` a `exposedByDefault: false`). |
-| Router `*-http` | `Host(`…`)` sur l’entrypoint `http`, middleware **redirection HTTPS** permanente. |
-| Exclusion `/.well-known/acme-challenge/` | Laisse passer le défi Let’s Encrypt sur le port 80. |
-| Router `*-https` | Même `Host`, entrypoint `https`, `tls=true`, `tls.certresolver=cloudflare`. |
-| `loadbalancer.server.port=3000` | Cible le port **interne** du conteneur Node (`PORT` dans le compose). |
-
-## Réutiliser les middlewares globaux (optionnel)
-
-Si tu préfères réutiliser `redirect-to-https` et `security-headers` déjà définis sur le **conteneur Traefik**, remplace les lignes middleware / redirect du compose par des références `@docker`, par exemple :
-
-`traefik.http.routers.buzzylive-http.middlewares=redirect-to-https@docker`
-
-et sur le router HTTPS :
-
-`traefik.http.routers.buzzylive-https.middlewares=security-headers@docker`
-
-Les noms doivent correspondre exactement aux `traefik.http.middlewares.*` du service Traefik, et les deux conteneurs doivent partager le réseau **`traefik`**.
-
-## WebSockets (plus tard)
-
-Quand le `webserver` exposera une API temps réel, aucun label spécial n’est en général nécessaire : Traefik transmet les en-têtes `Upgrade` / `Connection` tant que le service pointe vers le bon port. Si tu mets API et fichiers statiques sur des ports différents, il faudra soit **deux services** Docker avec deux noms de service Traefik, soit un **router** supplémentaire avec un préfixe de chemin.
+Socket.IO passe par le même host/port. Le client se connecte sur
+`path: <APP_BASE_PATH>/socket.io` ; Traefik retire le préfixe et le serveur
+répond sur `/socket.io`. Aucun label spécifique n'est requis (Traefik relaie
+`Upgrade`/`Connection`).

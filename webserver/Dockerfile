@@ -6,6 +6,9 @@ RUN npm install
 
 FROM deps AS build
 WORKDIR /app/webserver
+# * Sub-path the SPA is served under (baked into asset URLs by Vite). Empty = root.
+ARG APP_BASE_PATH=""
+ENV APP_BASE_PATH=${APP_BASE_PATH}
 COPY webserver/ ./
 COPY games /app/games
 # * Audio catalogue lives under `/app/games/sounds/catalog.json`; binaries come from repo `sounds/`.

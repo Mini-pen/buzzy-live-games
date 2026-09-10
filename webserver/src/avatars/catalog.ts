@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { withBasePath } from "../basePath.js";
+
 /** * Image files served under `/avatars/…` relative to the avatars root directory. */
 const IMAGE_EXTENSIONS = new Set([".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".avif"]);
 
@@ -201,8 +203,8 @@ export function getDefaultAvatarKey(): string {
 export function avatarPublicRelativePath(key: string): string {
   const norm = key.replace(/\\/gu, "/").trim();
   const parts = norm.split("/").filter((p) => p !== "" && p !== "." && p !== "..");
-  if (parts.length === 0) return "/avatars/";
-  return `/avatars/${parts.map((p) => encodeURIComponent(p)).join("/")}`;
+  if (parts.length === 0) return withBasePath("/avatars/");
+  return withBasePath(`/avatars/${parts.map((p) => encodeURIComponent(p)).join("/")}`);
 }
 
 function isSafeRelativeAvatarKey(norm: string): boolean {

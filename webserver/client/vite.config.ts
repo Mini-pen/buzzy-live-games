@@ -6,7 +6,12 @@ import { defineConfig } from "vite";
 
 const clientRoot = path.dirname(fileURLToPath(import.meta.url));
 
+// * Sub-path the app is served under (e.g. `/buzzy-live-games`). Passed at build
+//   time via the `APP_BASE_PATH` build arg; defaults to the domain root.
+const appBasePath = (process.env.APP_BASE_PATH ?? "").trim().replace(/\/+$/u, "");
+
 export default defineConfig({
+  base: appBasePath === "" ? "/" : `${appBasePath}/`,
   plugins: [react()],
   root: clientRoot,
   build: {

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
+import { BASE_PATH, SOCKET_PATH, withBase } from "./paths";
 
 /** * Quiz surface from `PartyPublicSnapshot.gameBoard`. */
 interface PartyGameBoardQuiz {
@@ -483,7 +484,7 @@ async function loadPartySnapshot(
   const bearer = opts?.bearer?.trim();
   if (typeof bearer === "string" && bearer !== "") headers.Authorization = `Bearer ${bearer}`;
   try {
-    const res = await fetch(`/api/parties/${encodeURIComponent(partyId)}`, {
+    const res = await fetch(withBase(`/api/parties/${encodeURIComponent(partyId)}`), {
       credentials: "same-origin",
       headers,
       signal: opts?.signal,
@@ -516,7 +517,7 @@ async function loadPartySnapshot(
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(path, {
+  const r = await fetch(withBase(path), {
     ...init,
     headers: {
       "Content-Type": "application/json",
@@ -777,7 +778,10 @@ function Home(): JSX.Element {
     }
     setResumeAdminDeleting(true);
     try {
-      const res = await fetch(`/api/parties/${encodeURIComponent(adminResume.partyId)}/host/delete`, {
+      const delPath = withBase(
+        `/api/parties/${encodeURIComponent(adminResume.partyId)}/host/delete`,
+      );
+      const res = await fetch(delPath, {
         method: "POST",
         credentials: "same-origin",
         headers: {
@@ -1767,6 +1771,7 @@ function Play(): JSX.Element {
       .catch(() => setSnap(null));
 
     const s: Socket = io({
+      path: SOCKET_PATH,
       transports: ["websocket", "polling"],
       auth: { partyId: pid, bearer: jwt, role: "player" },
     });
@@ -2268,6 +2273,7 @@ function Admin(): JSX.Element {
     if (!pid || bearer === "" || adminBootstrap !== "ready") return undefined;
 
     const s: Socket = io({
+      path: SOCKET_PATH,
       transports: ["websocket", "polling"],
       auth: { partyId: pid, bearer, role: "admin" },
     });
@@ -2313,7 +2319,7 @@ function Admin(): JSX.Element {
       interface ErrBody {
         error?: string;
       }
-      const res = await fetch(path, {
+      const res = await fetch(withBase(path), {
         method,
         credentials: "same-origin",
         headers: {
@@ -2405,7 +2411,7 @@ function Admin(): JSX.Element {
     try {
       if (!pid || bearer === "")
         throw new Error("auth:Session animateur incomplète (recharger la page).");
-      const res = await fetch(`${hostBasePath}/host/delete`, {
+      const res = await fetch(withBase(`${hostBasePath}/host/delete`), {
         method: "POST",
         credentials: "same-origin",
         headers: {
@@ -2780,7 +2786,7 @@ function Admin(): JSX.Element {
       </Shell>
     );
 
-  const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}`;
+  const joinUrl = `${window.location.origin}${BASE_PATH}/join?code=${encodeURIComponent(snap.joinCode)}`;
 
   const activeMancheEntry =
     snap.activeMancheId === null
@@ -2822,7 +2828,7 @@ function Admin(): JSX.Element {
               <span className="bz-eyebrow">code joueurs</span>
               <div className="bz-host-code">{snap.joinCode}</div>
               <div className="bz-host-join">
-                {window.location.host}/join?code=<strong>{snap.joinCode}</strong>
+                {window.location.host}{BASE_PATH}/join?code=<strong>{snap.joinCode}</strong>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                 <span
@@ -2846,7 +2852,7 @@ function Admin(): JSX.Element {
                   </span>
                 ) : null}
                 <a
-                  href={`/party/${encodeURIComponent(pid)}/broadcast`}
+                  href={withBase(`/party/${encodeURIComponent(pid)}/broadcast`)}
                   target="_blank"
                   rel="noreferrer"
                   className="bz-cta"
@@ -3453,6 +3459,7 @@ function Broadcast(): JSX.Element {
       });
 
     const s: Socket = io({
+      path: SOCKET_PATH,
       transports: ["websocket", "polling"],
       auth: { partyId: pid, role: "broadcast" },
     });
@@ -3489,7 +3496,7 @@ function Broadcast(): JSX.Element {
     );
   }
 
-  const joinUrl = `${window.location.origin}/join?code=${encodeURIComponent(snap.joinCode)}`;
+  const joinUrl = `${window.location.origin}${BASE_PATH}/join?code=${encodeURIComponent(snap.joinCode)}`;
   const board = snap.gameBoard;
   const quizBoard = board !== null && board.kind === "quiz" ? board : null;
   const videoBoard = board !== null && board.kind === "video" ? board : null;

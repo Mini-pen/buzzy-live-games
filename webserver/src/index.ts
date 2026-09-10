@@ -1,6 +1,7 @@
 import type { Server } from "socket.io";
 
 import { buildApp } from "./app.js";
+import { setBasePath } from "./basePath.js";
 import { loadConfig } from "./config.js";
 import { partySnapshotWithGame } from "./domain/partySnapshotPresenter.js";
 import { PartyStore, type PartyNotifyMeta } from "./domain/store.js";
@@ -20,6 +21,7 @@ function partyNotifyExtras(meta?: PartyNotifyMeta | PartyNotifyMeta[]): PartyNot
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  setBasePath(config.basePath);
   const packs = await scanQuizPacks(config.gamesDir);
   quizPacksByRun = packs;
   console.info(`Indexed ${packs.size} quiz pack(s) under ${config.gamesDir}`);

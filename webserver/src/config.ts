@@ -1,6 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { normaliseBasePath } from "./basePath.js";
+
 const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -13,6 +15,8 @@ export interface AppConfig {
   /** * Public URL with scheme, no trailing slash (QR links and redirects). */
   publicUrl: string;
   jwtSecret: string;
+  /** * Reverse-proxy mount path (`""` at domain root, else `/buzzy-live-games`). */
+  basePath: string;
   /** * Delete parties untouched longer than this (ms). */
   partySweepMaxAgeMs: number;
   /** * How often to run the sweeper (ms). */
@@ -69,6 +73,7 @@ export function loadConfig(): AppConfig {
     jwtSecret: isProd
       ? envString("JWT_SECRET")
       : envString("JWT_SECRET", "dev-insecure-change-me"),
+    basePath: normaliseBasePath(process.env.BASE_PATH),
     partySweepIntervalMs: envInt("PARTY_SWEEP_INTERVAL_MS", 5 * 60 * 1000),
     partySweepMaxAgeMs: envInt(
       "PARTY_MAX_IDLE_MS",

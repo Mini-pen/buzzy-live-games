@@ -8,6 +8,7 @@ import {
   isVideoRound,
   progressiveGuessDecode,
 } from "../games/pack.js";
+import { withBasePath } from "../basePath.js";
 import { canonicalYoutubeEmbedIframeSrc } from "./youtubeEmbed.js";
 import { publicSnapshotForParty } from "./partyLogic.js";
 import type {
@@ -74,7 +75,7 @@ function deriveGameBoard(
     return {
       kind: "iframe",
       title: item.title,
-      url: item.iframeUrl,
+      url: withBasePath(item.iframeUrl),
       replaySerial: party.videoReplaySerial,
     };
   }
@@ -107,7 +108,7 @@ function deriveGameBoard(
       roundIndex: 0,
       roundTitle: item.title,
       roundNumberHuman: 1,
-      videoUrl: item.directVideoUrl,
+      videoUrl: withBasePath(item.directVideoUrl),
       replaySerial: party.videoReplaySerial,
     };
   }
@@ -134,7 +135,7 @@ function deriveGameBoard(
       roundIndex: ri,
       roundTitle: round.title,
       roundNumberHuman: ri + 1,
-      videoUrl: round.videoUrl,
+      videoUrl: withBasePath(round.videoUrl),
       replaySerial: party.videoReplaySerial,
     };
   }
@@ -169,7 +170,7 @@ function deriveGameBoard(
       roundNumberHuman: ri + 1,
       slideIndexHuman: qi + 1,
       slideCount: round.slides.length,
-      imageUrl: url,
+      imageUrl: withBasePath(url),
       awardPoints,
     };
     const cap = slide.prompt?.trim();
@@ -188,7 +189,9 @@ function deriveGameBoard(
       trackIndexHuman: qi + 1,
       trackCount: round.tracks.length,
       audioUrl:
-        audience === "host" || party.allowPlayerAudioControl ? t.audioUrl : "",
+        audience === "host" || party.allowPlayerAudioControl
+          ? withBasePath(t.audioUrl)
+          : "",
       replaySerial: party.videoReplaySerial,
     };
     if (audience === "host") {
@@ -225,7 +228,7 @@ function deriveGameBoard(
         ...baseMeta,
         clueIndexHuman: decoded.clueIndex + 1,
         clueCount: decoded.item.clues.length,
-        imageUrl: url,
+        imageUrl: withBasePath(url),
         awardPoints: clue.points,
       };
       const pr = decoded.item.playerPrompt?.trim();
@@ -238,7 +241,7 @@ function deriveGameBoard(
       phase: "reveal",
       ...baseMeta,
       answer: ans,
-      revealImageUrl: revImg,
+      revealImageUrl: withBasePath(revImg),
     };
   }
 
@@ -257,7 +260,7 @@ function deriveGameBoard(
     points: question.points,
   };
   if (question.imageUrl !== undefined && question.imageUrl.trim() !== "") {
-    surface.imageUrl = question.imageUrl.trim();
+    surface.imageUrl = withBasePath(question.imageUrl.trim());
   }
   if (audience === "host") surface.correctChoiceIndex = question.correctIndex;
   return surface;

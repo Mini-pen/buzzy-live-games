@@ -3,6 +3,8 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { withBasePath } from "../basePath.js";
+
 const catalogSchema = z
   .object({
     defaultBuzzerKey: z.string().min(1),
@@ -70,10 +72,12 @@ export async function loadBuzzSoundCatalog(gamesDir: string): Promise<LoadedBuzz
 export function resolveBuzzSoundPublicUrl(entry: BuzzSoundCatalogEntry): string {
   const rel = safeRelativeSoundFile(entry.file);
   if (rel === null) return "";
-  return `/games/sounds/${rel
-    .split("/")
-    .map((seg) => encodeURIComponent(seg))
-    .join("/")}`;
+  return withBasePath(
+    `/games/sounds/${rel
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/")}`,
+  );
 }
 
 /** * Only files under `sounds/buzzers/` may be chosen as a player buzz tone (not good/bad/others). */
