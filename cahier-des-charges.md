@@ -501,20 +501,32 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.1.3 Tests Socket.IO automatisés
+#### 4.1.3 Tests unitaires (Vitest)
 
-**Statut :** restant (tests domaine présents, tests socket absents).
+**Statut :** Livré partiellement (120 tests unitaires, couverture restante à compléter).
 
-**Description :** Les tests unitaires couvrent les règles métier dans `partyLogic.test.ts` et `partySnapshotPresenter.test.ts`. Aucun test d'intégration Socket.IO n'est présent pour vérifier la bonne émission de `party:patch` après une action (join, buzz, kick, etc.).
+**Description :** Suite de tests unitaires Vitest couvrant la logique métier et les utilitaires. Le code de production n'a pas été modifié par l'ajout des tests.
 
-**Hypothèse :** Ajouter des tests avec un client Socket.IO de test (ex. `socket.io-client` dans un test Vitest) qui se connecte au serveur de test, effectue une action via l'API HTTP, et vérifie la réception de l'événement `party:patch` avec le bon contenu.
+**Modules couverts (livrés) :**
 
-**Critères d'acceptation (hypothèse) :**
+- `partyLogic` : scores équipes, snapshot public, codes équipes.
+- `free_buzz` : validation des manches libres.
+- `readBearer` : extraction du token Bearer depuis les headers.
+- `replyDomain` : gestion des erreurs domaine.
+- Catalogue de sons (`sounds`).
+- `loadConfig` : chargement de la configuration.
 
-- Un test vérifie qu'un join déclenche un `party:patch` avec le nouveau joueur dans `players`.
-- Un test vérifie qu'un buzz ajoute le `playerId` à `buzzOrder`.
-- Un test vérifie qu'un kick retire le joueur et émet `player_kicked`.
-- Un test vérifie qu'un chat envoie un message dans `chatTail`.
+**Modules non couverts (restant à implémenter) :**
+
+- `store.ts` : tests d'intégration du `PartyStore` (mutations, broadcast, purge).
+- Routes HTTP (`routesParty.ts`, etc.) : tests des endpoints REST.
+- Socket.IO (`socket.ts`) : tests d'intégration Socket.IO vérifiant l'émission de `party:patch` après actions (join, buzz, kick, chat).
+
+**Critères d'acceptation pour la couverture restante (hypothèse) :**
+
+- Tests `store.ts` : vérifier les mutations (join, buzz, kick, delta score) et la synchronisation du snapshot.
+- Tests routes : vérifier les validations Zod, les codes d'erreur HTTP, et les droits d'accès (JWT joueur, Bearer admin).
+- Tests Socket.IO : un client de test se connecte, effectue une action via l'API HTTP, et vérifie la réception de `party:patch` avec le bon contenu.
 
 ---
 
@@ -559,17 +571,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.2.3 Grand écran présentateur (spectateur read-only synchronisé)
-
-**Statut :** hors MVP.
-
-**Description :** Le rôle `broadcast` existe déjà dans le socket (room `party:{id}:broadcast`) mais n'a pas d'UI dédiée. L'idée est d'avoir une vue plein écran optimisée pour vidéo-projecteur : affichage du `gameBoard`, liste des joueurs, scores équipes, sans contrôles animateur.
-
-**Hypothèse :** Une route `/party/:partyId/broadcast` (sans auth Bearer) afficherait le snapshot en temps réel, optimisée pour grand écran (police grande, animations de scores, affichage des buzzs en live). Cette vue serait connectée via la room `broadcast`.
-
----
-
-#### 4.2.4 Internationalisation (i18n)
+#### 4.2.3 Internationalisation (i18n)
 
 **Statut :** hors MVP.
 
@@ -579,7 +581,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.2.5 Cluster Redis pour multi-instances
+#### 4.2.4 Cluster Redis pour multi-instances
 
 **Statut :** hors MVP.
 
