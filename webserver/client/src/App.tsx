@@ -2208,6 +2208,8 @@ function Admin(): JSX.Element {
   const [editorDownloadingImage, setEditorDownloadingImage] = useState(false);
   const [editorImageUrl, setEditorImageUrl] = useState("");
   const [editorDirty, setEditorDirty] = useState(false);
+  const [editorSelectedRound, setEditorSelectedRound] = useState(0);
+  const [editorSelectedQuestion, setEditorSelectedQuestion] = useState(0);
 
   useEffect(() => {
     void fetchJson<{
@@ -2936,7 +2938,188 @@ function Admin(): JSX.Element {
     setEditorValidationErrors([]);
     setEditorDirty(false);
     setEditorImageUrl("");
+    setEditorSelectedRound(0);
+    setEditorSelectedQuestion(0);
   }, [editorDirty]);
+
+  const onEditorAddRound = useCallback((): void => {
+    if (!editorPack) return;
+    const pack = editorPack as { rounds?: unknown[] };
+    const newRound = {
+      id: `round-${Date.now()}`,
+      title: "Nouveau round",
+      questions: [
+        {
+          id: `q-${Date.now()}`,
+          prompt: "Question ?",
+          choices: ["Réponse A", "Réponse B"],
+          correctIndex: 0,
+          points: 1,
+        },
+      ],
+    };
+    const updated = { ...pack, rounds: [...(pack.rounds ?? []), newRound] };
+    void onUpdateEditorPack(updated);
+    setEditorSelectedRound((pack.rounds ?? []).length);
+    setEditorSelectedQuestion(0);
+  }, [editorPack, onUpdateEditorPack]);
+
+  const onEditorDeleteRound = useCallback(
+    (roundIndex: number): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: unknown[] };
+      const updated = {
+        ...pack,
+        rounds: (pack.rounds ?? []).filter((_, i) => i !== roundIndex),
+      };
+      void onUpdateEditorPack(updated);
+      if (editorSelectedRound >= (pack.rounds ?? []).length - 1) {
+        setEditorSelectedRound(Math.max(0, (pack.rounds ?? []).length - 2));
+      }
+      setEditorSelectedQuestion(0);
+    },
+    [editorPack, editorSelectedRound, onUpdateEditorPack],
+  );
+
+  const onEditorMoveRound = useCallback(
+    (roundIndex: number, direction: "up" | "down"): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: unknown[] };
+      const rounds = [...(pack.rounds ?? [])];
+      if (direction === "up" && roundIndex > 0) {
+        [rounds[roundIndex - 1], rounds[roundIndex]] = [rounds[roundIndex]!, rounds[roundIndex - 1]!];
+        setEditorSelectedRound(roundIndex - 1);
+      } else if (direction === "down" && roundIndex < rounds.length - 1) {
+        [rounds[roundIndex], rounds[roundIndex + 1]] = [rounds[roundIndex + 1]!, rounds[roundIndex]!];
+        setEditorSelectedRound(roundIndex + 1);
+      }
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorUpdateRound = useCallback(
+    (roundIndex: number, field: string, value: unknown): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: unknown[] };
+      const rounds = [...(pack.rounds ?? [])];
+      rounds[roundIndex] = { ...(rounds[roundIndex] as Record<string, unknown>), [field]: value };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorAddQuestion = useCallback(
+    (roundIndex: number): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: { questions?: unknown[] }[] };
+      const rounds = [...(pack.rounds ?? [])];
+      const round = rounds[roundIndex];
+      if (!round) return;
+      const newQuestion = {
+        id: `q-${Date.now()}`,
+        prompt: "Nouvelle question ?",
+        choices: ["Réponse A", "Réponse B"],
+        correctIndex: 0,
+        points: 1,
+      };
+      rounds[roundIndex] = {
+        ...round,
+        questions: [...(round.questions ?? []), newQuestion],
+      };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorDeleteQuestion = useCallback(
+    (roundIndex: number, questionIndex: number): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: { questions?: unknown[] }[] };
+      const rounds = [...(pack.rounds ?? [])];
+      const round = rounds[roundIndex];
+      if (!round) return;
+      rounds[roundIndex] = {
+        ...round,
+        questions: (round.questions ?? []).filter((_, i) => i !== questionIndex),
+      };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorUpdateQuestion = useCallback(
+    (roundIndex: number, questionIndex: number, field: string, value: unknown): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: { questions?: unknown[] }[] };
+      const rounds = [...(pack.rounds ?? [])];
+      const round = rounds[roundIndex];
+      if (!round) return;
+      const questions = [...(round.questions ?? [])];
+      questions[questionIndex] = {
+        ...(questions[questionIndex] as Record<string, unknown>),
+        [field]: value,
+      };
+      rounds[roundIndex] = { ...round, questions };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorUpdateChoice = useCallback(
+    (roundIndex: number, questionIndex: number, choiceIndex: number, value: string): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: { questions?: { choices?: string[] }[] }[] };
+      const rounds = [...(pack.rounds ?? [])];
+      const round = rounds[roundIndex];
+      if (!round) return;
+      const questions = [...(round.questions ?? [])];
+      const question = questions[questionIndex];
+      if (!question) return;
+      const choices = [...(question.choices ?? [])];
+      choices[choiceIndex] = value;
+      questions[questionIndex] = { ...question, choices };
+      rounds[roundIndex] = { ...round, questions };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorAddChoice = useCallback(
+    (roundIndex: number, questionIndex: number): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: { questions?: { choices?: string[] }[] }[] };
+      const rounds = [...(pack.rounds ?? [])];
+      const round = rounds[roundIndex];
+      if (!round) return;
+      const questions = [...(round.questions ?? [])];
+      const question = questions[questionIndex];
+      if (!question) return;
+      const choices = [...(question.choices ?? []), "Nouveau choix"];
+      questions[questionIndex] = { ...question, choices };
+      rounds[roundIndex] = { ...round, questions };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
+
+  const onEditorDeleteChoice = useCallback(
+    (roundIndex: number, questionIndex: number, choiceIndex: number): void => {
+      if (!editorPack) return;
+      const pack = editorPack as { rounds?: { questions?: { choices?: string[] }[] }[] };
+      const rounds = [...(pack.rounds ?? [])];
+      const round = rounds[roundIndex];
+      if (!round) return;
+      const questions = [...(round.questions ?? [])];
+      const question = questions[questionIndex];
+      if (!question) return;
+      const choices = (question.choices ?? []).filter((_, i) => i !== choiceIndex);
+      questions[questionIndex] = { ...question, choices };
+      rounds[roundIndex] = { ...round, questions };
+      void onUpdateEditorPack({ ...pack, rounds });
+    },
+    [editorPack, onUpdateEditorPack],
+  );
 
   const onHostRoundStart = useCallback(async (): Promise<void> => {
     if (snap === null) return;
@@ -3744,95 +3927,337 @@ function Admin(): JSX.Element {
               role="dialog"
               aria-labelledby="editor-title"
               className="bz-modal-dialog"
-              style={{ maxWidth: 800, width: "90%" }}
+              style={{ maxWidth: 1200, width: "95%", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
               onMouseDown={(evt) => {
                 evt.stopPropagation();
               }}
             >
-              <h2 id="editor-title">Éditeur de pack</h2>
-              {editorError ? (
-                <p style={{ color: "crimson", marginBottom: 12 }}>{editorError}</p>
-              ) : null}
-              {editorValidationErrors.length > 0 ? (
-                <div style={{ color: "crimson", marginBottom: 12, fontSize: 13 }}>
-                  <p style={{ margin: "0 0 8px", fontWeight: "bold" }}>Erreurs de validation :</p>
-                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {/* Top bar */}
+              <div style={{ borderBottom: "1px solid #ddd", padding: "16px 20px" }}>
+                <h2 id="editor-title" style={{ margin: "0 0 8px" }}>
+                  Éditeur : {(editorPack as { title?: string })?.title || "Pack sans titre"}
+                </h2>
+                {editorValidationErrors.length > 0 ? (
+                  <div style={{ color: "crimson", marginBottom: 12, fontSize: 13 }}>
+                    <strong>Erreurs de validation :</strong>{" "}
                     {editorValidationErrors.map((err, i) => (
-                      <li key={i}>{err}</li>
+                      <span key={i}>
+                        {err}
+                        {i < editorValidationErrors.length - 1 ? " • " : ""}
+                      </span>
                     ))}
-                  </ul>
+                  </div>
+                ) : null}
+                {editorError ? (
+                  <p style={{ color: "crimson", margin: "4px 0", fontSize: 13 }}>{editorError}</p>
+                ) : null}
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
+                  <input
+                    type="url"
+                    value={editorImageUrl}
+                    onChange={(e) => setEditorImageUrl(e.target.value)}
+                    placeholder="https://exemple.com/image.jpg"
+                    style={{ flex: "1 1 300px", minWidth: 200 }}
+                    disabled={editorDownloadingImage}
+                  />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const relativePath = await onDownloadImage(editorImageUrl);
+                      if (relativePath) {
+                        setEditorImageUrl("");
+                        alert(`Image téléchargée : ${relativePath}`);
+                      }
+                    }}
+                    disabled={editorDownloadingImage || !editorImageUrl.trim()}
+                  >
+                    {editorDownloadingImage ? "Téléchargement…" : "Ajouter une image depuis URL"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onExportPack()}
+                    disabled={editorValidationErrors.length > 0}
+                    className="bz-primary"
+                  >
+                    Exporter en ZIP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onUseEditedPack()}
+                    disabled={editorValidationErrors.length > 0}
+                  >
+                    Utiliser immédiatement
+                  </button>
+                  <button type="button" onClick={onCloseEditor}>
+                    Fermer
+                  </button>
                 </div>
-              ) : null}
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", marginBottom: 8 }}>
-                  Ajouter une image depuis URL
-                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
-                    <input
-                      type="url"
-                      value={editorImageUrl}
-                      onChange={(e) => setEditorImageUrl(e.target.value)}
-                      placeholder="https://exemple.com/image.jpg"
-                      style={{ flex: 1 }}
-                      disabled={editorDownloadingImage}
-                    />
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const relativePath = await onDownloadImage(editorImageUrl);
-                        if (relativePath) {
-                          setEditorImageUrl("");
-                          alert(`Image téléchargée : ${relativePath}`);
-                        }
-                      }}
-                      disabled={editorDownloadingImage || !editorImageUrl.trim()}
-                    >
-                      {editorDownloadingImage ? "Téléchargement…" : "Ajouter"}
+              </div>
+
+              {/* Main content: Left (rounds) + Center (question) */}
+              <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+                {/* Left: Rounds list */}
+                <div style={{ width: 280, borderRight: "1px solid #ddd", overflowY: "auto", padding: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <strong style={{ fontSize: 14 }}>Rounds</strong>
+                    <button type="button" onClick={onEditorAddRound} style={{ fontSize: 13 }}>
+                      + Ajouter
                     </button>
                   </div>
-                </label>
-                <p style={{ fontSize: 13, color: "#666", margin: "4px 0 0" }}>
-                  L'image sera redimensionnée (max 1920×1080) et comprimée (max 500 Ko par défaut).
-                </p>
-              </div>
-              <div style={{ marginBottom: 16, maxHeight: 400, overflowY: "auto", border: "1px solid #ddd", padding: 12, borderRadius: 4 }}>
-                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Structure du pack (JSON)</h3>
-                <textarea
-                  value={JSON.stringify(editorPack, null, 2)}
-                  onChange={(e) => {
-                    try {
-                      const parsed = JSON.parse(e.target.value);
-                      void onUpdateEditorPack(parsed);
-                    } catch {
-                      // * Keep typing
+                  {((editorPack as { rounds?: unknown[] })?.rounds ?? []).map((round, ri) => {
+                    const r = round as { id?: string; title?: string; questions?: unknown[] };
+                    const isSelected = ri === editorSelectedRound;
+                    return (
+                      <div
+                        key={ri}
+                        style={{
+                          padding: 10,
+                          marginBottom: 8,
+                          border: isSelected ? "2px solid #0066cc" : "1px solid #ddd",
+                          borderRadius: 4,
+                          backgroundColor: isSelected ? "#e6f2ff" : "#fff",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => {
+                          setEditorSelectedRound(ri);
+                          setEditorSelectedQuestion(0);
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                          <strong style={{ fontSize: 13 }}>
+                            {ri + 1}. {r.title || "Sans titre"}
+                          </strong>
+                        </div>
+                        <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>
+                          {(r.questions ?? []).length} question{(r.questions ?? []).length > 1 ? "s" : ""}
+                        </div>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditorMoveRound(ri, "up");
+                            }}
+                            disabled={ri === 0}
+                            style={{ fontSize: 11, padding: "2px 6px" }}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onEditorMoveRound(ri, "down");
+                            }}
+                            disabled={ri === ((editorPack as { rounds?: unknown[] })?.rounds ?? []).length - 1}
+                            style={{ fontSize: 11, padding: "2px 6px" }}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (window.confirm(`Supprimer le round "${r.title}" ?`)) {
+                                onEditorDeleteRound(ri);
+                              }
+                            }}
+                            style={{ fontSize: 11, padding: "2px 6px", color: "crimson", marginLeft: "auto" }}
+                          >
+                            🗑
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Center: Selected question */}
+                <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
+                  {(() => {
+                    const pack = editorPack as { rounds?: { id?: string; title?: string; questions?: unknown[] }[] };
+                    const rounds = pack.rounds ?? [];
+                    const selectedRound = rounds[editorSelectedRound];
+                    if (!selectedRound) {
+                      return (
+                        <div style={{ textAlign: "center", color: "#999", paddingTop: 40 }}>
+                          <p>Aucun round sélectionné. Ajoutez un round pour commencer.</p>
+                        </div>
+                      );
                     }
-                  }}
-                  style={{
-                    width: "100%",
-                    minHeight: 300,
-                    fontFamily: "monospace",
-                    fontSize: 12,
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div className="bz-modal-actions">
-                <button
-                  type="button"
-                  onClick={() => void onUseEditedPack()}
-                  disabled={editorValidationErrors.length > 0}
-                >
-                  Utiliser immédiatement
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onExportPack()}
-                  disabled={editorValidationErrors.length > 0}
-                >
-                  Exporter en ZIP
-                </button>
-                <button type="button" onClick={onCloseEditor}>
-                  Fermer
-                </button>
+
+                    const questions = selectedRound.questions ?? [];
+                    const selectedQ = questions[editorSelectedQuestion] as
+                      | { id?: string; prompt?: string; choices?: string[]; correctIndex?: number; points?: number; imageUrl?: string }
+                      | undefined;
+
+                    return (
+                      <>
+                        {/* Round info */}
+                        <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #eee" }}>
+                          <h3 style={{ margin: "0 0 12px", fontSize: 18 }}>
+                            Round {editorSelectedRound + 1}
+                          </h3>
+                          <label style={{ display: "block", marginBottom: 8 }}>
+                            Titre du round
+                            <input
+                              type="text"
+                              value={selectedRound.title ?? ""}
+                              onChange={(e) => onEditorUpdateRound(editorSelectedRound, "title", e.target.value)}
+                              style={{ display: "block", width: "100%", marginTop: 4, boxSizing: "border-box" }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Questions tabs */}
+                        <div style={{ marginBottom: 16 }}>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
+                            {questions.map((_, qi) => (
+                              <button
+                                key={qi}
+                                type="button"
+                                onClick={() => setEditorSelectedQuestion(qi)}
+                                style={{
+                                  padding: "6px 12px",
+                                  fontSize: 13,
+                                  border: qi === editorSelectedQuestion ? "2px solid #0066cc" : "1px solid #ccc",
+                                  backgroundColor: qi === editorSelectedQuestion ? "#e6f2ff" : "#fff",
+                                  borderRadius: 4,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Q{qi + 1}
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              onClick={() => onEditorAddQuestion(editorSelectedRound)}
+                              style={{ padding: "6px 12px", fontSize: 13 }}
+                            >
+                              + Ajouter une question
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Selected question form */}
+                        {selectedQ ? (
+                          <>
+                            <div style={{ marginBottom: 16 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                <h4 style={{ margin: 0, fontSize: 16 }}>Question {editorSelectedQuestion + 1}</h4>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (window.confirm(`Supprimer la question ${editorSelectedQuestion + 1} ?`)) {
+                                      onEditorDeleteQuestion(editorSelectedRound, editorSelectedQuestion);
+                                    }
+                                  }}
+                                  style={{ fontSize: 13, color: "crimson" }}
+                                >
+                                  🗑 Supprimer
+                                </button>
+                              </div>
+                            </div>
+
+                            <label style={{ display: "block", marginBottom: 12 }}>
+                              Énoncé de la question
+                              <textarea
+                                value={selectedQ.prompt ?? ""}
+                                onChange={(e) =>
+                                  onEditorUpdateQuestion(editorSelectedRound, editorSelectedQuestion, "prompt", e.target.value)
+                                }
+                                style={{ display: "block", width: "100%", marginTop: 4, minHeight: 80, boxSizing: "border-box" }}
+                              />
+                            </label>
+
+                            <label style={{ display: "block", marginBottom: 12 }}>
+                              Points attribués
+                              <input
+                                type="number"
+                                value={selectedQ.points ?? 1}
+                                onChange={(e) =>
+                                  onEditorUpdateQuestion(
+                                    editorSelectedRound,
+                                    editorSelectedQuestion,
+                                    "points",
+                                    Number.parseInt(e.target.value, 10),
+                                  )
+                                }
+                                style={{ display: "block", width: "100%", marginTop: 4, boxSizing: "border-box" }}
+                              />
+                            </label>
+
+                            <label style={{ display: "block", marginBottom: 12 }}>
+                              URL de l'image (optionnel)
+                              <input
+                                type="text"
+                                value={selectedQ.imageUrl ?? ""}
+                                onChange={(e) =>
+                                  onEditorUpdateQuestion(editorSelectedRound, editorSelectedQuestion, "imageUrl", e.target.value)
+                                }
+                                placeholder="/games/image.jpg, /imported-packs/..., ou https://…"
+                                style={{ display: "block", width: "100%", marginTop: 4, boxSizing: "border-box" }}
+                              />
+                            </label>
+
+                            <div style={{ marginTop: 16 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                <strong>Choix de réponses</strong>
+                                <button
+                                  type="button"
+                                  onClick={() => onEditorAddChoice(editorSelectedRound, editorSelectedQuestion)}
+                                  style={{ fontSize: 13 }}
+                                >
+                                  + Ajouter un choix
+                                </button>
+                              </div>
+                              {(selectedQ.choices ?? []).map((choice, ci) => (
+                                <div key={ci} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                                  <label style={{ display: "flex", alignItems: "center", minWidth: 80, fontSize: 13 }}>
+                                    <input
+                                      type="radio"
+                                      name={`correct-${editorSelectedRound}-${editorSelectedQuestion}`}
+                                      checked={selectedQ.correctIndex === ci}
+                                      onChange={() =>
+                                        onEditorUpdateQuestion(editorSelectedRound, editorSelectedQuestion, "correctIndex", ci)
+                                      }
+                                      style={{ marginRight: 6 }}
+                                    />
+                                    Correct
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={choice}
+                                    onChange={(e) => onEditorUpdateChoice(editorSelectedRound, editorSelectedQuestion, ci, e.target.value)}
+                                    style={{ flex: 1, boxSizing: "border-box" }}
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if ((selectedQ.choices ?? []).length > 2) {
+                                        onEditorDeleteChoice(editorSelectedRound, editorSelectedQuestion, ci);
+                                      } else {
+                                        alert("Une question doit avoir au moins 2 choix.");
+                                      }
+                                    }}
+                                    style={{ fontSize: 13, color: "crimson" }}
+                                    disabled={(selectedQ.choices ?? []).length <= 2}
+                                  >
+                                    🗑
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ textAlign: "center", color: "#999", paddingTop: 40 }}>
+                            <p>Aucune question dans ce round. Ajoutez-en une pour commencer.</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
               </div>
             </div>
           </div>
