@@ -374,4 +374,22 @@ describe("partySnapshotWithGame", () => {
     });
     expect(partySnapshotWithGame(party, packs, "host").gameBoard).toBeNull();
   });
+
+  test("free_buzz exposes question counter and prompt", () => {
+    const party = partyStub({
+      state: "round_active",
+      currentRoundIndex: 0,
+      currentQuestionIndex: 2,
+      loadedPackId: "fb-v1",
+      hasStartedRound: true,
+      mancheScript: [quizMancheOverPack("free", "mid-fb")],
+      activeMancheId: "mid-fb",
+    });
+    const snap = partySnapshotWithGame(party, packs, "player");
+    expect(snap.gameBoard?.kind).toBe("free_buzz");
+    if (snap.gameBoard?.kind !== "free_buzz") throw new Error("expected free_buzz");
+    expect(snap.gameBoard.questionNumberHuman).toBe(3);
+    expect(snap.gameBoard.plannedQuestionCount).toBe(3);
+    expect(snap.gameBoard.prompt).toBe("Buzz");
+  });
 });
