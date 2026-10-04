@@ -2194,6 +2194,11 @@ function Admin(): JSX.Element {
   const [hostedVideoListLoading, setHostedVideoListLoading] = useState(false);
   const [deltaById, setDeltaById] = useState<Record<string, string>>({});
 
+  /** * ZIP pack import */
+  const [importZipOpen, setImportZipOpen] = useState(false);
+  const [importZipUploading, setImportZipUploading] = useState(false);
+  const [importZipError, setImportZipError] = useState<string | null>(null);
+
   useEffect(() => {
     void fetchJson<{
       packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
@@ -2550,6 +2555,57 @@ function Admin(): JSX.Element {
       }
     },
     [callHostSnapshot, hostBasePath],
+  );
+
+  const onImportZip = useCallback(
+    async (file: File): Promise<void> => {
+      setImportZipError(null);
+      setImportZipUploading(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(`${hostBasePath}/host/import-pack-zip`, {
+          method: "POST",
+          headers: {
+            Authorization: bearer,
+          },
+          body: formData,
+        });
+
+        if (!res.ok) {
+          let errorMsg = "Erreur lors de l'import.";
+          try {
+            const errorData = (await res.json()) as { error?: string };
+            if (errorData.error) {
+              errorMsg = errorData.error;
+            }
+          } catch {
+            /* noop */
+          }
+          throw new Error(errorMsg);
+        }
+
+        const data = (await res.json()) as {
+          pack: { id: string; title: string; version: number; roundCount: number };
+        };
+
+        // * Refresh packs list
+        const packsRes = await fetchJson<{
+          packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
+        }>(`/api/packs`);
+        setPacksList(packsRes.packs);
+
+        setImportZipOpen(false);
+        window.alert(`Pack "${data.pack.title}" importé avec succès (${data.pack.roundCount} segments).`);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setImportZipError(msg);
+      } finally {
+        setImportZipUploading(false);
+      }
+    },
+    [bearer, hostBasePath],
   );
 
   const onHostRoundPause = useCallback(async (): Promise<void> => {
@@ -2914,6 +2970,19 @@ function Admin(): JSX.Element {
                 }}
               >
                 + Ajouter
+              </button>
+              <button
+                type="button"
+                title="Importer un pack ZIP"
+                aria-label="Importer un pack ZIP"
+                onClick={() => {
+                  setErr(null);
+                  setImportZipOpen(true);
+                  setImportZipError(null);
+                }}
+                style={{ backgroundColor: "#4CAF50", color: "white" }}
+              >
+                Importer un pack (ZIP)
               </button>
             </div>
             <p className="bz-muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
@@ -3426,6 +3495,61 @@ function Admin(): JSX.Element {
                 </button>
                 <button type="button" className="bz-primary" onClick={() => void onHostMancheSubmitAdd()}>
                   Ajouter cette manche
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {importZipOpen ? (
+          <div
+            role="presentation"
+            className="bz-modal-overlay"
+            onMouseDown={(evt) => {
+              if (evt.target === evt.currentTarget) setImportZipOpen(false);
+            }}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="import-zip-title"
+              className="bz-modal-dialog"
+              onMouseDown={(evt) => {
+                evt.stopPropagation();
+              }}
+            >
+              <h2 id="import-zip-title">Importer un pack (ZIP)</h2>
+              <p style={{ marginBottom: 16, fontSize: 14 }}>
+                Sélectionnez un fichier ZIP contenant un pack de jeu JSON et ses ressources (images, audio, vidéo).
+                Le pack sera disponible pour cette session uniquement (non persisté au redémarrage).
+              </p>
+              <input
+                type="file"
+                accept=".zip"
+                disabled={importZipUploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    void onImportZip(file);
+                  }
+                }}
+              />
+              {importZipError ? (
+                <p style={{ color: "crimson", marginTop: 12 }}>{importZipError}</p>
+              ) : null}
+              {importZipUploading ? (
+                <p style={{ marginTop: 12 }}>Import en cours…</p>
+              ) : null}
+              <div className="bz-modal-actions" style={{ marginTop: 16 }}>
+                <button
+                  type="button"
+                  disabled={importZipUploading}
+                  onClick={() => {
+                    setImportZipOpen(false);
+                    setImportZipError(null);
+                  }}
+                >
+                  {importZipUploading ? "Fermer après import" : "Annuler"}
                 </button>
               </div>
             </div>

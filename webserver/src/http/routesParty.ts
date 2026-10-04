@@ -14,6 +14,8 @@ import { partySnapshotWithGame, quizPackFromLoadedId } from "../domain/partySnap
 import type { QuizPack } from "../games/pack.js";
 import { isQuizRound } from "../games/pack.js";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
+import type { ImportedPackStore } from "../games/zipPackImporter.js";
+import { importZipPack } from "../games/zipPackImporter.js";
 import {
   isBuzzerClipForPlayerChoice,
   resolveBuzzSoundPublicUrl,
@@ -34,6 +36,7 @@ import {
 export interface PartyRouteDeps {
   store: PartyStore;
   packs: Map<string, QuizPack>;
+  importedPacks: ImportedPackStore;
   config: AppConfig;
   buzzCatalog: LoadedBuzzSoundCatalog;
 }
@@ -210,13 +213,17 @@ export async function registerPartyRoutes(
   app: FastifyInstance,
   deps: PartyRouteDeps,
 ): Promise<void> {
-  const { store, packs, config, buzzCatalog } = deps;
+  const { store, packs, importedPacks, config, buzzCatalog } = deps;
+
+  const allPacks = (): Map<string, QuizPack> => {
+    return new Map([...packs, ...importedPacks.getAll()]);
+  };
 
   const snapPlayer = (party: Party): ReturnType<typeof partySnapshotWithGame> =>
-    partySnapshotWithGame(party, packs, "player");
+    partySnapshotWithGame(party, allPacks(), "player");
 
   const snapHost = (party: Party): ReturnType<typeof partySnapshotWithGame> =>
-    partySnapshotWithGame(party, packs, "host");
+    partySnapshotWithGame(party, allPacks(), "host");
 
   const gatePlayerJwt: preHandlerHookHandler = async (
     req: FastifyRequest,
@@ -234,15 +241,27 @@ export async function registerPartyRoutes(
     ts: Date.now(),
   }));
 
-  app.get("/api/packs", async () => ({
-    packs: [...packs.entries()].map(([basename, p]) => ({
+  app.get("/api/packs", async () => {
+    const diskPacks = [...packs.entries()].map(([basename, p]) => ({
       basename,
       id: p.id,
       title: p.title,
       version: p.version,
       roundCount: p.rounds.length,
-    })),
-  }));
+      source: "disk" as const,
+    }));
+
+    const imported = [...importedPacks.getAll().entries()].map(([id, p]) => ({
+      basename: id,
+      id: p.id,
+      title: p.title,
+      version: p.version,
+      roundCount: p.rounds.length,
+      source: "imported" as const,
+    }));
+
+    return { packs: [...diskPacks, ...imported] };
+  });
 
   app.get("/api/games/video-files", async () => ({
     videos: await listHostedGameVideos(config.gamesDir),
@@ -464,11 +483,11 @@ export async function registerPartyRoutes(
         const alreadyInQueue = party.buzzOrder.some((idBuzz) => idBuzz === playerId);
         const quizBuzz = quizBuzzOptsForRequest(
           party,
-          packs,
+          allPacks(),
           parsedBody.data.quizChoiceIndex,
         );
         store.buzz(party, playerId, quizBuzz);
-        const loadedAfterBuzz = quizPackFromLoadedId(packs, party.loadedPackId);
+        const loadedAfterBuzz = quizPackFromLoadedId(allPacks(), party.loadedPackId);
         store.maybeAutoResolveQuizWhenEveryPlayerBuzzed(party, loadedAfterBuzz);
         const snapshot = snapPlayer(party);
         let buzzToneUrl: string | undefined;
@@ -477,7 +496,7 @@ export async function registerPartyRoutes(
           const sfx = plNow ? buzzCatalog.byKey.get(plNow.buzzSoundKey) : undefined;
           if (sfx) buzzToneUrl = resolveBuzzSoundPublicUrl(sfx) || undefined;
         }
-        const quizPickFeedback = quizPickFeedbackAfterBuzz(packs, party, quizBuzz, !alreadyInQueue);
+        const quizPickFeedback = quizPickFeedbackAfterBuzz(allPacks(), party, quizBuzz, !alreadyInQueue);
         return {
           snapshot,
           buzzToneUrl,
@@ -499,7 +518,7 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        const loaded = quizPackFromLoadedId(packs, party.loadedPackId);
+        const loaded = quizPackFromLoadedId(allPacks(), party.loadedPackId);
         if (!loaded)
           throw Object.assign(new Error("PACK_NOT_FOUND"), { code: "PACK_NOT_FOUND" });
         store.adminAdvanceCue(party, loaded);
@@ -518,7 +537,7 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        const loaded = quizPackFromLoadedId(packs, party.loadedPackId);
+        const loaded = quizPackFromLoadedId(allPacks(), party.loadedPackId);
         if (!loaded)
           throw Object.assign(new Error("PACK_NOT_FOUND"), { code: "PACK_NOT_FOUND" });
         store.adminReplayMediaCue(party, loaded);
@@ -538,7 +557,7 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        const loaded = quizPackFromLoadedId(packs, party.loadedPackId);
+        const loaded = quizPackFromLoadedId(allPacks(), party.loadedPackId);
         if (!loaded)
           throw Object.assign(new Error("PACK_NOT_FOUND"), { code: "PACK_NOT_FOUND" });
         store.adminSetAllowPlayerAudioControl(party, loaded, body.allowed);
@@ -657,7 +676,7 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        const loaded = quizPackFromLoadedId(packs, party.loadedPackId);
+        const loaded = quizPackFromLoadedId(allPacks(), party.loadedPackId);
         if (!loaded)
           throw Object.assign(new Error("PACK_NOT_FOUND"), { code: "PACK_NOT_FOUND" });
         store.adminValidateBuzzAnswer(party, body.playerId, body.verdict, loaded);
@@ -735,7 +754,7 @@ export async function registerPartyRoutes(
 
         if (body.kind === "pack_quiz") {
           const basename = body.packBasename.replace(/\.json$/u, "");
-          if (!packs.get(basename)) {
+          if (!allPacks().get(basename)) {
             throw Object.assign(new Error("PACK_NOT_FOUND"), {
               code: "PACK_NOT_FOUND",
             });
@@ -838,7 +857,7 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        store.hostPlayMancheById(party, mancheIdSchema.parse(req.body ?? {}).id, packs);
+        store.hostPlayMancheById(party, mancheIdSchema.parse(req.body ?? {}).id, allPacks());
         return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -864,6 +883,50 @@ export async function registerPartyRoutes(
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
         }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/import-pack-zip",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const data = await req.file();
+        if (!data) {
+          return reply.status(400).send({ error: "NO_FILE" });
+        }
+
+        const buffer = await data.toBuffer();
+
+        const existingDiskPackIds = new Set([...packs.values()].map((p) => p.id));
+        const existingImportedPackIds = new Set([...importedPacks.getAll().values()].map((p) => p.id));
+
+        const { pack, zipEntries } = importZipPack(
+          buffer,
+          config.maxZipPackBytes,
+          existingDiskPackIds,
+          existingImportedPackIds,
+        );
+
+        importedPacks.add(pack, zipEntries);
+
+        app.log.info({ packId: pack.id, title: pack.title }, "ZIP pack imported");
+
+        return reply.status(201).send({
+          pack: {
+            id: pack.id,
+            title: pack.title,
+            version: pack.version,
+            roundCount: pack.rounds.length,
+          },
+        });
+      } catch (err) {
         return replyDomain(reply, err);
       }
     },

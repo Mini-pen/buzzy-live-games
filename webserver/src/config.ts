@@ -24,6 +24,8 @@ export interface AppConfig {
   /** * Absolute or relative directory containing quiz JSON packs. */
   gamesDir: string;
   corsOrigin: boolean | string | string[];
+  /** * Max size in bytes for imported ZIP packs. */
+  maxZipPackBytes: number;
 }
 
 function envString(name: string, fallback?: string): string {
@@ -84,5 +86,6 @@ export function loadConfig(): AppConfig {
         ? process.env.GAMES_DIR
         : path.resolve(MODULE_DIR, "../../games"),
     corsOrigin: corsParsed,
+    maxZipPackBytes: envInt("MAX_ZIP_PACK_BYTES", 50 * 1024 * 1024),
   };
 }
