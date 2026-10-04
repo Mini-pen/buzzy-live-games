@@ -54,43 +54,59 @@ describe("downloadAndCompressImage", () => {
   });
 
   describe("image size limits", () => {
-    it("enforces maxOutputBytes limit", async () => {
-      // * Use a public placeholder image service that returns valid images
-      // * This test documents the expected error when the compressed image exceeds maxOutputBytes
-      // * Skip if the network is unavailable or the service is down
+    it("enforces maxOutputBytes limit by rejecting oversized compressed images", async () => {
+      // * Use sharp to create a valid minimal PNG (1x1 white pixel)
+      const sharp = await import("sharp");
+      const minimal1x1PNG = await sharp.default({
+        create: {
+          width: 1,
+          height: 1,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        },
+      })
+        .png()
+        .toBuffer();
 
-      const verySmallLimit = 100; // * 100 bytes (unrealistically small)
+      // * Mock fetch to return our minimal image
+      const originalFetch = global.fetch;
+      global.fetch = async (url: string | URL | Request, init?: RequestInit) => {
+        if (typeof url === "string" && url === "https://test.example/image.png") {
+          return {
+            ok: true,
+            status: 200,
+            statusText: "OK",
+            headers: new Headers({ "content-type": "image/png" }),
+            body: {
+              getReader: () => {
+                let read = false;
+                return {
+                  read: async () => {
+                    if (read) return { done: true, value: undefined };
+                    read = true;
+                    return { done: false, value: minimal1x1PNG };
+                  },
+                  releaseLock: () => {},
+                };
+              },
+            } as any,
+          } as Response;
+        }
+        return originalFetch(url, init);
+      };
 
       try {
-        await downloadAndCompressImage("https://placehold.co/100x100/png", verySmallLimit);
-        // * If we reach here, the image was smaller than expected (should not happen)
-        // * This is not a failure, just a flaky test environment
+        // * Set an impossibly small limit (1 byte)
+        // * Even the smallest compressed image will exceed this
+        await downloadAndCompressImage("https://test.example/image.png", 1);
+        throw new Error("Expected IMAGE_TOO_LARGE_AFTER_COMPRESSION error");
       } catch (err: any) {
-        if (err.code === "IMAGE_TOO_LARGE_AFTER_COMPRESSION") {
-          // * Expected error - test passes
-          expect(err.message).toMatch(/dépasse la limite/);
-        } else if (err.code === "NETWORK_ERROR" || err.code === "DOWNLOAD_TIMEOUT") {
-          // * Network unavailable - skip test
-          console.warn("Skipping test: network unavailable");
-        } else {
-          // * Unexpected error
-          throw err;
-        }
+        expect(err.code).toBe("IMAGE_TOO_LARGE_AFTER_COMPRESSION");
+        expect(err.message).toMatch(/dépasse la limite/);
+        expect(err.message).toMatch(/Ko/);
+      } finally {
+        global.fetch = originalFetch;
       }
-    });
-  });
-
-  describe("configurable size limit", () => {
-    it("respects MAX_EDITOR_IMAGE_BYTES config (500 KB default)", () => {
-      // * This test documents the expected behavior of the size limit configuration
-      // * The actual limit is passed as a parameter to downloadAndCompressImage
-
-      const defaultLimit = 500 * 1024; // * 500 KB
-
-      // * The function signature accepts maxOutputBytes as a parameter
-      // * The caller (routes) reads config.maxEditorImageBytes and passes it
-      expect(typeof defaultLimit).toBe("number");
-      expect(defaultLimit).toBe(512_000);
     });
   });
 
@@ -114,30 +130,3 @@ describe("downloadAndCompressImage", () => {
   });
 });
 
-describe("Image size limit enforcement", () => {
-  it("documents that images exceeding MAX_EDITOR_IMAGE_BYTES are refused with a clear error", async () => {
-    // * This test documents the expected behavior:
-    // * - Image size limit is configurable via MAX_EDITOR_IMAGE_BYTES (default 500 KB)
-    // * - Over the limit is refused with a clear error code
-
-    const tinyLimit = 1; // * 1 byte (impossible to compress any image to this size)
-
-    try {
-      await downloadAndCompressImage("https://placehold.co/10x10/png", tinyLimit);
-      // * If we reach here, something unexpected happened
-      throw new Error("Expected IMAGE_TOO_LARGE_AFTER_COMPRESSION error");
-    } catch (err: any) {
-      if (err.code === "IMAGE_TOO_LARGE_AFTER_COMPRESSION") {
-        // * Expected error
-        expect(err.message).toMatch(/dépasse la limite/);
-        expect(err.message).toMatch(/Ko/);
-      } else if (err.code === "NETWORK_ERROR" || err.code === "DOWNLOAD_TIMEOUT") {
-        // * Network unavailable - skip test
-        console.warn("Skipping test: network unavailable");
-      } else {
-        // * Unexpected error
-        throw err;
-      }
-    }
-  });
-});

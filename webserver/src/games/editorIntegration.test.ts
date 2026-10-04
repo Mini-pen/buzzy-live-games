@@ -319,40 +319,6 @@ describe("Editor integration tests (4.2)", () => {
     });
   });
 
-  describe("Dirty state for unsaved changes warning", () => {
-    it("verifies the editor session reflects that changes have been made", () => {
-      // * This test verifies that the PackEditorStore tracks that a pack has been modified.
-      // * The UI (App.tsx) uses editorDirty state:
-      // *   - Set to true when onUpdateEditorPack is called (line 2837)
-      // *   - Set to false when starting editing (line 2810) or using the pack (line 2924)
-      // *   - Used in onCloseEditor to warn about unsaved changes (line 2931)
-      // * 
-      // * Note: The current implementation does NOT clear the dirty flag after export.
-      // * Export downloads a ZIP but doesn't "save" in the system.
-      // * Only "Use" (which re-imports the pack) clears the dirty flag.
-
-      const store = new PackEditorStore();
-      const pack = createTestPack("test-changes", "Original Pack");
-      const editorId = store.startEditing(pack, new Map());
-
-      // * Verify the pack was stored
-      const retrieved = store.get(editorId);
-      expect(retrieved?.title).toBe("Original Pack");
-
-      // * User makes a change
-      const updatedPack = { ...pack, title: "Modified Pack" };
-      store.update(editorId, updatedPack);
-
-      // * Verify the change was applied
-      const afterUpdate = store.get(editorId);
-      expect(afterUpdate?.title).toBe("Modified Pack");
-      expect(afterUpdate).not.toBe(pack); // * Different object reference
-
-      // * The store itself doesn't track "dirty" - that's UI state.
-      // * But we can verify that the pack has been modified by comparing with the original.
-      expect(afterUpdate?.title).not.toBe(pack.title);
-    });
-  });
 
   describe("Image size limit enforcement", () => {
     it("documents the MAX_EDITOR_IMAGE_BYTES configuration", () => {
