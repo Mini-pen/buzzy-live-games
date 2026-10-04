@@ -214,7 +214,7 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 ### 7.2 Éditeur de jeux intégré
 
-**Statut :** À implémenter.
+**Statut :** ✅ Fait (PR #6, merged).
 
 **Description :** L'animateur peut charger un pack existant (ZIP ou JSON) dans un éditeur intégré. L'éditeur permet d'inspecter, ajouter, modifier, supprimer des rounds et questions, et d'uploader des images depuis des URLs avec redimensionnement automatique. À la fin, l'animateur peut exporter le pack sous forme de ZIP.
 
