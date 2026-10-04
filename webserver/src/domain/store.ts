@@ -784,7 +784,11 @@ export class PartyStore {
     }
     
     const gameKind = this.inferGameKindFromManche(picked, packs);
-    const shouldShowTutorial = !skipIntro && gameKind !== null && !party.seenGameKinds.has(gameKind);
+    const shouldShowTutorial =
+      mode !== "autonomous" &&
+      !skipIntro &&
+      gameKind !== null &&
+      !party.seenGameKinds.has(gameKind);
     
     if (shouldShowTutorial && gameKind !== null) {
       party.seenGameKinds.add(gameKind);
