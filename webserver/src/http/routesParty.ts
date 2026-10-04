@@ -14,6 +14,7 @@ import { partySnapshotWithGame, quizPackFromLoadedId } from "../domain/partySnap
 import type { QuizPack } from "../games/pack.js";
 import { isQuizRound, quizPackSchema } from "../games/pack.js";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
+import { GAME_TUTORIALS } from "../domain/tutorials.js";
 import type { ImportedPackStore } from "../games/zipPackImporter.js";
 import { importZipPack } from "../games/zipPackImporter.js";
 import { PackEditorStore } from "../games/packEditor.js";
@@ -123,6 +124,12 @@ const buzzSoundPolicySchema = z.object({
 
 const mancheIdSchema = z.object({
   id: z.string().min(1).max(40),
+});
+
+const mancheLaunchSchema = z.object({
+  id: z.string().min(1).max(40),
+  mode: z.enum(["normal", "autonomous"]),
+  skipIntro: z.boolean().optional(),
 });
 
 const mancheMoveSchema = z.object({
@@ -888,6 +895,32 @@ export async function registerPartyRoutes(
   );
 
   app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/manche/launch",
+    async (req, reply) => {
+      try {
+        const body = mancheLaunchSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        const result = store.hostLaunchManche(
+          party,
+          body.id,
+          body.mode,
+          body.skipIntro ?? false,
+          allPacks(),
+        );
+        return { ...snapHost(party), tutorialInfo: result };
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
     "/api/parties/:partyId/host/manche/play",
     async (req, reply) => {
       try {
@@ -905,6 +938,10 @@ export async function registerPartyRoutes(
       }
     },
   );
+
+  app.get("/api/tutorials", async (_req, reply) => {
+    return reply.send({ tutorials: GAME_TUTORIALS });
+  });
 
   app.post<{ Params: { partyId: string } }>(
     "/api/parties/:partyId/host/chat",

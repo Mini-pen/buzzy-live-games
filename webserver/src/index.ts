@@ -98,6 +98,17 @@ async function main(): Promise<void> {
       if (m.kind !== "player_kicked") continue;
       socketRef.to(`party:${partyId}:player`).emit("party:kicked", { playerId: m.playerId });
     }
+    for (const m of extras) {
+      if (m.kind !== "tutorial") continue;
+      socketRef.to(`party:${partyId}:player`).emit("party:tutorial", {
+        gameKind: m.gameKind,
+        canSkip: m.canSkip,
+      });
+      socketRef.to(`party:${partyId}:broadcast`).emit("party:tutorial", {
+        gameKind: m.gameKind,
+        canSkip: m.canSkip,
+      });
+    }
   }, buzzCatalog);
 
   const avatarN = getAvatarCatalog().length;

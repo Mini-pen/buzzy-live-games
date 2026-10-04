@@ -108,15 +108,6 @@ interface PartyGameBoardYoutube {
   replaySerial: number;
 }
 
-/** * Transition between rounds in automatic play mode. */
-interface PartyGameBoardTransition {
-  kind: "transition";
-  transitionKind: "pause" | "fade" | "countdown";
-  title: string;
-  durationMs: number;
-  startedAt: number;
-}
-
 type PartyGameBoardSurface =
   | PartyGameBoardQuiz
   | PartyGameBoardVideo
@@ -125,8 +116,7 @@ type PartyGameBoardSurface =
   | PartyGameBoardProgressiveGuess
   | PartyGameBoardAudioBlind
   | PartyGameBoardIframe
-  | PartyGameBoardYoutube
-  | PartyGameBoardTransition;
+  | PartyGameBoardYoutube;
 
 /** * Host-visible manche descriptor (mirror of `PartyPublicSnapshot.mancheScript`). */
 interface MancheCatalogItemView {
@@ -141,6 +131,7 @@ interface MancheCatalogItemView {
   savedQuestionIndex: number;
   transitionKind: "pause" | "fade" | "countdown" | null;
   transitionDurationMs: number | null;
+  launchMode: "normal" | "autonomous" | null;
 }
 
 interface PartySnapshot {
@@ -188,12 +179,6 @@ interface PartySnapshot {
   }>;
   autoOpenBuzzOnCueAdvance?: boolean;
   autoAdvanceQuizWhenAllBuzzed?: boolean;
-  autoPlay?: {
-    enabled: boolean;
-    paused: boolean;
-    currentScriptIndex: number;
-    waitingForManualAction: boolean;
-  };
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -224,8 +209,6 @@ function mancheKindShort(kind: MancheCatalogItemView["kind"]): string {
       return "YouTube";
     case "direct_video":
       return "Vidéo";
-    case "transition":
-      return "Transition";
     default:
       return kind;
   }
@@ -1229,6 +1212,181 @@ function QuizIllustration(props: { imageUrl: string; variant: "panel" | "broadca
   );
 }
 
+interface TutorialSlide {
+  title: string;
+  description: string;
+  icon?: string;
+}
+
+interface GameTutorial {
+  gameKind: string;
+  title: string;
+  slides: TutorialSlide[];
+}
+
+/** * Tutorial overlay shown before the first round of a game type. */
+function TutorialOverlay(props: {
+  gameKind: string;
+  canSkip: boolean;
+  onClose: () => void;
+}): JSX.Element {
+  const [tutorials, setTutorials] = useState<Record<string, GameTutorial>>({});
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    void fetchJson<{ tutorials: Record<string, GameTutorial> }>("/api/tutorials")
+      .then((data) => {
+        setTutorials(data.tutorials);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: "rgba(0, 0, 0, 0.95)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 10000,
+          color: "white",
+        }}
+      >
+        <p>Chargement du tutoriel…</p>
+      </div>
+    );
+  }
+
+  const tutorial = tutorials[props.gameKind];
+  if (!tutorial || tutorial.slides.length === 0) {
+    props.onClose();
+    return <></>;
+  }
+
+  const slide = tutorial.slides[currentSlide];
+  if (!slide) {
+    props.onClose();
+    return <></>;
+  }
+
+  const isLastSlide = currentSlide === tutorial.slides.length - 1;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(0, 0, 0, 0.95)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 10000,
+        color: "white",
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 800,
+          width: "100%",
+          textAlign: "center",
+        }}
+      >
+        <h1 style={{ fontSize: 48, marginBottom: 16, fontWeight: "bold" }}>{tutorial.title}</h1>
+        <div
+          style={{
+            fontSize: 80,
+            marginBottom: 24,
+          }}
+        >
+          {slide.icon ?? "🎮"}
+        </div>
+        <h2 style={{ fontSize: 32, marginBottom: 16 }}>{slide.title}</h2>
+        <p
+          style={{
+            fontSize: 20,
+            lineHeight: 1.6,
+            marginBottom: 40,
+            whiteSpace: "pre-line",
+          }}
+        >
+          {slide.description}
+        </p>
+        <div style={{ display: "flex", gap: 16, justifyContent: "center", alignItems: "center" }}>
+          {props.canSkip ? (
+            <button
+              type="button"
+              onClick={props.onClose}
+              style={{
+                padding: "12px 24px",
+                fontSize: 16,
+                backgroundColor: "transparent",
+                color: "white",
+                border: "2px solid white",
+                borderRadius: 8,
+                cursor: "pointer",
+              }}
+            >
+              Passer
+            </button>
+          ) : null}
+          {!isLastSlide ? (
+            <button
+              type="button"
+              onClick={() => setCurrentSlide((c) => c + 1)}
+              style={{
+                padding: "12px 24px",
+                fontSize: 16,
+                backgroundColor: "#2196F3",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              Suivant
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={props.onClose}
+              style={{
+                padding: "12px 24px",
+                fontSize: 16,
+                backgroundColor: "#4CAF50",
+                color: "white",
+                border: "none",
+                borderRadius: 8,
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+            >
+              C'est parti !
+            </button>
+          )}
+        </div>
+        <div style={{ marginTop: 24, fontSize: 14, opacity: 0.7 }}>
+          {currentSlide + 1} / {tutorial.slides.length}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** * Displays quiz prompt or video from `gameBoard`; host may reveal the keyed correct choice on quiz. */
 function GameBoardPanel(props: {
   board: PartyGameBoardSurface | null;
@@ -1260,76 +1418,6 @@ function GameBoardPanel(props: {
 
   const blindClientsMayPlay =
     blindHostPresenter === true || (allowBlindPlaybackOnClients ?? false) === true;
-
-  if (board !== null && board.kind === "transition") {
-    const elapsed = Date.now() - board.startedAt;
-    const progress = Math.min(100, Math.max(0, (elapsed / board.durationMs) * 100));
-    const remainingMs = Math.max(0, board.durationMs - elapsed);
-    const remainingSec = Math.ceil(remainingMs / 1000);
-
-    let transitionContent: JSX.Element;
-    if (board.transitionKind === "countdown") {
-      transitionContent = (
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 120, fontWeight: 700, color: "#3b82f6", marginBottom: 24 }}>
-            {remainingSec}
-          </div>
-          <div style={{ fontSize: 24, color: "#64748b" }}>
-            {board.title}
-          </div>
-        </div>
-      );
-    } else if (board.transitionKind === "fade") {
-      transitionContent = (
-        <div style={{ textAlign: "center", opacity: Math.max(0.3, 1 - progress / 100) }}>
-          <div style={{ fontSize: 48, fontWeight: 600, color: "#1e293b", marginBottom: 16 }}>
-            {board.title}
-          </div>
-          <div style={{ fontSize: 18, color: "#64748b" }}>
-            Prochaine manche dans {remainingSec}s
-          </div>
-        </div>
-      );
-    } else {
-      transitionContent = (
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 48, fontWeight: 600, color: "#1e293b", marginBottom: 16 }}>
-            ⏸ Pause
-          </div>
-          <div style={{ fontSize: 24, color: "#64748b" }}>
-            {board.title}
-          </div>
-          <div style={{ fontSize: 18, color: "#94a3b8", marginTop: 12 }}>
-            Reprise dans {remainingSec}s
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <section className="bz-board">
-        <div className="bz-board-meta">
-          <span className="bz-pill bz-info">
-            <span className="bz-dot" />
-            transition
-          </span>
-        </div>
-        <div style={{ padding: "48px 24px", minHeight: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {transitionContent}
-        </div>
-        <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden", marginTop: 24 }}>
-          <div
-            style={{
-              width: `${progress}%`,
-              height: "100%",
-              background: "#3b82f6",
-              transition: "width 0.3s ease-out",
-            }}
-          />
-        </div>
-      </section>
-    );
-  }
 
   if (board !== null && board.kind === "video") {
     return (
@@ -1846,6 +1934,8 @@ function Play(): JSX.Element {
   } | null>(null);
   const [lobbyBuzzSaving, setLobbyBuzzSaving] = useState(false);
   const [quizAutoToast, setQuizAutoToast] = useState<"good" | "bad" | null>(null);
+  const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
+  const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
@@ -1914,11 +2004,18 @@ function Play(): JSX.Element {
       if (payload.correct !== true && payload.correct !== false) return;
       setQuizAutoToast(payload.correct ? "good" : "bad");
     };
+    const onTutorial = (payload: { gameKind?: string; canSkip?: boolean }): void => {
+      if (typeof payload.gameKind === "string") {
+        setTutorialGameKind(payload.gameKind);
+        setTutorialCanSkip(payload.canSkip === true);
+      }
+    };
     s.on("party:patch", onSnap);
     s.on("party:terminated", onTerminated);
     s.on("party:buzz_verdict", onBuzzVerdict);
     s.on("party:kicked", onKicked);
     s.on("party:quiz_auto_toast", onQuizAutoToast);
+    s.on("party:tutorial", onTutorial);
 
     return (): void => {
       s.off("party:patch", onSnap);
@@ -1926,6 +2023,7 @@ function Play(): JSX.Element {
       s.off("party:buzz_verdict", onBuzzVerdict);
       s.off("party:kicked", onKicked);
       s.off("party:quiz_auto_toast", onQuizAutoToast);
+      s.off("party:tutorial", onTutorial);
       s.disconnect();
     };
   }, [pid, jwt, nav]);
@@ -2244,6 +2342,13 @@ function Play(): JSX.Element {
           {quizAutoToast === "good" ? "Bonne réponse" : "Mauvaise réponse"}
         </div>
       ) : null}
+      {tutorialGameKind !== null ? (
+        <TutorialOverlay
+          gameKind={tutorialGameKind}
+          canSkip={tutorialCanSkip}
+          onClose={() => setTutorialGameKind(null)}
+        />
+      ) : null}
     </Shell>
   );
 }
@@ -2286,20 +2391,12 @@ function Admin(): JSX.Element {
 
   /** * ZIP pack import */
   const [importZipOpen, setImportZipOpen] = useState(false);
+  
+  /** * Launch dialog for choosing mode (normal/autonomous) */
+  const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
+  const [launchDialogMancheId, setLaunchDialogMancheId] = useState<string | null>(null);
   const [importZipUploading, setImportZipUploading] = useState(false);
   const [importZipError, setImportZipError] = useState<string | null>(null);
-
-  /** * Pack editor */
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorId, setEditorId] = useState<string | null>(null);
-  const [editorPack, setEditorPack] = useState<unknown>(null);
-  const [editorError, setEditorError] = useState<string | null>(null);
-  const [editorValidationErrors, setEditorValidationErrors] = useState<string[]>([]);
-  const [editorDownloadingImage, setEditorDownloadingImage] = useState(false);
-  const [editorImageUrl, setEditorImageUrl] = useState("");
-  const [editorDirty, setEditorDirty] = useState(false);
-  const [editorSelectedRound, setEditorSelectedRound] = useState(0);
-  const [editorSelectedQuestion, setEditorSelectedQuestion] = useState(0);
 
   useEffect(() => {
     void fetchJson<{
@@ -2617,6 +2714,23 @@ function Admin(): JSX.Element {
     packsList,
   ]);
 
+  const onHostMancheLaunch = useCallback(
+    async (id: string, mode: "normal" | "autonomous", skipIntro: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const p = await callHostSnapshot(`${hostBasePath}/host/manche/launch`, "POST", {
+          id,
+          mode,
+          skipIntro,
+        });
+        setSnap(p);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
   const onHostManchePlay = useCallback(
     async (id: string): Promise<void> => {
       setErr(null);
@@ -2763,56 +2877,6 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
-  const onHostAutoPlayToggle = useCallback(
-    async (enabled: boolean): Promise<void> => {
-      setErr(null);
-      try {
-        const n = await callHostSnapshot(`${hostBasePath}/host/auto-play/toggle`, "POST", {
-          enabled,
-        });
-        setSnap(n);
-      } catch (e13) {
-        setErr(e13 instanceof Error ? e13.message : String(e13));
-      }
-    },
-    [callHostSnapshot, hostBasePath],
-  );
-
-  const onHostAutoPlayPauseResume = useCallback(
-    async (paused: boolean): Promise<void> => {
-      setErr(null);
-      try {
-        const n = await callHostSnapshot(`${hostBasePath}/host/auto-play/pause-resume`, "POST", {
-          paused,
-        });
-        setSnap(n);
-      } catch (e14) {
-        setErr(e14 instanceof Error ? e14.message : String(e14));
-      }
-    },
-    [callHostSnapshot, hostBasePath],
-  );
-
-  const onHostAutoPlaySkipForward = useCallback(async (): Promise<void> => {
-    setErr(null);
-    try {
-      const p = await callHostSnapshot(`${hostBasePath}/host/auto-play/skip-forward`, "POST", {});
-      setSnap(p);
-    } catch (e15) {
-      setErr(e15 instanceof Error ? e15.message : String(e15));
-    }
-  }, [callHostSnapshot, hostBasePath]);
-
-  const onHostAutoPlaySkipBackward = useCallback(async (): Promise<void> => {
-    setErr(null);
-    try {
-      const p = await callHostSnapshot(`${hostBasePath}/host/auto-play/skip-backward`, "POST", {});
-      setSnap(p);
-    } catch (e16) {
-      setErr(e16 instanceof Error ? e16.message : String(e16));
-    }
-  }, [callHostSnapshot, hostBasePath]);
-
   const onHostCueNext = useCallback(async (): Promise<void> => {
     setErr(null);
     try {
@@ -2929,347 +2993,16 @@ function Admin(): JSX.Element {
     [deltaById, onPlayerScoreDelta],
   );
 
-  const onStartPackEditor = useCallback(
-    async (packId: string): Promise<void> => {
-      setEditorError(null);
-      setEditorValidationErrors([]);
-      try {
-        const res = await fetchJson<{ editorId: string; pack: unknown }>(
-          `${hostBasePath}/host/editor/start`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${bearer}`,
-            },
-            body: JSON.stringify({ packId }),
-          },
-        );
-        setEditorId(res.editorId);
-        setEditorPack(res.pack);
-        setEditorDirty(false);
-        setEditorOpen(true);
-      } catch (e) {
-        setEditorError(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [hostBasePath, bearer],
-  );
-
-  const onUpdateEditorPack = useCallback(
-    async (pack: unknown): Promise<void> => {
-      if (!editorId) return;
-      setEditorError(null);
-      setEditorValidationErrors([]);
-      try {
-        const res = await fetchJson<{ pack: unknown }>(
-          `${hostBasePath}/host/editor/${encodeURIComponent(editorId)}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${bearer}`,
-            },
-            body: JSON.stringify({ pack }),
-          },
-        );
-        setEditorPack(res.pack);
-        setEditorDirty(true);
-      } catch (e) {
-        if (typeof e === "object" && e !== null && "error" in e && e.error === "VALIDATION") {
-          const issues = (e as { issues?: Array<{ message: string; path: string[] }> }).issues ?? [];
-          setEditorValidationErrors(issues.map((i) => `${i.path.join(".")}: ${i.message}`));
-        }
-        setEditorError(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [editorId, hostBasePath, bearer],
-  );
-
-  const onDownloadImage = useCallback(
-    async (imageUrl: string): Promise<string | null> => {
-      if (!editorId) return null;
-      setEditorError(null);
-      setEditorDownloadingImage(true);
-      try {
-        const res = await fetchJson<{ relativePath: string; size: number }>(
-          `${hostBasePath}/host/editor/${encodeURIComponent(editorId)}/download-image`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${bearer}`,
-            },
-            body: JSON.stringify({ imageUrl }),
-          },
-        );
-        return res.relativePath;
-      } catch (e) {
-        setEditorError(e instanceof Error ? e.message : String(e));
-        return null;
-      } finally {
-        setEditorDownloadingImage(false);
-      }
-    },
-    [editorId, hostBasePath, bearer],
-  );
-
-  const onExportPack = useCallback(async (): Promise<void> => {
-    if (!editorId) return;
-    setEditorError(null);
-    try {
-      const res = await fetch(
-        withBase(`${hostBasePath}/host/editor/${encodeURIComponent(editorId)}/export`),
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${bearer}`,
-          },
-        },
-      );
-      if (!res.ok) {
-        throw new Error(`Erreur ${res.status}`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${(editorPack as { id?: string })?.id ?? "pack"}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (e) {
-      setEditorError(e instanceof Error ? e.message : String(e));
-    }
-  }, [editorId, editorPack, hostBasePath, bearer]);
-
-  const onUseEditedPack = useCallback(async (): Promise<void> => {
-    if (!editorId) return;
-    setEditorError(null);
-    try {
-      await fetchJson<{ pack: { id: string; title: string; version: number; roundCount: number } }>(
-        `${hostBasePath}/host/editor/${encodeURIComponent(editorId)}/use`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${bearer}`,
-          },
-        },
-      );
-      // * Refresh packs list
-      const r = await fetchJson<{
-        packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
-      }>(`/api/packs`);
-      setPacksList(r.packs);
-      setEditorDirty(false);
-    } catch (e) {
-      setEditorError(e instanceof Error ? e.message : String(e));
-    }
-  }, [editorId, hostBasePath, bearer]);
-
-  const onCloseEditor = useCallback((): void => {
-    if (editorDirty && !window.confirm("Les modifications non exportées seront perdues. Continuer ?")) {
-      return;
-    }
-    setEditorOpen(false);
-    setEditorId(null);
-    setEditorPack(null);
-    setEditorError(null);
-    setEditorValidationErrors([]);
-    setEditorDirty(false);
-    setEditorImageUrl("");
-    setEditorSelectedRound(0);
-    setEditorSelectedQuestion(0);
-  }, [editorDirty]);
-
-  const onEditorAddRound = useCallback((): void => {
-    if (!editorPack) return;
-    const pack = editorPack as { rounds?: unknown[] };
-    const newRound = {
-      id: `round-${Date.now()}`,
-      title: "Nouveau round",
-      questions: [
-        {
-          id: `q-${Date.now()}`,
-          prompt: "Question ?",
-          choices: ["Réponse A", "Réponse B"],
-          correctIndex: 0,
-          points: 1,
-        },
-      ],
-    };
-    const updated = { ...pack, rounds: [...(pack.rounds ?? []), newRound] };
-    void onUpdateEditorPack(updated);
-    setEditorSelectedRound((pack.rounds ?? []).length);
-    setEditorSelectedQuestion(0);
-  }, [editorPack, onUpdateEditorPack]);
-
-  const onEditorDeleteRound = useCallback(
-    (roundIndex: number): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: unknown[] };
-      const updated = {
-        ...pack,
-        rounds: (pack.rounds ?? []).filter((_, i) => i !== roundIndex),
-      };
-      void onUpdateEditorPack(updated);
-      if (editorSelectedRound >= (pack.rounds ?? []).length - 1) {
-        setEditorSelectedRound(Math.max(0, (pack.rounds ?? []).length - 2));
-      }
-      setEditorSelectedQuestion(0);
-    },
-    [editorPack, editorSelectedRound, onUpdateEditorPack],
-  );
-
-  const onEditorMoveRound = useCallback(
-    (roundIndex: number, direction: "up" | "down"): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: unknown[] };
-      const rounds = [...(pack.rounds ?? [])];
-      if (direction === "up" && roundIndex > 0) {
-        [rounds[roundIndex - 1], rounds[roundIndex]] = [rounds[roundIndex]!, rounds[roundIndex - 1]!];
-        setEditorSelectedRound(roundIndex - 1);
-      } else if (direction === "down" && roundIndex < rounds.length - 1) {
-        [rounds[roundIndex], rounds[roundIndex + 1]] = [rounds[roundIndex + 1]!, rounds[roundIndex]!];
-        setEditorSelectedRound(roundIndex + 1);
-      }
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorUpdateRound = useCallback(
-    (roundIndex: number, field: string, value: unknown): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: unknown[] };
-      const rounds = [...(pack.rounds ?? [])];
-      rounds[roundIndex] = { ...(rounds[roundIndex] as Record<string, unknown>), [field]: value };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorAddQuestion = useCallback(
-    (roundIndex: number): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: { questions?: unknown[] }[] };
-      const rounds = [...(pack.rounds ?? [])];
-      const round = rounds[roundIndex];
-      if (!round) return;
-      const newQuestion = {
-        id: `q-${Date.now()}`,
-        prompt: "Nouvelle question ?",
-        choices: ["Réponse A", "Réponse B"],
-        correctIndex: 0,
-        points: 1,
-      };
-      rounds[roundIndex] = {
-        ...round,
-        questions: [...(round.questions ?? []), newQuestion],
-      };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorDeleteQuestion = useCallback(
-    (roundIndex: number, questionIndex: number): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: { questions?: unknown[] }[] };
-      const rounds = [...(pack.rounds ?? [])];
-      const round = rounds[roundIndex];
-      if (!round) return;
-      rounds[roundIndex] = {
-        ...round,
-        questions: (round.questions ?? []).filter((_, i) => i !== questionIndex),
-      };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorUpdateQuestion = useCallback(
-    (roundIndex: number, questionIndex: number, field: string, value: unknown): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: { questions?: unknown[] }[] };
-      const rounds = [...(pack.rounds ?? [])];
-      const round = rounds[roundIndex];
-      if (!round) return;
-      const questions = [...(round.questions ?? [])];
-      questions[questionIndex] = {
-        ...(questions[questionIndex] as Record<string, unknown>),
-        [field]: value,
-      };
-      rounds[roundIndex] = { ...round, questions };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorUpdateChoice = useCallback(
-    (roundIndex: number, questionIndex: number, choiceIndex: number, value: string): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: { questions?: { choices?: string[] }[] }[] };
-      const rounds = [...(pack.rounds ?? [])];
-      const round = rounds[roundIndex];
-      if (!round) return;
-      const questions = [...(round.questions ?? [])];
-      const question = questions[questionIndex];
-      if (!question) return;
-      const choices = [...(question.choices ?? [])];
-      choices[choiceIndex] = value;
-      questions[questionIndex] = { ...question, choices };
-      rounds[roundIndex] = { ...round, questions };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorAddChoice = useCallback(
-    (roundIndex: number, questionIndex: number): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: { questions?: { choices?: string[] }[] }[] };
-      const rounds = [...(pack.rounds ?? [])];
-      const round = rounds[roundIndex];
-      if (!round) return;
-      const questions = [...(round.questions ?? [])];
-      const question = questions[questionIndex];
-      if (!question) return;
-      const choices = [...(question.choices ?? []), "Nouveau choix"];
-      questions[questionIndex] = { ...question, choices };
-      rounds[roundIndex] = { ...round, questions };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onEditorDeleteChoice = useCallback(
-    (roundIndex: number, questionIndex: number, choiceIndex: number): void => {
-      if (!editorPack) return;
-      const pack = editorPack as { rounds?: { questions?: { choices?: string[] }[] }[] };
-      const rounds = [...(pack.rounds ?? [])];
-      const round = rounds[roundIndex];
-      if (!round) return;
-      const questions = [...(round.questions ?? [])];
-      const question = questions[questionIndex];
-      if (!question) return;
-      const choices = (question.choices ?? []).filter((_, i) => i !== choiceIndex);
-      questions[questionIndex] = { ...question, choices };
-      rounds[roundIndex] = { ...round, questions };
-      void onUpdateEditorPack({ ...pack, rounds });
-    },
-    [editorPack, onUpdateEditorPack],
-  );
-
-  const onHostRoundStart = useCallback(async (): Promise<void> => {
+  const onHostRoundStart = useCallback((): void => {
     if (snap === null) return;
     const head = snap.mancheScript[0];
     if (head === undefined) {
       setErr("validation:Ajoutez au moins une manche avec « Ajouter (+) », puis rechargez-la en tête de liste si besoin.");
       return;
     }
-    await onHostManchePlay(head.id);
-  }, [snap, onHostManchePlay]);
+    setLaunchDialogMancheId(head.id);
+    setLaunchDialogOpen(true);
+  }, [snap]);
 
   if (!pid) return <Navigate to="/create" replace />;
 
@@ -3495,12 +3228,31 @@ function Admin(): JSX.Element {
                         <span className="bz-manche-row-kind bz-muted">
                           ({mancheKindShort(mancheRow.kind)})
                         </span>
+                        {mancheRow.launchMode !== null ? (
+                          <span
+                            className="bz-manche-badge"
+                            style={{
+                              marginLeft: 8,
+                              padding: "2px 8px",
+                              borderRadius: 4,
+                              fontSize: 11,
+                              fontWeight: "bold",
+                              backgroundColor: mancheRow.launchMode === "autonomous" ? "#4CAF50" : "#2196F3",
+                              color: "white",
+                            }}
+                          >
+                            {mancheRow.launchMode === "autonomous" ? "Auto" : "Manuel"}
+                          </span>
+                        ) : null}
                         {playing ? <span className="bz-manche-row-live">● en cours</span> : null}
                       </span>
                       <button
                         type="button"
                         title="Jouer cette manche"
-                        onClick={() => void onHostManchePlay(mancheRow.id)}
+                        onClick={() => {
+                          setLaunchDialogMancheId(mancheRow.id);
+                          setLaunchDialogOpen(true);
+                        }}
                       >
                         ▶
                       </button>
@@ -3536,89 +3288,6 @@ function Admin(): JSX.Element {
               </ul>
             )}
           </section>
-
-          {/* Mode lecture automatique */}
-          {snap.mancheScript.length > 0 ? (
-            <section className="bz-host-section" style={{ borderTop: "2px solid #e0e0e0", paddingTop: 16 }}>
-              <h2>Mode lecture automatique</h2>
-              {!snap.autoPlay?.enabled ? (
-                <div>
-                  <p className="bz-muted" style={{ marginBottom: 12, fontSize: 13 }}>
-                    Lancez la soirée en mode automatique : enchaînement des manches avec transitions.
-                  </p>
-                  <button
-                    type="button"
-                    className="bz-primary"
-                    onClick={() => void onHostAutoPlayToggle(true)}
-                    style={{ width: "100%" }}
-                  >
-                    📺 Mode lecture automatique
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f0f9ff", borderRadius: 6, border: "1px solid #3b82f6" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <span style={{ fontSize: 14, fontWeight: 600, color: "#1e40af" }}>
-                        🎬 Mode automatique actif
-                      </span>
-                      {snap.autoPlay.paused ? (
-                        <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 500 }}>⏸ En pause</span>
-                      ) : null}
-                      {snap.autoPlay.waitingForManualAction ? (
-                        <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 500 }}>⏳ Action manuelle requise</span>
-                      ) : null}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#64748b" }}>
-                      Étape {snap.autoPlay.currentScriptIndex + 1} / {snap.mancheScript.length}
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {snap.autoPlay.paused ? (
-                        <button
-                          type="button"
-                          onClick={() => void onHostAutoPlayPauseResume(false)}
-                          style={{ flex: 1 }}
-                        >
-                          ▶️ Reprendre
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void onHostAutoPlayPauseResume(true)}
-                          style={{ flex: 1 }}
-                        >
-                          ⏸ Pause
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => void onHostAutoPlaySkipBackward()}
-                        style={{ flex: 1 }}
-                      >
-                        ⏮ Précédent
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void onHostAutoPlaySkipForward()}
-                        style={{ flex: 1 }}
-                      >
-                        ⏭ Suivant
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void onHostAutoPlayToggle(false)}
-                      style={{ width: "100%", background: "#ef4444", color: "white" }}
-                    >
-                      ⏹ Arrêter le mode automatique
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-          ) : null}
 
           {/* Sticky controls */}
           <div className="bz-host-controls">
@@ -3927,21 +3596,6 @@ function Admin(): JSX.Element {
                       ))}
                     </select>
                   </label>
-                  <div style={{ marginBottom: 10 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const selectedPack = packsList.find((p) => p.basename === modalPackBasename);
-                        if (selectedPack) {
-                          void onStartPackEditor(selectedPack.id);
-                          setAddMancheOpen(false);
-                        }
-                      }}
-                      style={{ width: "100%" }}
-                    >
-                      Éditer ce pack
-                    </button>
-                  </div>
                   <label style={{ display: "block", marginBottom: 8 }}>
                     Titre affiché (optionnel ; par défaut le titre du JSON)
                     <input
@@ -4138,349 +3792,79 @@ function Admin(): JSX.Element {
           </div>
         ) : null}
 
-        {editorOpen && editorPack ? (
+        {launchDialogOpen && launchDialogMancheId !== null ? (
           <div
             role="presentation"
             className="bz-modal-overlay"
             onMouseDown={(evt) => {
-              if (evt.target === evt.currentTarget) onCloseEditor();
+              if (evt.target === evt.currentTarget) setLaunchDialogOpen(false);
             }}
           >
             <div
               role="dialog"
-              aria-labelledby="editor-title"
+              aria-modal="true"
+              aria-labelledby="launch-dialog-title"
               className="bz-modal-dialog"
-              style={{ maxWidth: 1200, width: "95%", maxHeight: "90vh", display: "flex", flexDirection: "column" }}
               onMouseDown={(evt) => {
                 evt.stopPropagation();
               }}
             >
-              {/* Top bar */}
-              <div style={{ borderBottom: "1px solid #ddd", padding: "16px 20px" }}>
-                <h2 id="editor-title" style={{ margin: "0 0 8px" }}>
-                  Éditeur : {(editorPack as { title?: string })?.title || "Pack sans titre"}
-                </h2>
-                {editorValidationErrors.length > 0 ? (
-                  <div style={{ color: "crimson", marginBottom: 12, fontSize: 13 }}>
-                    <strong>Erreurs de validation :</strong>{" "}
-                    {editorValidationErrors.map((err, i) => (
-                      <span key={i}>
-                        {err}
-                        {i < editorValidationErrors.length - 1 ? " • " : ""}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-                {editorError ? (
-                  <p style={{ color: "crimson", margin: "4px 0", fontSize: 13 }}>{editorError}</p>
-                ) : null}
-                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap", alignItems: "center" }}>
-                  <input
-                    type="url"
-                    value={editorImageUrl}
-                    onChange={(e) => setEditorImageUrl(e.target.value)}
-                    placeholder="https://exemple.com/image.jpg"
-                    style={{ flex: "1 1 300px", minWidth: 200 }}
-                    disabled={editorDownloadingImage}
-                  />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const relativePath = await onDownloadImage(editorImageUrl);
-                      if (relativePath) {
-                        setEditorImageUrl("");
-                        alert(`Image téléchargée : ${relativePath}`);
-                      }
-                    }}
-                    disabled={editorDownloadingImage || !editorImageUrl.trim()}
-                  >
-                    {editorDownloadingImage ? "Téléchargement…" : "Ajouter une image depuis URL"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void onExportPack()}
-                    disabled={editorValidationErrors.length > 0}
-                    className="bz-primary"
-                  >
-                    Exporter en ZIP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void onUseEditedPack()}
-                    disabled={editorValidationErrors.length > 0}
-                  >
-                    Utiliser immédiatement
-                  </button>
-                  <button type="button" onClick={onCloseEditor}>
-                    Fermer
-                  </button>
-                </div>
+              <h2 id="launch-dialog-title">Choisir le mode de lancement</h2>
+              <p style={{ marginBottom: 24, fontSize: 14 }}>
+                Sélectionnez comment vous souhaitez lancer cette manche.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <button
+                  type="button"
+                  className="bz-primary"
+                  style={{
+                    padding: "16px 24px",
+                    fontSize: 16,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    textAlign: "left",
+                  }}
+                  onClick={() => {
+                    void onHostMancheLaunch(launchDialogMancheId, "normal", false);
+                    setLaunchDialogOpen(false);
+                  }}
+                >
+                  <strong style={{ marginBottom: 8 }}>Lancer en mode normal</strong>
+                  <span style={{ fontSize: 13, opacity: 0.9 }}>
+                    Affiche le tutoriel (si premier lancement de ce type de jeu), puis contrôle manuel par l'hôte
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="bz-primary"
+                  style={{
+                    padding: "16px 24px",
+                    fontSize: 16,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "flex-start",
+                    textAlign: "left",
+                    backgroundColor: "#4CAF50",
+                  }}
+                  onClick={() => {
+                    void onHostMancheLaunch(launchDialogMancheId, "autonomous", false);
+                    setLaunchDialogOpen(false);
+                  }}
+                >
+                  <strong style={{ marginBottom: 8 }}>Lancer en mode autonome</strong>
+                  <span style={{ fontSize: 13, opacity: 0.9 }}>
+                    Pas de tutoriel, enchaînement automatique des questions/rounds
+                  </span>
+                </button>
               </div>
-
-              {/* Main content: Left (rounds) + Center (question) */}
-              <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
-                {/* Left: Rounds list */}
-                <div style={{ width: 280, borderRight: "1px solid #ddd", overflowY: "auto", padding: 16 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                    <strong style={{ fontSize: 14 }}>Rounds</strong>
-                    <button type="button" onClick={onEditorAddRound} style={{ fontSize: 13 }}>
-                      + Ajouter
-                    </button>
-                  </div>
-                  {((editorPack as { rounds?: unknown[] })?.rounds ?? []).map((round, ri) => {
-                    const r = round as { id?: string; title?: string; questions?: unknown[] };
-                    const isSelected = ri === editorSelectedRound;
-                    return (
-                      <div
-                        key={ri}
-                        style={{
-                          padding: 10,
-                          marginBottom: 8,
-                          border: isSelected ? "2px solid #0066cc" : "1px solid #ddd",
-                          borderRadius: 4,
-                          backgroundColor: isSelected ? "#e6f2ff" : "#fff",
-                          cursor: "pointer",
-                        }}
-                        onClick={() => {
-                          setEditorSelectedRound(ri);
-                          setEditorSelectedQuestion(0);
-                        }}
-                      >
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                          <strong style={{ fontSize: 13 }}>
-                            {ri + 1}. {r.title || "Sans titre"}
-                          </strong>
-                        </div>
-                        <div style={{ fontSize: 12, color: "#666", marginBottom: 6 }}>
-                          {(r.questions ?? []).length} question{(r.questions ?? []).length > 1 ? "s" : ""}
-                        </div>
-                        <div style={{ display: "flex", gap: 4 }}>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditorMoveRound(ri, "up");
-                            }}
-                            disabled={ri === 0}
-                            style={{ fontSize: 11, padding: "2px 6px" }}
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onEditorMoveRound(ri, "down");
-                            }}
-                            disabled={ri === ((editorPack as { rounds?: unknown[] })?.rounds ?? []).length - 1}
-                            style={{ fontSize: 11, padding: "2px 6px" }}
-                          >
-                            ↓
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm(`Supprimer le round "${r.title}" ?`)) {
-                                onEditorDeleteRound(ri);
-                              }
-                            }}
-                            style={{ fontSize: 11, padding: "2px 6px", color: "crimson", marginLeft: "auto" }}
-                          >
-                            🗑
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Center: Selected question */}
-                <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-                  {(() => {
-                    const pack = editorPack as { rounds?: { id?: string; title?: string; questions?: unknown[] }[] };
-                    const rounds = pack.rounds ?? [];
-                    const selectedRound = rounds[editorSelectedRound];
-                    if (!selectedRound) {
-                      return (
-                        <div style={{ textAlign: "center", color: "#999", paddingTop: 40 }}>
-                          <p>Aucun round sélectionné. Ajoutez un round pour commencer.</p>
-                        </div>
-                      );
-                    }
-
-                    const questions = selectedRound.questions ?? [];
-                    const selectedQ = questions[editorSelectedQuestion] as
-                      | { id?: string; prompt?: string; choices?: string[]; correctIndex?: number; points?: number; imageUrl?: string }
-                      | undefined;
-
-                    return (
-                      <>
-                        {/* Round info */}
-                        <div style={{ marginBottom: 24, paddingBottom: 16, borderBottom: "1px solid #eee" }}>
-                          <h3 style={{ margin: "0 0 12px", fontSize: 18 }}>
-                            Round {editorSelectedRound + 1}
-                          </h3>
-                          <label style={{ display: "block", marginBottom: 8 }}>
-                            Titre du round
-                            <input
-                              type="text"
-                              value={selectedRound.title ?? ""}
-                              onChange={(e) => onEditorUpdateRound(editorSelectedRound, "title", e.target.value)}
-                              style={{ display: "block", width: "100%", marginTop: 4, boxSizing: "border-box" }}
-                            />
-                          </label>
-                        </div>
-
-                        {/* Questions tabs */}
-                        <div style={{ marginBottom: 16 }}>
-                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 12 }}>
-                            {questions.map((_, qi) => (
-                              <button
-                                key={qi}
-                                type="button"
-                                onClick={() => setEditorSelectedQuestion(qi)}
-                                style={{
-                                  padding: "6px 12px",
-                                  fontSize: 13,
-                                  border: qi === editorSelectedQuestion ? "2px solid #0066cc" : "1px solid #ccc",
-                                  backgroundColor: qi === editorSelectedQuestion ? "#e6f2ff" : "#fff",
-                                  borderRadius: 4,
-                                  cursor: "pointer",
-                                }}
-                              >
-                                Q{qi + 1}
-                              </button>
-                            ))}
-                            <button
-                              type="button"
-                              onClick={() => onEditorAddQuestion(editorSelectedRound)}
-                              style={{ padding: "6px 12px", fontSize: 13 }}
-                            >
-                              + Ajouter une question
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Selected question form */}
-                        {selectedQ ? (
-                          <>
-                            <div style={{ marginBottom: 16 }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                                <h4 style={{ margin: 0, fontSize: 16 }}>Question {editorSelectedQuestion + 1}</h4>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (window.confirm(`Supprimer la question ${editorSelectedQuestion + 1} ?`)) {
-                                      onEditorDeleteQuestion(editorSelectedRound, editorSelectedQuestion);
-                                    }
-                                  }}
-                                  style={{ fontSize: 13, color: "crimson" }}
-                                >
-                                  🗑 Supprimer
-                                </button>
-                              </div>
-                            </div>
-
-                            <label style={{ display: "block", marginBottom: 12 }}>
-                              Énoncé de la question
-                              <textarea
-                                value={selectedQ.prompt ?? ""}
-                                onChange={(e) =>
-                                  onEditorUpdateQuestion(editorSelectedRound, editorSelectedQuestion, "prompt", e.target.value)
-                                }
-                                style={{ display: "block", width: "100%", marginTop: 4, minHeight: 80, boxSizing: "border-box" }}
-                              />
-                            </label>
-
-                            <label style={{ display: "block", marginBottom: 12 }}>
-                              Points attribués
-                              <input
-                                type="number"
-                                value={selectedQ.points ?? 1}
-                                onChange={(e) =>
-                                  onEditorUpdateQuestion(
-                                    editorSelectedRound,
-                                    editorSelectedQuestion,
-                                    "points",
-                                    Number.parseInt(e.target.value, 10),
-                                  )
-                                }
-                                style={{ display: "block", width: "100%", marginTop: 4, boxSizing: "border-box" }}
-                              />
-                            </label>
-
-                            <label style={{ display: "block", marginBottom: 12 }}>
-                              URL de l'image (optionnel)
-                              <input
-                                type="text"
-                                value={selectedQ.imageUrl ?? ""}
-                                onChange={(e) =>
-                                  onEditorUpdateQuestion(editorSelectedRound, editorSelectedQuestion, "imageUrl", e.target.value)
-                                }
-                                placeholder="/games/image.jpg, /imported-packs/..., ou https://…"
-                                style={{ display: "block", width: "100%", marginTop: 4, boxSizing: "border-box" }}
-                              />
-                            </label>
-
-                            <div style={{ marginTop: 16 }}>
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                                <strong>Choix de réponses</strong>
-                                <button
-                                  type="button"
-                                  onClick={() => onEditorAddChoice(editorSelectedRound, editorSelectedQuestion)}
-                                  style={{ fontSize: 13 }}
-                                >
-                                  + Ajouter un choix
-                                </button>
-                              </div>
-                              {(selectedQ.choices ?? []).map((choice, ci) => (
-                                <div key={ci} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
-                                  <label style={{ display: "flex", alignItems: "center", minWidth: 80, fontSize: 13 }}>
-                                    <input
-                                      type="radio"
-                                      name={`correct-${editorSelectedRound}-${editorSelectedQuestion}`}
-                                      checked={selectedQ.correctIndex === ci}
-                                      onChange={() =>
-                                        onEditorUpdateQuestion(editorSelectedRound, editorSelectedQuestion, "correctIndex", ci)
-                                      }
-                                      style={{ marginRight: 6 }}
-                                    />
-                                    Correct
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={choice}
-                                    onChange={(e) => onEditorUpdateChoice(editorSelectedRound, editorSelectedQuestion, ci, e.target.value)}
-                                    style={{ flex: 1, boxSizing: "border-box" }}
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if ((selectedQ.choices ?? []).length > 2) {
-                                        onEditorDeleteChoice(editorSelectedRound, editorSelectedQuestion, ci);
-                                      } else {
-                                        alert("Une question doit avoir au moins 2 choix.");
-                                      }
-                                    }}
-                                    style={{ fontSize: 13, color: "crimson" }}
-                                    disabled={(selectedQ.choices ?? []).length <= 2}
-                                  >
-                                    🗑
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </>
-                        ) : (
-                          <div style={{ textAlign: "center", color: "#999", paddingTop: 40 }}>
-                            <p>Aucune question dans ce round. Ajoutez-en une pour commencer.</p>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
+              <div className="bz-modal-actions" style={{ marginTop: 24 }}>
+                <button
+                  type="button"
+                  onClick={() => setLaunchDialogOpen(false)}
+                >
+                  Annuler
+                </button>
               </div>
             </div>
           </div>
@@ -4496,6 +3880,8 @@ function Broadcast(): JSX.Element {
   const pid = canonicalPartyIdFromRoute(partyId);
   const [snap, setSnap] = useState<PartySnapshot | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
+  const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
 
   useEffect(() => {
     if (!pid) return undefined;
@@ -4527,13 +3913,21 @@ function Broadcast(): JSX.Element {
     const onAnswerFx = (payload: { url: string }): void => {
       playSfxUrl(payload.url);
     };
+    const onTutorial = (payload: { gameKind?: string; canSkip?: boolean }): void => {
+      if (!cancelled && typeof payload.gameKind === "string") {
+        setTutorialGameKind(payload.gameKind);
+        setTutorialCanSkip(payload.canSkip === true);
+      }
+    };
     s.on("party:patch", onSnap);
     s.on("party:answer_fx", onAnswerFx);
+    s.on("party:tutorial", onTutorial);
 
     return (): void => {
       cancelled = true;
       s.off("party:patch", onSnap);
       s.off("party:answer_fx", onAnswerFx);
+      s.off("party:tutorial", onTutorial);
       s.disconnect();
     };
   }, [pid]);
@@ -4723,6 +4117,13 @@ function Broadcast(): JSX.Element {
             </div>
           ) : null}
         </footer>
+      ) : null}
+      {tutorialGameKind !== null ? (
+        <TutorialOverlay
+          gameKind={tutorialGameKind}
+          canSkip={tutorialCanSkip}
+          onClose={() => setTutorialGameKind(null)}
+        />
       ) : null}
     </div>
   );

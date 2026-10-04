@@ -23,6 +23,8 @@ export interface MancheCatalogItem {
   transitionKind: TransitionKind | null;
   /** * For transitions: duration in milliseconds. */
   transitionDurationMs: number | null;
+  /** * Launch mode for this manche: null (not yet launched), 'normal' (with intro), or 'autonomous' (skip intro + auto-chain). */
+  launchMode: "normal" | "autonomous" | null;
 }
 
 /** * Automatic play mode state. */
@@ -125,6 +127,8 @@ export interface Party {
   activeMancheId: string | null;
   /** * Automatic play mode state. */
   autoPlay: AutoPlayState;
+  /** * Game kinds (round types) already seen in this party; used to determine if tutorial should be shown. */
+  seenGameKinds: Set<string>;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */

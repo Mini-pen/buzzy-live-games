@@ -49,7 +49,8 @@ export type PartyNotifyMeta =
   | { kind: "party_deleted" }
   | { kind: "player_kicked"; playerId: string }
   | { kind: "buzz_verdict"; playerId: string; verdict: "good" | "bad" }
-  | { kind: "quiz_auto_toast"; playerId: string; correct: boolean };
+  | { kind: "quiz_auto_toast"; playerId: string; correct: boolean }
+  | { kind: "tutorial"; gameKind: string; canSkip: boolean };
 
 export type PartyNotifier = (
   partyId: string,
@@ -216,6 +217,7 @@ export class PartyStore {
         scheduledAdvanceAt: null,
         pendingScriptUpdates: null,
       },
+      seenGameKinds: new Set(),
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -645,8 +647,8 @@ export class PartyStore {
     party.currentQuestionIndex = null;
   }
 
-  hostAppendManche(party: Party, draft: Omit<MancheCatalogItem, "id">): void {
-    const item: MancheCatalogItem = { ...draft, id: nanoid(12) };
+  hostAppendManche(party: Party, draft: Omit<MancheCatalogItem, "id" | "launchMode">): void {
+    const item: MancheCatalogItem = { ...draft, id: nanoid(12), launchMode: null };
     
     if (party.autoPlay.enabled && !party.autoPlay.paused) {
       // Defer the update until after the current item
@@ -732,11 +734,32 @@ export class PartyStore {
     this.broadcast(party);
   }
 
-  hostPlayMancheById(
+  /** * Helper to determine the game kind of the first round in a loaded pack. */
+  private inferGameKindFromManche(
+    manche: MancheCatalogItem,
+    packs: Map<string, QuizPack>,
+  ): string | null {
+    if (manche.kind !== "pack_quiz" || manche.packBasename === null) return null;
+    const pack = packs.get(manche.packBasename);
+    if (!pack || pack.rounds.length === 0) return null;
+    const firstRound = pack.rounds[manche.savedRoundIndex] ?? pack.rounds[0];
+    if (!firstRound) return null;
+    if (isQuizRound(firstRound)) return "quiz";
+    if (isAudioBlindRound(firstRound)) return "audio_blind";
+    if (isProgressiveGuessRound(firstRound)) return "progressive_guess";
+    if (isImageBuzzRound(firstRound)) return "image_buzz";
+    if (isFreeBuzzRound(firstRound)) return "free_buzz";
+    if (isVideoRound(firstRound)) return "video";
+    return null;
+  }
+
+  hostLaunchManche(
     party: Party,
     mancheId: string,
+    mode: "normal" | "autonomous",
+    skipIntro: boolean,
     packs: Map<string, QuizPack>,
-  ): void {
+  ): { shouldShowTutorial: boolean; gameKind: string | null } {
     if (party.mancheScript.length === 0)
       throw Object.assign(new Error("BAD_PHASE"), { code: "BAD_PHASE" });
     const i = party.mancheScript.findIndex((m) => m.id === mancheId);
@@ -748,7 +771,10 @@ export class PartyStore {
     const [picked] = party.mancheScript.splice(i, 1);
     if (picked === undefined)
       throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
+    
+    picked.launchMode = mode;
     party.mancheScript.unshift(picked);
+    
     try {
       party.activeMancheId = picked.id;
       this.hydrateRuntimeFromMancheItem(party, picked, packs);
@@ -756,12 +782,39 @@ export class PartyStore {
       party.mancheScript = before;
       throw err;
     }
+    
+    const gameKind = this.inferGameKindFromManche(picked, packs);
+    const shouldShowTutorial = !skipIntro && gameKind !== null && !party.seenGameKinds.has(gameKind);
+    
+    if (shouldShowTutorial && gameKind !== null) {
+      party.seenGameKinds.add(gameKind);
+    }
+    
+    if (mode === "autonomous") {
+      party.autoOpenBuzzOnCueAdvance = true;
+      party.autoAdvanceQuizWhenAllBuzzed = true;
+    }
+    
     party.state = "round_active";
     party.hasStartedRound = true;
     const pk = quizPackFromLoadedId(packs, party.loadedPackId);
     this.reopenBuzzAccordingToCueAdvancePolicy(party, pk);
     this.touch(party);
+    
+    if (shouldShowTutorial && gameKind !== null) {
+      this.notify(party.id, party, { kind: "tutorial", gameKind, canSkip: true });
+    }
+    
     this.broadcast(party);
+    return { shouldShowTutorial, gameKind };
+  }
+
+  hostPlayMancheById(
+    party: Party,
+    mancheId: string,
+    packs: Map<string, QuizPack>,
+  ): void {
+    this.hostLaunchManche(party, mancheId, "normal", false, packs);
   }
 
   adminPauseToLobby(party: Party): void {
