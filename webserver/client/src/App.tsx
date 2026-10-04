@@ -179,6 +179,10 @@ interface PartySnapshot {
   }>;
   autoOpenBuzzOnCueAdvance?: boolean;
   autoAdvanceQuizWhenAllBuzzed?: boolean;
+  countdownDurationSec?: number;
+  winnerScreenMode?: "question" | "round";
+  readyPlayers?: string[];
+  readyPhaseStartedAt?: number | null;
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -542,6 +546,48 @@ function playSfxUrl(url: string | undefined | null): void {
   } catch {
     /* noop */
   }
+}
+
+function ReadyCountdownHero(props: {
+  readyPlayers: string[];
+  readyPhaseStartedAt: number;
+  myId: string;
+  isReady: boolean;
+  onMarkReady: () => void;
+  readyLoading: boolean;
+}): JSX.Element {
+  const { readyPlayers, isReady, onMarkReady, readyLoading } = props;
+
+  if (!isReady) {
+    return (
+      <div className="bz-ready-phase">
+        <p className="bz-ready-message">
+          {readyPlayers.length === 0
+            ? "Prêt pour la prochaine question ?"
+            : `${readyPlayers.length} joueur${readyPlayers.length === 1 ? "" : "s"} prêt${readyPlayers.length === 1 ? "" : "s"}`}
+        </p>
+        <button
+          type="button"
+          onClick={onMarkReady}
+          disabled={readyLoading}
+          className="bz-ready-btn"
+        >
+          {readyLoading ? "Marquage..." : "Prêt"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bz-ready-phase">
+      <p className="bz-ready-message">
+        ✓ En attente des autres joueurs...
+      </p>
+      <p className="bz-muted" style={{ fontSize: 14, margin: "8px 0 0" }}>
+        {readyPlayers.length} joueur{readyPlayers.length === 1 ? "" : "s"} prêt{readyPlayers.length === 1 ? "" : "s"}
+      </p>
+    </div>
+  );
 }
 
 /** * Points attribués sur « bonne réponse » pour la vignette / question courante (affiche boutons animateur). */
@@ -1934,8 +1980,12 @@ function Play(): JSX.Element {
   } | null>(null);
   const [lobbyBuzzSaving, setLobbyBuzzSaving] = useState(false);
   const [quizAutoToast, setQuizAutoToast] = useState<"good" | "bad" | null>(null);
+<<<<<<< HEAD
   const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
+=======
+  const [readyLoading, setReadyLoading] = useState(false);
+>>>>>>> 0bab2df (feat(evolution-4.5): player UI - ready button and countdown prep)
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
@@ -2131,6 +2181,26 @@ function Play(): JSX.Element {
   const canBuzz = snap.state === "round_active" && snap.buzzWindowOpen;
   const queuedBuzz = typeof myId === "string" && snap.buzzOrder.some((bid) => bid === myId);
 
+  async function markReady(): Promise<void> {
+    if (!pid || jwt === null || jwt === "") return;
+    setErr(null);
+    setReadyLoading(true);
+    try {
+      const updated = await fetchJson<PartySnapshot>(
+        `/api/parties/${encodeURIComponent(pid)}/me/ready`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${jwt}` },
+        },
+      );
+      setSnap(updated);
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : String(e2));
+    } finally {
+      setReadyLoading(false);
+    }
+  }
+
   async function updateMyBuzzSound(next: string): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
     const me = snap.players.find((p) => p.id === myId);
@@ -2217,7 +2287,19 @@ function Play(): JSX.Element {
       />
 
       <section className="bz-buzz-hero">
-        {canBuzz ? (
+        {snap.state === "round_active" &&
+        snap.readyPhaseStartedAt !== null &&
+        !snap.buzzWindowOpen &&
+        !canBuzz ? (
+          <ReadyCountdownHero
+            readyPlayers={snap.readyPlayers ?? []}
+            readyPhaseStartedAt={snap.readyPhaseStartedAt}
+            myId={myId ?? ""}
+            isReady={(snap.readyPlayers ?? []).includes(myId ?? "")}
+            onMarkReady={() => void markReady()}
+            readyLoading={readyLoading}
+          />
+        ) : canBuzz ? (
           <button
             type="button"
             onClick={() => void buzz()}
