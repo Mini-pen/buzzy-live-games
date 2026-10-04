@@ -277,7 +277,7 @@ Application web temps réel permettant d'animer des soirées quiz et jeux de typ
 
 - Joueurs : room `player`, snapshot joueur.
 - Animateur : room `admin`, snapshot admin enrichi (inclut `correctChoiceIndex`, `revealTitle`, `autoOpenBuzzOnCueAdvance`, etc.).
-- Spectateurs (broadcast) : room `broadcast`, snapshot joueur (pas d'auth bearer requis, mais `partyId` validé).
+- Spectateurs (broadcast) : room `broadcast`, snapshot joueur (pas d'auth bearer requis, mais `partyId` validé). Voir section 2.9 pour l'UI dédiée.
 
 **Règles métier :**
 
@@ -298,19 +298,54 @@ Application web temps réel permettant d'animer des soirées quiz et jeux de typ
 
 ---
 
-### 2.9 Authentification et autorisations
+### 2.9 Grand écran spectateur (broadcast)
+
+**Comportement :**
+
+- Route `/party/:partyId/broadcast` : affichage plein écran optimisé pour vidéo-projecteur ou grand écran.
+- Affiche en temps réel le snapshot de la partie : `gameBoard` (questions, choix QCM, images, vidéos), liste des joueurs, scores par équipe, état de la partie (`lobby`, `round_active`).
+- Pas de contrôles animateur : interface en lecture seule, synchronisée via Socket.IO.
+- L'interface admin contient un lien « 📺 Ouvrir la diffusion (nouvel onglet) » pointant vers cette route.
+
+**Acteurs :**
+
+- Spectateurs (public, projecteur) : visualisation en lecture seule.
+
+**Règles métier :**
+
+- Pas d'authentification Bearer requise : seul le `partyId` dans `handshake.auth` est nécessaire.
+- Le client rejoint la room Socket.IO `party:{id}:broadcast` avec le rôle `"broadcast"`.
+- Le snapshot reçu est le snapshot public (sans les informations réservées à l'animateur comme `correctChoiceIndex`, `revealTitle`/`revealArtist`, flags admin).
+
+**Critères d'acceptation :**
+
+- La route `/party/:partyId/broadcast` affiche en grand le `gameBoard` (prompt, choix QCM, image, vidéo) selon le type de round actif.
+- En lobby, affiche le QR code de rejoindre, le code join, et le nombre de joueurs présents.
+- Les scores équipes sont visibles en permanence.
+- La mise à jour se fait en temps réel via `party:patch`.
+
+**Cas limites :**
+
+- Si la partie n'existe pas, message « Partie introuvable. »
+- Si la partie est supprimée pendant la diffusion, le client reçoit `party_deleted` et doit afficher un message.
+
+**Statut :** Livré (route `/party/:partyId/broadcast`, composant `Broadcast` dans `webserver/client/src/App.tsx`, room Socket.IO `broadcast`).
+
+---
+
+### 2.10 Authentification et autorisations
 
 **Comportement :**
 
 - **Joueur :** JWT signé avec `JWT_SECRET`, payload `{ pid, sub }`, durée illimitée tant que la partie existe. Le JWT est renvoyé à chaque appel nécessitant une authentification joueur (`@fastify/jwt` + hook `gatePlayerJwt`).
 - **Animateur :** Bearer opaque (64 caractères hexa), généré à la création, vérifié par `timingSafeEqual` côté serveur. Transmis en fragment de hash côté client (`#token=`), puis en header `Authorization: Bearer …` pour toutes les routes `/host/*`.
-- **Spectateur (broadcast) :** pas de Bearer requis, seulement le `partyId` dans `handshake.auth` ; rejoint la room `broadcast` pour affichage grand écran.
+- **Spectateur (broadcast) :** pas de Bearer requis, seulement le `partyId` dans `handshake.auth` ; rejoint la room `broadcast` pour la diffusion grand écran (voir section 2.9).
 
 **Acteurs :**
 
 - Joueur : possède un `playerToken` (JWT).
 - Animateur : possède un `adminToken` (secret opaque).
-- Spectateur : pas de token, rejoint en lecture seule.
+- Spectateur : pas de token, rejoint en lecture seule via la route `/party/:partyId/broadcast`.
 
 **Règles métier :**
 
@@ -428,11 +463,279 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-## 4. À venir
+## 4. Évolutions demandées
 
-### 4.1 Restant pour atteindre le MVP complet
+Cette section regroupe les évolutions produit décidées, au-delà du MVP actuel. Ces fonctionnalités sont priorisées pour enrichir l'expérience utilisateur et faciliter la création de contenus par la communauté.
 
-#### 4.1.1 Affichage question/réponses côté joueur
+---
+
+### 4.1 Import de jeux au format ZIP
+
+**Comportement :**
+
+- L'animateur peut importer un fichier ZIP contenant un pack de jeu (fichier JSON + ressources médias : images, audio, vidéo).
+- Le ZIP est décompressé côté serveur ou client, et les ressources sont rendues disponibles pour la partie en cours.
+- Les packs importés restent locaux à la session : pas de sauvegarde distante de l'état de la partie ni des packs importés.
+- L'import ZIP complète le scan existant du répertoire `games/` : les packs JSON déjà sur disque restent chargés au démarrage ; les packs ZIP s'ajoutent dynamiquement à la liste des packs disponibles.
+
+**Acteurs :**
+
+- Animateur : importe un ZIP depuis l'interface admin.
+
+**Règles métier :**
+
+- Le ZIP doit contenir au minimum un fichier JSON de pack valide (structure `{ id, title, version, rounds }`).
+- Les chemins des ressources dans le JSON (ex. `imageUrl`, `videoUrl`, `audioUrl`) doivent pointer vers des fichiers relatifs présents dans le ZIP (ex. `images/question1.jpg`).
+- Les ressources manquantes ou chemins invalides entraînent une erreur de validation au moment de l'import.
+- Le pack importé est indexé sous un identifiant unique (basé sur `id` + hash du contenu ou timestamp) pour éviter les collisions avec les packs sur disque.
+- Limite de taille du ZIP : configurable (ex. 50 Mo par défaut) pour éviter les abus.
+
+**Critères d'acceptation :**
+
+- L'interface admin propose un bouton « Importer un pack (ZIP) ».
+- À la sélection d'un fichier ZIP, le serveur valide la structure (JSON valide, ressources présentes).
+- En cas de succès, le pack apparaît dans la liste des packs disponibles (`GET /api/packs` ou équivalent).
+- L'animateur peut ajouter une manche issue du pack importé au `mancheScript`.
+- Les ressources du pack (images, vidéos, audio) sont servies correctement pendant la partie.
+- En cas d'erreur (JSON invalide, fichier manquant, ZIP corrompu), un message d'erreur explicite est affiché.
+
+**Cas limites :**
+
+- Si le ZIP contient plusieurs fichiers JSON, seul le premier valide est chargé (ou erreur si ambigu).
+- Si deux packs importés ont le même `id`, le second est refusé ou suffixé automatiquement.
+- Les packs importés ne persistent pas entre redémarrages serveur (sauf si sauvegardés explicitement dans `GAMES_DIR`).
+
+---
+
+### 4.2 Éditeur de jeux intégré
+
+**Comportement :**
+
+- L'animateur peut charger un pack existant (ZIP ou JSON scanné) dans un éditeur intégré à l'interface admin.
+- L'éditeur permet d'inspecter la structure du pack, d'ajouter/modifier/supprimer des rounds et questions, et d'uploader des images depuis des URLs (avec redimensionnement automatique pour limiter le poids).
+- À la fin de l'édition, l'animateur peut exporter le pack sous forme de ZIP (JSON + ressources médias), prêt à être réutilisé dans une autre partie ou partagé.
+
+**Acteurs :**
+
+- Animateur : édite et corrige un pack avant ou pendant une soirée.
+
+**Règles métier :**
+
+- L'éditeur valide en temps réel la structure du pack (schéma Zod).
+- Upload d'images depuis URL : le serveur télécharge l'image, la redimensionne (ex. max 1920×1080, compression JPEG/WebP), et l'ajoute au pack.
+- Limite de poids par image : configurable (ex. 500 Ko après compression).
+- Les modifications sont appliquées en mémoire ; l'export ZIP fige l'état édité.
+- Le pack édité peut être importé immédiatement dans la partie courante ou sauvegardé localement par l'animateur.
+
+**Critères d'acceptation :**
+
+- L'interface admin propose un bouton « Éditer ce pack » pour chaque pack listé.
+- L'éditeur affiche la structure du pack : liste des rounds, questions, choix, points, ressources.
+- Les champs sont éditables (texte, points, choix, URL des ressources).
+- Un bouton « Ajouter une image depuis URL » déclenche le téléchargement, redimensionnement, et ajout au pack.
+- Un bouton « Exporter en ZIP » génère un fichier téléchargeable contenant le JSON et les ressources.
+- Les validations Zod sont affichées en temps réel (erreurs en rouge).
+
+**Cas limites :**
+
+- Si l'URL d'image est inaccessible (404, timeout), erreur explicite.
+- Si l'image dépasse la limite de poids même après compression, erreur ou avertissement.
+- Les modifications non exportées sont perdues si l'animateur quitte l'éditeur (avertissement avant fermeture).
+
+---
+
+### 4.3 Programmation d'une soirée complète
+
+**Comportement :**
+
+- L'animateur peut planifier une séquence complète d'activités (manches, vidéos, pauses) avant l'événement.
+- Un mode « Lecture automatique » (Play mode) exécute la soirée de bout en bout, avec transitions animées entre activités.
+- L'animateur conserve le contrôle : pause, accélération, saut d'activité, retour en arrière.
+- Ce mode va au-delà de l'auto-avancement actuel (avance automatique sur QCM quand tous ont buzzé, bouton « Question suivante ») : il enchaîne automatiquement les manches, gère les pauses, et affiche des transitions visuelles.
+
+**Acteurs :**
+
+- Animateur : configure et lance le mode automatique.
+
+**Règles métier :**
+
+- La séquence est définie dans le `mancheScript` étendu : chaque item peut être une manche (pack, vidéo, iframe) ou une transition (pause, animation).
+- Le mode automatique respecte les durées configurées (ex. 30 secondes par question, 5 minutes par manche).
+- L'animateur peut interrompre le mode automatique à tout moment (bouton « Pause » / « Reprendre »).
+- Les transitions sont des animations visuelles (ex. fondu, compteur, splash screen) affichées sur le grand écran spectateur et dans l'interface joueur.
+
+**Critères d'acceptation :**
+
+- L'interface admin propose un bouton « Mode lecture automatique » lorsque le `mancheScript` contient au moins une manche.
+- En mode automatique, la soirée s'enchaîne : fin d'une manche → transition → manche suivante.
+- Les transitions sont visibles sur `/party/:partyId/broadcast` et dans l'interface joueur.
+- L'animateur voit une barre de progression et des contrôles (pause, avance rapide, retour).
+- Le mode automatique peut être désactivé à tout moment sans perdre la progression.
+
+**Cas limites :**
+
+- Si une manche nécessite une intervention manuelle (ex. validation de buzz), le mode automatique attend l'action de l'animateur avant de continuer.
+- Si l'animateur modifie le `mancheScript` pendant le mode automatique, les changements sont pris en compte après la manche en cours.
+
+---
+
+### 4.4 Introductions animées et tutoriels automatiques
+
+**Comportement :**
+
+- Avant chaque type de jeu (quiz, blind test, révélation progressive, etc.), une courte introduction animée explique la mécanique aux joueurs.
+- Le tutoriel est affiché sur le grand écran spectateur et dans l'interface joueur.
+- Chaque type de jeu est marqué dans les métadonnées comme nécessitant une validation manuelle de l'animateur (points attribués manuellement) ou entièrement automatique (scoring sans intervention).
+- Chaque jeu peut être lancé en mode « Normal » (avec tutoriel et contrôle animateur) ou « Autonome » (sans tutoriel, enchaînement automatique).
+
+**Acteurs :**
+
+- Animateur : choisit le mode de lancement (normal ou autonome).
+- Joueurs : voient le tutoriel avant le premier round d'un type de jeu.
+
+**Règles métier :**
+
+- Les tutoriels sont des animations pré-conçues (vidéo courte, animation SVG, ou slides) stockées côté serveur.
+- Le tutoriel est affiché uniquement au premier lancement d'un type de jeu dans une partie (ou si l'animateur force l'affichage).
+- Les jeux marqués « automatique » (ex. QCM avec `autoAdvanceQuizWhenAllBuzzed`) enchaînent sans attendre l'animateur.
+- Les jeux marqués « manuel » (ex. questions libres) attendent la validation de l'animateur après chaque buzz.
+
+**Critères d'acceptation :**
+
+- Chaque type de jeu (`quiz`, `audio_blind`, `progressive_guess`, etc.) a un tutoriel associé.
+- Au lancement d'une manche, si c'est la première du type dans la partie, le tutoriel s'affiche.
+- L'interface admin affiche un badge « Auto » ou « Manuel » pour chaque manche du script.
+- L'animateur peut choisir « Lancer en mode autonome » (skip tutoriel, enchaînement auto) ou « Lancer en mode normal ».
+
+**Cas limites :**
+
+- Si l'animateur skip le tutoriel manuellement, il n'est pas affiché.
+- Si un joueur rejoint après le tutoriel, il ne le voit pas (sauf si l'animateur relance explicitement).
+
+---
+
+### 4.5 Alertes sonores et visuelles de victoire/défaite, compte à rebours configurable
+
+**Comportement :**
+
+- **Alertes sonores :** Les sons de validation bon/mauvais (déjà en place) sont joués automatiquement à la validation d'un buzz ou à la fin d'une question en mode automatique. Si ce comportement n'est pas encore implémenté, l'ajouter : jouer le son `good` si le verdict est bon, `bad` sinon, côté animateur et/ou joueur selon la configuration.
+- **Visuel de victoire :** Lorsque le temps imparti pour une question ou une manche se termine, un écran de victoire affiche le nom du gagnant (joueur ou équipe avec le meilleur score) sur le grand écran spectateur et dans l'interface joueur.
+- **Compte à rebours avant question :** Un compte à rebours configurable (3 à 10 secondes) démarre avant chaque question, uniquement lorsque tous les participants ont marqué « Prêt ». Le buzzer reste fermé pendant le compte à rebours et s'ouvre automatiquement à la fin.
+
+**Acteurs :**
+
+- Animateur : configure la durée du compte à rebours et active/désactive les alertes.
+- Joueurs : marquent « Prêt », voient le compte à rebours, et peuvent buzzer une fois celui-ci terminé.
+
+**Règles métier :**
+
+- Le compte à rebours est affiché en grand sur le grand écran et dans l'interface joueur.
+- Le buzzer est fermé (`buzzWindowOpen = false`) pendant le compte à rebours ; il s'ouvre automatiquement à 0.
+- Le bouton « Prêt » est affiché dans l'interface joueur en début de question ; le compte à rebours démarre lorsque tous les joueurs connectés ont cliqué « Prêt ».
+- Si un joueur ne marque pas « Prêt » après un timeout (ex. 30 secondes), le compte à rebours démarre quand même (majorité ou timeout).
+- Le visuel de victoire affiche le pseudo du gagnant, son avatar, et son score final (ou celui de l'équipe).
+
+**Critères d'acceptation :**
+
+- Les sons bon/mauvais sont joués automatiquement à la validation de buzz (si pas déjà le cas).
+- Le visuel de victoire s'affiche sur `/party/:partyId/broadcast` et dans l'interface joueur à la fin d'une manche ou d'une question (selon configuration).
+- Un champ « Durée du compte à rebours » (3 à 10 secondes) est configurable dans les réglages animateur.
+- Le bouton « Prêt » apparaît dans l'interface joueur avant chaque question.
+- Le compte à rebours s'affiche en grand (chiffres animés) et le buzzer s'ouvre à la fin.
+
+**Cas limites :**
+
+- Si aucun joueur ne marque « Prêt », le compte à rebours démarre après un timeout (30 secondes par défaut).
+- Si un joueur se déconnecte pendant le compte à rebours, il n'est pas compté dans le « tous prêts ».
+- Le visuel de victoire peut être skipé manuellement par l'animateur (bouton « Suivant »).
+
+---
+
+### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
+
+**Comportement :**
+
+- L'interface admin affiche une fenêtre miniature simulant l'écran projeté (`/party/:partyId/broadcast`).
+- L'animateur peut configurer l'affichage : afficher uniquement la question et les réponses, ou inclure aussi le classement en temps réel.
+- Option de masquage des scores numériques : seul l'ordre de classement est visible (1er, 2ème, 3ème…) pour maintenir le suspense.
+- Mise en évidence automatique du premier joueur ayant buzzé (highlight visuel).
+- Choix d'affichage des joueurs : groupés par équipe (vue consolidée par équipe) ou vue individuelle, configurable par manche.
+
+**Acteurs :**
+
+- Animateur : configure l'affichage projeté depuis l'interface admin.
+
+**Règles métier :**
+
+- Les modifications de configuration s'appliquent en temps réel sur `/party/:partyId/broadcast`.
+- La fenêtre miniature dans l'admin reflète l'affichage projeté (preview live).
+- Le masquage des scores numériques n'affecte que l'affichage projeté ; l'interface animateur conserve les scores numériques.
+- Le highlight du premier joueur buzzé (bordure, couleur, animation) est visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé.
+- Le mode d'affichage (équipe vs individuel) peut être défini globalement ou par manche dans le `mancheScript`.
+
+**Critères d'acceptation :**
+
+- L'interface admin affiche une fenêtre miniature redimensionnable montrant le rendu de `/party/:partyId/broadcast`.
+- Les réglages d'affichage sont accessibles via un panneau : « Afficher classement », « Masquer scores numériques », « Vue par équipe / Vue individuelle », « Highlight premier buzz ».
+- Les changements sont appliqués en temps réel sur le grand écran.
+- Le premier joueur ayant buzzé est mis en évidence visuellement (bordure dorée, animation, etc.).
+- En vue par équipe, les joueurs sont regroupés ; en vue individuelle, tous les joueurs sont listés séparément.
+
+**Cas limites :**
+
+- Si les équipes sont désactivées (`maxTeams === null`), la vue par équipe n'est pas proposée.
+- Si le classement est masqué, l'animateur peut toujours le réafficher instantanément.
+
+---
+
+### 4.7 Bibliothèque de jeux communautaire
+
+**Comportement :**
+
+- L'application héberge une bibliothèque de jeux accessible depuis l'interface admin et publique (lecture seule pour les visiteurs).
+- La bibliothèque contient une petite version intégrée de chaque type de jeu (quiz, blind test, révélation progressive, etc.) pour un essai rapide.
+- Les utilisateurs peuvent uploader des packs au format ZIP dans la bibliothèque communautaire ; ces packs sont stockés côté serveur et téléchargeables par tous.
+- Lors de la création d'une partie, l'animateur peut choisir un pack depuis la bibliothèque communautaire (téléchargement automatique et import dans la partie).
+
+**Acteurs :**
+
+- Animateur : upload et télécharge des packs depuis la bibliothèque.
+- Visiteurs : consultent la bibliothèque (lecture seule).
+
+**Règles métier :**
+
+- Les packs uploadés sont validés (structure JSON, taille, contenus appropriés) avant publication dans la bibliothèque.
+- Chaque pack de la bibliothèque a une fiche : titre, description, auteur, nombre de questions, nombre de téléchargements, note moyenne (si système de notation implémenté).
+- Les packs intégrés (essais rapides) sont marqués « Officiel » et ne peuvent être modifiés par la communauté.
+- Limite de taille par upload : configurable (ex. 50 Mo).
+- Les packs de la bibliothèque sont indexés et recherchables par titre, auteur, type de jeu, tags.
+
+**Critères d'acceptation :**
+
+- Une page « Bibliothèque de jeux » est accessible depuis l'interface admin et en navigation publique.
+- Les packs intégrés (un par type de jeu) sont listés en premier, marqués « Officiel ».
+- Un bouton « Uploader un pack » permet de soumettre un ZIP ; le serveur valide et publie le pack.
+- Lors de la création d'une partie, l'animateur peut choisir « Charger depuis la bibliothèque » et sélectionner un pack.
+- Le pack est téléchargé et importé dans la partie en un clic.
+- Les packs communautaires sont listés avec titre, auteur, description, et un bouton « Télécharger ».
+
+**Cas limites :**
+
+- Si un pack contient du contenu inapproprié, un système de signalement permet de le retirer (modération manuelle ou automatique).
+- Si le serveur de la bibliothèque est indisponible, l'animateur peut toujours importer des packs en local (section 4.1).
+- Les packs uploadés sont associés à un auteur (pseudo ou compte si authentification implémentée) pour traçabilité.
+
+**Impact sur les questions ouvertes :**
+
+- **Question 5.4 (Validation des packs par la communauté) :** Cette évolution répond à la question. Les packs peuvent être uploadés via l'UI admin dans la bibliothèque communautaire. La validation est faite côté serveur (schéma Zod, limite de taille). Un système de modération (signalement, revue manuelle) est recommandé pour filtrer les contenus inappropriés. La question 5.4 n'est plus ouverte : l'upload communautaire est décidé et spécifié ici.
+
+---
+
+## 5. À venir
+
+### 5.1 Restant pour atteindre le MVP complet
+
+#### 5.1.1 Affichage question/réponses côté joueur
 
 **Statut :** restant (non implémenté).
 
@@ -448,7 +751,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.1.2 Modification pseudo / équipe in-place (UX inline)
+#### 5.1.2 Modification pseudo / équipe in-place (UX inline)
 
 **Statut :** restant (API existante, UI manquante).
 
@@ -466,24 +769,36 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.1.3 Tests Socket.IO automatisés
+#### 5.1.3 Tests unitaires (Vitest)
 
-**Statut :** restant (tests domaine présents, tests socket absents).
+**Statut :** Livré partiellement (120 tests unitaires, couverture restante à compléter).
 
-**Description :** Les tests unitaires couvrent les règles métier dans `partyLogic.test.ts` et `partySnapshotPresenter.test.ts`. Aucun test d'intégration Socket.IO n'est présent pour vérifier la bonne émission de `party:patch` après une action (join, buzz, kick, etc.).
+**Description :** Suite de tests unitaires Vitest couvrant la logique métier et les utilitaires. Le code de production n'a pas été modifié par l'ajout des tests.
 
-**Hypothèse :** Ajouter des tests avec un client Socket.IO de test (ex. `socket.io-client` dans un test Vitest) qui se connecte au serveur de test, effectue une action via l'API HTTP, et vérifie la réception de l'événement `party:patch` avec le bon contenu.
+**Modules couverts (livrés) :**
 
-**Critères d'acceptation (hypothèse) :**
+- `partyLogic` : scores équipes, snapshot public, codes équipes.
+- `free_buzz` : validation des manches libres.
+- `readBearer` : extraction du token Bearer depuis les headers.
+- `replyDomain` : gestion des erreurs domaine.
+- Catalogue de sons (`sounds`).
+- `loadConfig` : chargement de la configuration.
 
-- Un test vérifie qu'un join déclenche un `party:patch` avec le nouveau joueur dans `players`.
-- Un test vérifie qu'un buzz ajoute le `playerId` à `buzzOrder`.
-- Un test vérifie qu'un kick retire le joueur et émet `player_kicked`.
-- Un test vérifie qu'un chat envoie un message dans `chatTail`.
+**Modules non couverts (restant à implémenter) :**
+
+- `store.ts` : tests d'intégration du `PartyStore` (mutations, broadcast, purge).
+- Routes HTTP (`routesParty.ts`, etc.) : tests des endpoints REST.
+- Socket.IO (`socket.ts`) : tests d'intégration Socket.IO vérifiant l'émission de `party:patch` après actions (join, buzz, kick, chat).
+
+**Critères d'acceptation pour la couverture restante (hypothèse) :**
+
+- Tests `store.ts` : vérifier les mutations (join, buzz, kick, delta score) et la synchronisation du snapshot.
+- Tests routes : vérifier les validations Zod, les codes d'erreur HTTP, et les droits d'accès (JWT joueur, Bearer admin).
+- Tests Socket.IO : un client de test se connecte, effectue une action via l'API HTTP, et vérifie la réception de `party:patch` avec le bon contenu.
 
 ---
 
-#### 4.1.4 Tests end-to-end (Playwright)
+#### 5.1.4 Tests end-to-end (Playwright)
 
 **Statut :** restant (aucun test e2e présent).
 
@@ -502,9 +817,9 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-### 4.2 Hors scope MVP (backlog produit)
+### 5.2 Hors scope MVP (backlog produit)
 
-#### 4.2.1 Comptes utilisateurs / OAuth persistants
+#### 5.2.1 Comptes utilisateurs / OAuth persistants
 
 **Statut :** hors MVP.
 
@@ -514,7 +829,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.2.2 Plusieurs familles de mini-jeux dans une même partie
+#### 5.2.2 Plusieurs familles de mini-jeux dans une même partie
 
 **Statut :** hors MVP.
 
@@ -524,17 +839,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.2.3 Grand écran présentateur (spectateur read-only synchronisé)
-
-**Statut :** hors MVP.
-
-**Description :** Le rôle `broadcast` existe déjà dans le socket (room `party:{id}:broadcast`) mais n'a pas d'UI dédiée. L'idée est d'avoir une vue plein écran optimisée pour vidéo-projecteur : affichage du `gameBoard`, liste des joueurs, scores équipes, sans contrôles animateur.
-
-**Hypothèse :** Une route `/party/:partyId/broadcast` (sans auth Bearer) afficherait le snapshot en temps réel, optimisée pour grand écran (police grande, animations de scores, affichage des buzzs en live). Cette vue serait connectée via la room `broadcast`.
-
----
-
-#### 4.2.4 Internationalisation (i18n)
+#### 5.2.3 Internationalisation (i18n)
 
 **Statut :** hors MVP.
 
@@ -544,7 +849,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-#### 4.2.5 Cluster Redis pour multi-instances
+#### 5.2.4 Cluster Redis pour multi-instances
 
 **Statut :** hors MVP.
 
@@ -554,9 +859,9 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-## 5. Questions ouvertes
+## 6. Questions ouvertes
 
-### 5.1 Gestion de la déconnexion joueur prolongée
+### 6.1 Gestion de la déconnexion joueur prolongée
 
 **Question :** Si un joueur se déconnecte (socket fermé) mais que son JWT reste valide, doit-il rester dans la liste des joueurs ? Faut-il un timeout d'inactivité pour le retirer automatiquement ?
 
@@ -564,7 +869,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-### 5.2 Archivage et statistiques de parties
+### 6.2 Archivage et statistiques de parties
 
 **Question :** Les parties sont purgées après 48h d'inactivité. Doit-on archiver les résultats (scores finaux, historique des buzzes) pour consultation ultérieure ?
 
@@ -572,7 +877,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-### 5.3 Modération du chat
+### 6.3 Modération du chat
 
 **Question :** Le chat est libre ; pas de filtrage ou modération des messages. Doit-on intégrer un système de signalement ou de bannissement de mots ?
 
@@ -580,15 +885,7 @@ Le serveur peut accompagner le `party:patch` de métadonnées spécifiques (non 
 
 ---
 
-### 5.4 Validation des packs par la communauté
-
-**Question :** Les packs sont hébergés localement sous `games/`. Doit-on permettre aux utilisateurs de téléverser leurs propres packs via l'UI admin ?
-
-**Hypothèse :** Pour le MVP, les packs sont gérés manuellement par l'administrateur du serveur (ajout de fichiers JSON sur le disque, redémarrage serveur). Une évolution future pourrait intégrer un système d'upload de packs via l'UI, avec validation Zod côté serveur avant ajout au catalogue.
-
----
-
-### 5.5 Rejoindre une partie déjà lancée
+### 6.4 Rejoindre une partie déjà lancée
 
 **Question :** Actuellement, si `closedAfterStart === true`, les joueurs ne peuvent plus rejoindre après le premier lancement. Doit-on permettre un mode « rejoin » où un joueur déconnecté peut revenir sans compter comme un nouveau join ?
 
