@@ -2,7 +2,7 @@
 
 Application web temps réel pour **quiz / soirées** : lobby, **scores**, **équipes**, **buzzer**, animateur séparé. Stack : API **Fastify**, SPA **React + Vite**, **Socket.IO**, déployable sous **Docker** derrière **Traefik**.
 
-Pour l’historique Cursor : [`cursor_log_latest.txt`](./cursor_log_latest.txt) (session récente) et [`cursor_log_archive.txt`](./cursor_log_archive.txt) (sessions archivées).
+Pour l'historique Cursor : [`cursor_log_latest.txt`](./cursor_log_latest.txt) (session récente) et [`cursor_log_archive.txt`](./cursor_log_archive.txt) (sessions archivées).
 
 ---
 
@@ -10,10 +10,10 @@ Pour l’historique Cursor : [`cursor_log_latest.txt`](./cursor_log_latest.txt) 
 
 | Zone | Fonctionnalité |
 |------|----------------|
-| Accueil | Créer une partie ou rejoindre avec **code** (+ **QR** sur l’admin). |
-| Création | Plafonds **joueurs** / **équipes** ou **illimité** ; **fermée** ou **ouverte** après premier lancement ; flags **rename** / **changement d’équipe**. |
+| Accueil | Créer une partie ou rejoindre avec **code** (+ **QR** sur l'admin). |
+| Création | Plafonds **joueurs** / **équipes** ou **illimité** ; **fermée** ou **ouverte** après premier lancement ; flags **rename** / **changement d'équipe**. |
 | Lobby / jeu | Liste des participants, buzzer fenêtré, chat en **lobby** et **entre manches**. |
-| Joueur | Infos perso + buzz + chat ; lien pour repasser par l’écran rejoindre afin de changer pseudo/équipe. |
+| Joueur | Infos perso + buzz + chat ; lien pour repasser par l'écran rejoindre afin de changer pseudo/équipe. |
 | Admin | Contrôle **manche**, **fenêtre buzzer**, ordre des buzzes, delta de points par joueur, choix du **pack** quiz. |
 
 ---
@@ -84,21 +84,21 @@ Les snapshots publics incluent aussi `hasStartedRound`, `buzzOrder`, `buzzWindow
 | 6 | Pack `games/` + loader | Fait (+ `PATCH .../host/pack`) |
 | 7 | Chat restreint | Fait (lobby + `between_rounds`) |
 | 8 | Docker + Traefik | Fait (`webserver/Dockerfile`, compose racine, docs) |
-| 9 | Tests | Partiel : **vitest** sur règles domaine uniquement ; **pas** d’e2e Playwright encore |
+| 9 | Tests | Partiel : **vitest** sur règles domaine uniquement ; **pas** d'e2e Playwright encore |
 | 10 | Polish UX / accessibilité | Partiel |
 
 ---
 
 ## 4. Implémentation actuelle — détail technique
 
-### 4.1 Variables d’environnement pertinentes (`config.ts`)
+### 4.1 Variables d'environnement pertinentes (`config.ts`)
 
 | Variable | Rôle |
 |----------|------|
 | `PUBLIC_URL` | URL publique (schéma, sans `/` final) — liens de création côté API |
 | `JWT_SECRET` | Secret JWT joueur (**obligatoire** en production) |
 | `GAMES_DIR` | Répertoire des packs (`games/` par défaut en local depuis la racine du dépôt) |
-| `PARTY_MAX_IDLE_MS` | Âge max sans activité avant purge d’une partie (défaut 48 h) |
+| `PARTY_MAX_IDLE_MS` | Âge max sans activité avant purge d'une partie (défaut 48 h) |
 | `PARTY_SWEEP_INTERVAL_MS` | Période du balayage (défaut 5 min) |
 | `PORT`, `HOST`, `CORS_ORIGIN` | Bind serveur et CORS |
 
@@ -122,11 +122,11 @@ Les snapshots publics incluent aussi `hasStartedRound`, `buzzOrder`, `buzzWindow
 | PATCH | `/api/parties/:partyId/host/pack` | Charger un pack |
 | POST | `/api/parties/:partyId/host/chat` | Message hôte dans le chat |
 
-Pas de `GET /api/parties/:id/qr` : le **QR est généré côté client** (SPA admin) depuis l’URL de rejoindre.
+Pas de `GET /api/parties/:id/qr` : le **QR est généré côté client** (SPA admin) depuis l'URL de rejoindre.
 
 ### 4.3 Frontend (routes SPA)
 
-`/`, `/create`, `/join`, `/party/:partyId/play`, `/party/:partyId/admin` — fichier principal `webserver/client/src/App.tsx`.
+`/`, `/create`, `/join`, `/party/:partyId/play`, `/party/:partyId/admin`, `/party/:partyId/broadcast` — fichier principal `webserver/client/src/App.tsx`.
 
 ---
 
@@ -163,16 +163,15 @@ Pas de `GET /api/parties/:id/qr` : le **QR est généré côté client** (SPA ad
 - [x] Redirection admin après création (fragment `#token=` + sessionStorage).
 - [x] Vue joueur : buzz, chat aux phases permises.
 - [x] Bouton pour repasser par `/join` afin de modifier pseudo / équipe.
+- [x] **Grand écran spectateur** (`/party/:partyId/broadcast`) : livré mais non testé.
 - [ ] **Formulaire in-place** `PATCH .../me` dans la vue joueur (sans quitter vers `/join`) si on veut éviter une ré‑inscription.
-- [ ] **Énoncé de question / réponses** provenant du pack affichés au joueur — aujourd’hui seuls indices d’indexes sont dans le snapshot ; l’animateur pilote encore surtout le matériel affiché côté salle.
-
+- [ ] **Énoncé de question / réponses** provenant du pack affichés au joueur — aujourd'hui seuls indices d'indexes sont dans le snapshot ; l'animateur pilote encore surtout le matériel affiché côté salle.
 
 ### Jeux (`games/`)
 
 - [x] Format pack + exemple `example-quiz-pack.json`.
 - [x] Validation côté chargement packs.
 - [x] Admin : sélection de pack (`PATCH .../host/pack`).
-
 
 ### Docker / docs
 
@@ -181,25 +180,165 @@ Pas de `GET /api/parties/:id/qr` : le **QR est généré côté client** (SPA ad
 ### Qualité
 
 - [x] Tests unitaires métier (`partyLogic.test.ts`).
-- [ ] Tests d’intégration socket automatisés.
+- [ ] Tests d'intégration socket automatisés.
 - [ ] E2e (Playwright) scénario happy path.
 - [x] README + manuel + Traefik.
 
 ---
 
-## 6. Hors scope MVP (inchangé, backlog produit plus large)
+## 6. Hors scope MVP (backlog produit)
 
 - Comptes / OAuth prolongés hors session quiz.
 - Plusieurs familles de mini‑jeux dans une même partie.
-- Grand écran « présentateur » read‑only synchronisé.
 - i18n complète ; cluster Redis pour multi‑instances.
-
 
 ---
 
-## 7. Prochaines actions immédiates (priorisables par l’équipe)
+## 7. Évolutions demandées (section 4 du cahier des charges)
 
-1. **Contenu jeu côté joueur** — enrichir le snapshot ou un événément dédié avec le texte de la question/réponses du round courant (depuis pack chargé) et rendre ça lisible sous `/party/:id/play`.
-2. **UX rename/équipe** — petite UI branchée sur `PATCH /api/parties/:id/me` lorsque les flags partie l’autorisent.
-3. **E2e ou test socket minimal** pour verrouiller la régression autour join + buzz.
+Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles sont priorisées dans l'ordre suivant :
 
+### 7.1 Import de jeux au format ZIP
+
+**Statut :** À implémenter.
+
+**Description :** L'animateur peut importer un fichier ZIP contenant un pack de jeu (JSON + ressources médias : images, audio, vidéo). Le ZIP est décompressé et les ressources sont rendues disponibles pour la partie en cours. Les packs importés s'ajoutent dynamiquement à la liste des packs disponibles.
+
+**Règles :**
+- Le ZIP doit contenir au minimum un fichier JSON de pack valide.
+- Les chemins des ressources (ex. `imageUrl`, `videoUrl`) doivent pointer vers des fichiers relatifs présents dans le ZIP.
+- Le pack importé est indexé sous un identifiant unique pour éviter les collisions.
+- Limite de taille configurable (ex. 50 Mo).
+
+---
+
+### 7.2 Éditeur de jeux intégré
+
+**Statut :** À implémenter.
+
+**Description :** L'animateur peut charger un pack existant (ZIP ou JSON) dans un éditeur intégré. L'éditeur permet d'inspecter, ajouter, modifier, supprimer des rounds et questions, et d'uploader des images depuis des URLs avec redimensionnement automatique. À la fin, l'animateur peut exporter le pack sous forme de ZIP.
+
+**Règles :**
+- L'éditeur valide en temps réel la structure (schéma Zod).
+- Upload d'images depuis URL : téléchargement, redimensionnement (max 1920×1080), compression.
+- Limite de poids par image : configurable (ex. 500 Ko).
+- Les modifications sont en mémoire ; l'export ZIP fige l'état édité.
+
+---
+
+### 7.3 Programmation d'une soirée complète (mode automatique)
+
+**Statut :** À implémenter.
+
+**Description :** L'animateur peut planifier une séquence complète d'activités (manches, vidéos, pauses). Un mode « Lecture automatique » (Play mode) exécute la soirée de bout en bout avec transitions animées entre activités. L'animateur conserve le contrôle : pause, accélération, saut, retour.
+
+**Règles :**
+- La séquence est définie dans le `mancheScript` étendu avec transitions (pause, animation).
+- Le mode respecte les durées configurées (ex. 30s par question).
+- L'animateur peut interrompre à tout moment (pause/reprendre).
+- Les transitions sont affichées sur le grand écran et dans l'interface joueur.
+
+---
+
+### 7.4 Introductions animées et tutoriels automatiques
+
+**Statut :** À implémenter.
+
+**Description :** Avant chaque type de jeu (quiz, blind test, révélation progressive, etc.), une courte introduction animée explique la mécanique. Le tutoriel est affiché sur le grand écran et dans l'interface joueur. Chaque jeu peut être lancé en mode « Normal » (avec tutoriel) ou « Autonome » (sans tutoriel, enchaînement automatique).
+
+**Règles :**
+- Les tutoriels sont pré-conçus (vidéo courte, animation SVG, slides).
+- Le tutoriel est affiché uniquement au premier lancement d'un type de jeu dans une partie.
+- Les jeux automatiques (ex. QCM avec auto-avance) enchaînent sans attendre l'animateur.
+- Les jeux manuels attendent la validation après chaque buzz.
+
+---
+
+### 7.5 Alertes sonores/visuelles, compte à rebours configurable
+
+**Statut :** À implémenter.
+
+**Description :**
+- **Alertes sonores :** Sons de validation bon/mauvais joués automatiquement (si pas encore le cas).
+- **Visuel de victoire :** Écran de victoire affichant le gagnant (joueur ou équipe) sur le grand écran et dans l'interface joueur.
+- **Compte à rebours avant question :** Compte à rebours configurable (3 à 10 secondes) avant chaque question, démarrant lorsque tous les participants ont marqué « Prêt ». Le buzzer reste fermé pendant le compte à rebours et s'ouvre automatiquement à la fin.
+
+**Important :** Le compte à rebours de 3-10 secondes s'applique uniquement avant chaque question (démarre une fois tous prêts, buzzer ouvre après la fin). Ce n'est pas la durée du tutoriel.
+
+**Règles :**
+- Le bouton « Prêt » apparaît dans l'interface joueur avant chaque question.
+- Le compte à rebours démarre lorsque tous ont cliqué « Prêt » (ou après timeout de 30s).
+- Le buzzer s'ouvre automatiquement à la fin du compte à rebours.
+- Le visuel de victoire affiche pseudo, avatar, score final (joueur ou équipe).
+
+---
+
+### 7.6 Configuration de l'affichage projeté depuis une fenêtre miniature
+
+**Statut :** À implémenter.
+
+**Description :** L'interface admin affiche une fenêtre miniature simulant l'écran projeté (`/party/:partyId/broadcast`). L'animateur peut configurer l'affichage : afficher uniquement la question/réponses, ou inclure aussi le classement en temps réel. Options de masquage des scores numériques (seul l'ordre de classement visible) et mise en évidence automatique du premier joueur ayant buzzé. Choix d'affichage des joueurs : groupés par équipe ou vue individuelle.
+
+**Règles :**
+- Les modifications s'appliquent en temps réel sur `/party/:partyId/broadcast`.
+- La fenêtre miniature reflète l'affichage projeté (preview live).
+- Le masquage des scores numériques n'affecte que l'affichage projeté.
+- Le highlight du premier joueur buzzé est visible uniquement si le buzzer est ouvert.
+- Le mode d'affichage (équipe vs individuel) peut être défini globalement ou par manche.
+
+---
+
+### 7.7 Bibliothèque de jeux communautaire
+
+**Statut :** À implémenter.
+
+**Description :** L'application héberge une bibliothèque de jeux accessible depuis l'interface admin et publique (lecture seule pour visiteurs). La bibliothèque contient une petite version intégrée de chaque type de jeu pour essai rapide. Les utilisateurs peuvent uploader des packs au format ZIP dans la bibliothèque ; ces packs sont stockés côté serveur et téléchargeables par tous. Lors de la création, l'animateur peut choisir un pack depuis la bibliothèque (téléchargement automatique et import).
+
+**Règles :**
+- Les packs uploadés sont validés (structure JSON, taille, contenus) avant publication.
+- Chaque pack a une fiche : titre, description, auteur, nombre de questions/téléchargements, note moyenne.
+- Les packs intégrés (essais rapides) sont marqués « Officiel ».
+- Limite de taille par upload : configurable (ex. 50 Mo).
+- Indexation et recherche par titre, auteur, type de jeu, tags.
+- Système de signalement recommandé pour modération.
+
+---
+
+## 8. Complément MVP (section 5.1 du cahier des charges)
+
+Ces éléments font partie du MVP mais nécessitent encore des compléments :
+
+### 8.1 Affichage question/réponses côté joueur
+
+**Statut :** Restant (partiellement implémenté).
+
+**Description :** Le snapshot joueur devrait inclure systématiquement le `gameBoard` complet (sauf champs réservés animateur comme `correctChoiceIndex` ou `revealTitle`/`revealArtist`). Cela permettrait aux joueurs de lire la question, voir les choix QCM, et consulter les illustrations sans dépendre d'un affichage en salle.
+
+---
+
+### 8.2 Modification pseudo / équipe in-place (UX inline)
+
+**Statut :** Restant (API existante, UI manquante).
+
+**Description :** L'API `PATCH /api/parties/:partyId/me` permet déjà de modifier `displayName`, `teamId`, `avatarKey`, `buzzSoundKey` en cours de partie (si autorisé). Un formulaire inline dans `/party/:partyId/play` permettrait de modifier directement sans quitter la page.
+
+---
+
+### 8.3 Tests unitaires (Vitest)
+
+**Statut :** Livré partiellement (120 tests, couverture à compléter).
+
+**Modules couverts :** `partyLogic`, `free_buzz`, `readBearer`, `replyDomain`, sons, `loadConfig`.
+
+**Modules non couverts (restant) :**
+- `store.ts` : tests d'intégration du `PartyStore`.
+- Routes HTTP : tests des endpoints REST.
+- Socket.IO : tests d'intégration vérifiant l'émission de `party:patch`.
+
+---
+
+### 8.4 Tests end-to-end (Playwright)
+
+**Statut :** Restant (aucun test e2e présent).
+
+**Description :** Scénario happy path : création de partie, rejoindre avec 2 joueurs, lancer manche quiz, ouvrir buzzer, buzzer, valider réponses, vérifier scores.
