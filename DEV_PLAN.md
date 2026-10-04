@@ -228,15 +228,22 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 ### 7.3 Programmation d'une soirée complète (mode automatique)
 
-**Statut :** À implémenter.
+**Statut :** ✅ Fait (PR #9, merged dans commit 09822bf).
 
 **Description :** L'animateur peut planifier une séquence complète d'activités (manches, vidéos, pauses). Un mode « Lecture automatique » (Play mode) exécute la soirée de bout en bout avec transitions animées entre activités. L'animateur conserve le contrôle : pause, accélération, saut, retour.
 
 **Règles :**
-- La séquence est définie dans le `mancheScript` étendu avec transitions (pause, animation).
-- Le mode respecte les durées configurées (ex. 30s par question).
-- L'animateur peut interrompre à tout moment (pause/reprendre).
-- Les transitions sont affichées sur le grand écran et dans l'interface joueur.
+- La séquence est définie dans le `mancheScript` étendu avec transitions (pause, fade, countdown).
+- Le mode respecte les durées configurées via les variables d'environnement :
+  - `AUTO_PLAY_QUESTION_DURATION_MS` (défaut: 30s)
+  - `AUTO_PLAY_ROUND_DURATION_MS` (défaut: 5min)
+  - `AUTO_PLAY_TRANSITION_DURATION_MS` (défaut: 3s)
+- L'animateur peut interrompre à tout moment (pause/reprendre, avancer, reculer).
+- Les transitions sont affichées sur le grand écran et dans l'interface joueur avec animations visuelles.
+- Le bouton « Mode lecture automatique » apparaît dans l'admin si le script contient au moins une manche.
+- L'état du mode (actif, en pause, progression) est synchronisé en temps réel via Socket.IO.
+
+**Note :** L'avancement automatique basé sur les durées configurées nécessiterait un timer côté serveur (non implémenté dans cette version). L'animateur contrôle manuellement l'avancement avec les boutons.
 
 ---
 
