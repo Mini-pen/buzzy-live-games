@@ -108,6 +108,15 @@ interface PartyGameBoardYoutube {
   replaySerial: number;
 }
 
+/** * Transition between rounds in automatic play mode. */
+interface PartyGameBoardTransition {
+  kind: "transition";
+  transitionKind: "pause" | "fade" | "countdown";
+  title: string;
+  durationMs: number;
+  startedAt: number;
+}
+
 type PartyGameBoardSurface =
   | PartyGameBoardQuiz
   | PartyGameBoardVideo
@@ -116,12 +125,13 @@ type PartyGameBoardSurface =
   | PartyGameBoardProgressiveGuess
   | PartyGameBoardAudioBlind
   | PartyGameBoardIframe
-  | PartyGameBoardYoutube;
+  | PartyGameBoardYoutube
+  | PartyGameBoardTransition;
 
 /** * Host-visible manche descriptor (mirror of `PartyPublicSnapshot.mancheScript`). */
 interface MancheCatalogItemView {
   id: string;
-  kind: "pack_quiz" | "iframe" | "youtube" | "direct_video";
+  kind: "pack_quiz" | "iframe" | "youtube" | "direct_video" | "transition";
   title: string;
   packBasename: string | null;
   iframeUrl: string | null;
@@ -129,6 +139,8 @@ interface MancheCatalogItemView {
   directVideoUrl: string | null;
   savedRoundIndex: number;
   savedQuestionIndex: number;
+  transitionKind: "pause" | "fade" | "countdown" | null;
+  transitionDurationMs: number | null;
 }
 
 interface PartySnapshot {
@@ -176,6 +188,12 @@ interface PartySnapshot {
   }>;
   autoOpenBuzzOnCueAdvance?: boolean;
   autoAdvanceQuizWhenAllBuzzed?: boolean;
+  autoPlay?: {
+    enabled: boolean;
+    paused: boolean;
+    currentScriptIndex: number;
+    waitingForManualAction: boolean;
+  };
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -206,6 +224,8 @@ function mancheKindShort(kind: MancheCatalogItemView["kind"]): string {
       return "YouTube";
     case "direct_video":
       return "Vidéo";
+    case "transition":
+      return "Transition";
     default:
       return kind;
   }
@@ -1240,6 +1260,76 @@ function GameBoardPanel(props: {
 
   const blindClientsMayPlay =
     blindHostPresenter === true || (allowBlindPlaybackOnClients ?? false) === true;
+
+  if (board !== null && board.kind === "transition") {
+    const elapsed = Date.now() - board.startedAt;
+    const progress = Math.min(100, Math.max(0, (elapsed / board.durationMs) * 100));
+    const remainingMs = Math.max(0, board.durationMs - elapsed);
+    const remainingSec = Math.ceil(remainingMs / 1000);
+
+    let transitionContent: JSX.Element;
+    if (board.transitionKind === "countdown") {
+      transitionContent = (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 120, fontWeight: 700, color: "#3b82f6", marginBottom: 24 }}>
+            {remainingSec}
+          </div>
+          <div style={{ fontSize: 24, color: "#64748b" }}>
+            {board.title}
+          </div>
+        </div>
+      );
+    } else if (board.transitionKind === "fade") {
+      transitionContent = (
+        <div style={{ textAlign: "center", opacity: Math.max(0.3, 1 - progress / 100) }}>
+          <div style={{ fontSize: 48, fontWeight: 600, color: "#1e293b", marginBottom: 16 }}>
+            {board.title}
+          </div>
+          <div style={{ fontSize: 18, color: "#64748b" }}>
+            Prochaine manche dans {remainingSec}s
+          </div>
+        </div>
+      );
+    } else {
+      transitionContent = (
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 48, fontWeight: 600, color: "#1e293b", marginBottom: 16 }}>
+            ⏸ Pause
+          </div>
+          <div style={{ fontSize: 24, color: "#64748b" }}>
+            {board.title}
+          </div>
+          <div style={{ fontSize: 18, color: "#94a3b8", marginTop: 12 }}>
+            Reprise dans {remainingSec}s
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <section className="bz-board">
+        <div className="bz-board-meta">
+          <span className="bz-pill bz-info">
+            <span className="bz-dot" />
+            transition
+          </span>
+        </div>
+        <div style={{ padding: "48px 24px", minHeight: 300, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {transitionContent}
+        </div>
+        <div style={{ width: "100%", height: 8, background: "#e2e8f0", borderRadius: 4, overflow: "hidden", marginTop: 24 }}>
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              background: "#3b82f6",
+              transition: "width 0.3s ease-out",
+            }}
+          />
+        </div>
+      </section>
+    );
+  }
 
   if (board !== null && board.kind === "video") {
     return (
@@ -2673,6 +2763,56 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
+  const onHostAutoPlayToggle = useCallback(
+    async (enabled: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/auto-play/toggle`, "POST", {
+          enabled,
+        });
+        setSnap(n);
+      } catch (e13) {
+        setErr(e13 instanceof Error ? e13.message : String(e13));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostAutoPlayPauseResume = useCallback(
+    async (paused: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/auto-play/pause-resume`, "POST", {
+          paused,
+        });
+        setSnap(n);
+      } catch (e14) {
+        setErr(e14 instanceof Error ? e14.message : String(e14));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostAutoPlaySkipForward = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const p = await callHostSnapshot(`${hostBasePath}/host/auto-play/skip-forward`, "POST", {});
+      setSnap(p);
+    } catch (e15) {
+      setErr(e15 instanceof Error ? e15.message : String(e15));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
+  const onHostAutoPlaySkipBackward = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const p = await callHostSnapshot(`${hostBasePath}/host/auto-play/skip-backward`, "POST", {});
+      setSnap(p);
+    } catch (e16) {
+      setErr(e16 instanceof Error ? e16.message : String(e16));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
   const onHostCueNext = useCallback(async (): Promise<void> => {
     setErr(null);
     try {
@@ -3396,6 +3536,89 @@ function Admin(): JSX.Element {
               </ul>
             )}
           </section>
+
+          {/* Mode lecture automatique */}
+          {snap.mancheScript.length > 0 ? (
+            <section className="bz-host-section" style={{ borderTop: "2px solid #e0e0e0", paddingTop: 16 }}>
+              <h2>Mode lecture automatique</h2>
+              {!snap.autoPlay?.enabled ? (
+                <div>
+                  <p className="bz-muted" style={{ marginBottom: 12, fontSize: 13 }}>
+                    Lancez la soirée en mode automatique : enchaînement des manches avec transitions.
+                  </p>
+                  <button
+                    type="button"
+                    className="bz-primary"
+                    onClick={() => void onHostAutoPlayToggle(true)}
+                    style={{ width: "100%" }}
+                  >
+                    📺 Mode lecture automatique
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ marginBottom: 12, padding: "8px 12px", background: "#f0f9ff", borderRadius: 6, border: "1px solid #3b82f6" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600, color: "#1e40af" }}>
+                        🎬 Mode automatique actif
+                      </span>
+                      {snap.autoPlay.paused ? (
+                        <span style={{ fontSize: 12, color: "#dc2626", fontWeight: 500 }}>⏸ En pause</span>
+                      ) : null}
+                      {snap.autoPlay.waitingForManualAction ? (
+                        <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 500 }}>⏳ Action manuelle requise</span>
+                      ) : null}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#64748b" }}>
+                      Étape {snap.autoPlay.currentScriptIndex + 1} / {snap.mancheScript.length}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      {snap.autoPlay.paused ? (
+                        <button
+                          type="button"
+                          onClick={() => void onHostAutoPlayPauseResume(false)}
+                          style={{ flex: 1 }}
+                        >
+                          ▶️ Reprendre
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void onHostAutoPlayPauseResume(true)}
+                          style={{ flex: 1 }}
+                        >
+                          ⏸ Pause
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => void onHostAutoPlaySkipBackward()}
+                        style={{ flex: 1 }}
+                      >
+                        ⏮ Précédent
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void onHostAutoPlaySkipForward()}
+                        style={{ flex: 1 }}
+                      >
+                        ⏭ Suivant
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void onHostAutoPlayToggle(false)}
+                      style={{ width: "100%", background: "#ef4444", color: "white" }}
+                    >
+                      ⏹ Arrêter le mode automatique
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          ) : null}
 
           {/* Sticky controls */}
           <div className="bz-host-controls">
