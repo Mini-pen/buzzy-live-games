@@ -179,6 +179,10 @@ interface PartySnapshot {
   }>;
   autoOpenBuzzOnCueAdvance?: boolean;
   autoAdvanceQuizWhenAllBuzzed?: boolean;
+  countdownDurationSec?: number;
+  winnerScreenMode?: "question" | "round";
+  readyPlayers?: string[];
+  readyPhaseStartedAt?: number | null;
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -542,6 +546,48 @@ function playSfxUrl(url: string | undefined | null): void {
   } catch {
     /* noop */
   }
+}
+
+function ReadyCountdownHero(props: {
+  readyPlayers: string[];
+  readyPhaseStartedAt: number;
+  myId: string;
+  isReady: boolean;
+  onMarkReady: () => void;
+  readyLoading: boolean;
+}): JSX.Element {
+  const { readyPlayers, isReady, onMarkReady, readyLoading } = props;
+
+  if (!isReady) {
+    return (
+      <div className="bz-ready-phase">
+        <p className="bz-ready-message">
+          {readyPlayers.length === 0
+            ? "Prêt pour la prochaine question ?"
+            : `${readyPlayers.length} joueur${readyPlayers.length === 1 ? "" : "s"} prêt${readyPlayers.length === 1 ? "" : "s"}`}
+        </p>
+        <button
+          type="button"
+          onClick={onMarkReady}
+          disabled={readyLoading}
+          className="bz-ready-btn"
+        >
+          {readyLoading ? "Marquage..." : "Prêt"}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bz-ready-phase">
+      <p className="bz-ready-message">
+        ✓ En attente des autres joueurs...
+      </p>
+      <p className="bz-muted" style={{ fontSize: 14, margin: "8px 0 0" }}>
+        {readyPlayers.length} joueur{readyPlayers.length === 1 ? "" : "s"} prêt{readyPlayers.length === 1 ? "" : "s"}
+      </p>
+    </div>
+  );
 }
 
 /** * Points attribués sur « bonne réponse » pour la vignette / question courante (affiche boutons animateur). */
@@ -1936,6 +1982,8 @@ function Play(): JSX.Element {
   const [quizAutoToast, setQuizAutoToast] = useState<"good" | "bad" | null>(null);
   const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
+  const [readyLoading, setReadyLoading] = useState(false);
+  const [countdownCompleted, setCountdownCompleted] = useState(false);
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
@@ -2131,6 +2179,26 @@ function Play(): JSX.Element {
   const canBuzz = snap.state === "round_active" && snap.buzzWindowOpen;
   const queuedBuzz = typeof myId === "string" && snap.buzzOrder.some((bid) => bid === myId);
 
+  async function markReady(): Promise<void> {
+    if (!pid || jwt === null || jwt === "") return;
+    setErr(null);
+    setReadyLoading(true);
+    try {
+      const updated = await fetchJson<PartySnapshot>(
+        `/api/parties/${encodeURIComponent(pid)}/me/ready`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${jwt}` },
+        },
+      );
+      setSnap(updated);
+    } catch (e2) {
+      setErr(e2 instanceof Error ? e2.message : String(e2));
+    } finally {
+      setReadyLoading(false);
+    }
+  }
+
   async function updateMyBuzzSound(next: string): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
     const me = snap.players.find((p) => p.id === myId);
@@ -2217,7 +2285,19 @@ function Play(): JSX.Element {
       />
 
       <section className="bz-buzz-hero">
-        {canBuzz ? (
+        {snap.state === "round_active" &&
+        snap.readyPhaseStartedAt !== null &&
+        !snap.buzzWindowOpen &&
+        !canBuzz ? (
+          <ReadyCountdownHero
+            readyPlayers={snap.readyPlayers ?? []}
+            readyPhaseStartedAt={snap.readyPhaseStartedAt}
+            myId={myId ?? ""}
+            isReady={(snap.readyPlayers ?? []).includes(myId ?? "")}
+            onMarkReady={() => void markReady()}
+            readyLoading={readyLoading}
+          />
+        ) : canBuzz ? (
           <button
             type="button"
             onClick={() => void buzz()}
@@ -3339,6 +3419,40 @@ function Admin(): JSX.Element {
                   téléphone, puis passer à la question suivante automatiquement.
                 </span>
               </label>
+              <div className="bz-settings" style={{ marginTop: 16, padding: 16, background: "var(--bz-surface)", borderRadius: "var(--bz-r-md)" }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Réglages évolution 4.5</h3>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={snap.soundBuzzerHostConfig?.allowedGoodKeys?.length === 0 || false}
+                    onChange={(e) => void onHostVerdictSoundsToggle(!e.target.checked)}
+                  />
+                  <span>Jouer les sons bon/mauvais après jugement de buzz</span>
+                </label>
+                <label className="bz-settings-label">
+                  Durée du compte à rebours (3–10 secondes)
+                  <input
+                    type="number"
+                    min={3}
+                    max={10}
+                    value={snap.countdownDurationSec ?? 5}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (val >= 3 && val <= 10) void onHostCountdownDurationChange(val);
+                    }}
+                  />
+                </label>
+                <label className="bz-settings-label" style={{ marginTop: 12 }}>
+                  Écran de gagnant
+                  <select
+                    value={snap.winnerScreenMode ?? "question"}
+                    onChange={(e) => void onHostWinnerScreenModeChange(e.target.value as "question" | "round")}
+                  >
+                    <option value="question">Fin de question</option>
+                    <option value="round">Fin de manche</option>
+                  </select>
+                </label>
+              </div>
             </div>
             {snap.gameBoard?.kind === "audio_blind" ? (
               <label

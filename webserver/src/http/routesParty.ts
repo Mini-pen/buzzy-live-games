@@ -122,6 +122,18 @@ const buzzSoundPolicySchema = z.object({
   echoPlayerBuzzOnHost: z.boolean(),
 });
 
+const verdictSoundsSchema = z.object({
+  enabled: z.boolean(),
+});
+
+const countdownDurationSchema = z.object({
+  seconds: z.number().int().min(3).max(10),
+});
+
+const winnerScreenModeSchema = z.object({
+  mode: z.enum(["question", "round"]),
+});
+
 const mancheIdSchema = z.object({
   id: z.string().min(1).max(40),
 });
@@ -534,6 +546,31 @@ export async function registerPartyRoutes(
     },
   );
 
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/me/ready",
+    {
+      preHandler: [gatePlayerJwt],
+    },
+    async (req, reply) => {
+      try {
+        const principal = req.user instanceof Object ? req.user : null;
+        const u = principal as { pid?: string; sub?: string };
+        const partyId = u.pid;
+        const playerId = u.sub;
+        if (typeof partyId !== "string" || typeof playerId !== "string") {
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        }
+        if (partyId !== req.params.partyId)
+          return reply.status(403).send({ error: "FORBIDDEN" });
+        const party = requireParty(store, partyId);
+        store.playerMarkReady(party, playerId);
+        return snapPlayer(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
   /* ----- Host (admin token) ----- */
 
   app.post<{ Params: { partyId: string } }>(
@@ -725,6 +762,82 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminKickPlayer(party, req.params.playerId);
+        return snapHost(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/verdict-sounds",
+    async (req, reply) => {
+      try {
+        const body = verdictSoundsSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetVerdictSoundsEnabled(party, body.enabled);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/countdown-duration",
+    async (req, reply) => {
+      try {
+        const body = countdownDurationSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetCountdownDuration(party, body.seconds);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/winner-screen-mode",
+    async (req, reply) => {
+      try {
+        const body = winnerScreenModeSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetWinnerScreenMode(party, body.mode);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/start-countdown",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminStartCountdownAndOpenBuzz(party);
         return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);

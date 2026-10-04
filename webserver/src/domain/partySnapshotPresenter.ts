@@ -300,9 +300,22 @@ export function partySnapshotWithGame(
       : {};
   const buzzQuizQueueDetail =
     audience === "host" ? deriveBuzzQuizQueueDetail(party, gameBoard) : undefined;
+  const readyFields = {
+    readyPlayers: [...party.readyPlayers],
+    readyPhaseStartedAt: party.readyPhaseStartedAt,
+  };
+  const hostExtraFields =
+    audience === "host"
+      ? {
+          countdownDurationSec: party.countdownDurationSec,
+          winnerScreenMode: party.winnerScreenMode,
+        }
+      : {};
   return {
     ...base,
     ...hostSound,
+    ...readyFields,
+    ...hostExtraFields,
     gameBoard,
     ...(buzzQuizQueueDetail !== undefined ? { buzzQuizQueueDetail } : {}),
   };

@@ -34,6 +34,8 @@ export interface AppConfig {
   autoPlayRoundDurationMs: number;
   /** * Default duration for transitions between rounds in automatic play mode (milliseconds). */
   autoPlayTransitionDurationMs: number;
+  /** * Default timeout (ms) before starting countdown if not all players are ready. */
+  readyTimeoutMs: number;
 }
 
 function envString(name: string, fallback?: string): string {
@@ -99,5 +101,6 @@ export function loadConfig(): AppConfig {
     autoPlayQuestionDurationMs: envInt("AUTO_PLAY_QUESTION_DURATION_MS", 30 * 1000),
     autoPlayRoundDurationMs: envInt("AUTO_PLAY_ROUND_DURATION_MS", 5 * 60 * 1000),
     autoPlayTransitionDurationMs: envInt("AUTO_PLAY_TRANSITION_DURATION_MS", 3 * 1000),
+    readyTimeoutMs: envInt("READY_TIMEOUT_MS", 30 * 1000),
   };
 }
