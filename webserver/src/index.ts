@@ -116,6 +116,20 @@ async function main(): Promise<void> {
   };
   setInterval(sweep, config.partySweepIntervalMs).unref?.();
 
+  // Auto-play ticker: check every second if parties need automatic advancement
+  const autoPlayTick = (): void => {
+    if (quizPacksByRun === undefined || importedPacksRef === undefined) return;
+    const allPacks = new Map([...quizPacksByRun, ...importedPacksRef.getAll()]);
+    const autoPlayConfig = {
+      questionDurationMs: config.autoPlayQuestionDurationMs,
+      roundDurationMs: config.autoPlayRoundDurationMs,
+      transitionDurationMs: config.autoPlayTransitionDurationMs,
+    };
+    const now = Date.now();
+    store.tickAllAutoPlay(autoPlayConfig, allPacks, now);
+  };
+  setInterval(autoPlayTick, 1000).unref?.();
+
   await app.listen({
     host: config.host,
     port: config.port,
