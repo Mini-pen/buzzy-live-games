@@ -1980,12 +1980,9 @@ function Play(): JSX.Element {
   } | null>(null);
   const [lobbyBuzzSaving, setLobbyBuzzSaving] = useState(false);
   const [quizAutoToast, setQuizAutoToast] = useState<"good" | "bad" | null>(null);
-<<<<<<< HEAD
   const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
-=======
   const [readyLoading, setReadyLoading] = useState(false);
->>>>>>> 0bab2df (feat(evolution-4.5): player UI - ready button and countdown prep)
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
