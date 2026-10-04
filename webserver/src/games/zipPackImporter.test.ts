@@ -97,21 +97,19 @@ describe("importZipPack", () => {
     );
   });
 
-  it("protects against path traversal in ZIP entry names (AdmZip normalizes them)", () => {
+  it("documents that AdmZip normalizes path traversal in entry names", () => {
     // * AdmZip automatically normalizes entry names during construction:
     // * - "../evil.txt" becomes "evil.txt"
     // * - "/etc/passwd" becomes "etc/passwd"
     // * - "a/../../etc/passwd" becomes "etc/passwd"
     // * 
-    // * The path traversal check in importZipPack is therefore redundant with current
-    // * AdmZip behavior, but serves as defense-in-depth in case the ZIP library changes.
-    // *
-    // * This test verifies that AdmZip provides this protection. If AdmZip changes and
-    // * allows dangerous paths through, the importZipPack check should catch them.
+    // * This makes the path traversal check in importZipPack currently redundant.
+    // * We cannot test importZipPack's entry-name check without building raw ZIP bytes
+    // * that bypass AdmZip's normalization.
 
     const pack = createMinimalPack("traversal");
 
-    // * Test 1: Verify AdmZip normalizes "../" patterns
+    // * Verify AdmZip normalizes "../" patterns
     const zip1 = new AdmZip();
     zip1.addFile("pack.json", Buffer.from(JSON.stringify(pack), "utf8"));
     zip1.addFile("../evil.txt", Buffer.from("nope", "utf8"));
@@ -119,30 +117,27 @@ describe("importZipPack", () => {
     const evilEntry = entries1.find((e) => e.entryName.includes("evil"));
     expect(evilEntry?.entryName).toBe("evil.txt"); // * AdmZip normalized away the "../"
 
-    // * Test 2: Verify AdmZip normalizes absolute paths
+    // * Verify AdmZip normalizes absolute paths
     const zip2 = new AdmZip();
     zip2.addFile("pack.json", Buffer.from(JSON.stringify(pack), "utf8"));
     zip2.addFile("/etc/passwd", Buffer.from("nope", "utf8"));
     const entries2 = zip2.getEntries();
     const passwdEntry = entries2.find((e) => e.entryName.includes("passwd"));
     expect(passwdEntry?.entryName).toBe("etc/passwd"); // * AdmZip normalized away the "/"
-
-    // * Test 3: Verify the implementation's check would catch paths if they survived
-    // * (Currently redundant, but documents the intended behavior)
-    expect(true).toBe(true); // * AdmZip provides the protection
   });
 
   it("refuses a pack with path traversal in media URLs", () => {
-    // * Test that ".." in imageUrl/videoUrl/audioUrl is rejected by schema validation
+    // * Test that ".." in imageUrl/videoUrl/audioUrl is rejected with a forbidden-path error.
+    // * Include the referenced file in the ZIP so missing-media errors cannot mask acceptance.
     const traversalUrls = [
-      "../secret.png",
-      "images/../../etc/passwd",
-      "games/../outside.png",
-      "./../../config.json",
-      "media/../../../etc/shadow",
+      { url: "../secret.png", file: "secret.png" },
+      { url: "images/../../etc/passwd", file: "etc/passwd" },
+      { url: "games/../outside.png", file: "outside.png" },
+      { url: "/games/../outside.png", file: "outside.png" },
+      { url: "media/../../../etc/shadow", file: "etc/shadow" },
     ];
 
-    for (const maliciousUrl of traversalUrls) {
+    for (const { url: maliciousUrl, file: fileName } of traversalUrls) {
       const pack: QuizPack = {
         id: "url-traversal",
         title: "URL Traversal Test",
@@ -165,17 +160,23 @@ describe("importZipPack", () => {
         ],
       };
 
-      const zipBuffer = createZipBuffer(pack);
+      // * Include the file so missing-media error cannot occur
+      const zipBuffer = createZipBuffer(pack, [{ path: fileName, content: Buffer.from("fake", "utf8") }]);
 
       try {
         importZipPack(zipBuffer, DEFAULT_MAX_ZIP_BYTES, new Set(), new Set());
         // * If we reach here, the importer accepted the traversal URL - FAIL
-        throw new Error(`FAIL: Importer accepted traversal URL in pack JSON: ${maliciousUrl}`);
+        throw new Error(`FAIL: Importer accepted traversal URL: ${maliciousUrl}`);
       } catch (err: any) {
         // * Re-throw our own failure
         if (err.message?.startsWith("FAIL:")) throw err;
-        // * Any other error is acceptable (schema validation should catch "..")
-        expect(err.message).toBeTruthy();
+        // * Must be a forbidden-path error (French: "interdit")
+        const msg = err.message?.toLowerCase() || "";
+        if (!msg.includes("interdit") && !msg.includes("..")) {
+          throw new Error(`FAIL: Wrong error for ${maliciousUrl}: ${err.message}`);
+        }
+        // * Correct error type received
+        expect(msg).toMatch(/interdit|traversée/i);
       }
     }
   });
@@ -621,65 +622,95 @@ describe("Import does not write to disk", () => {
   it("does not write into games/ directory or persist on disk", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const os = await import("node:os");
 
-    // * Create a temporary games directory
-    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "buzzy-test-games-"));
-    
-    try {
-      // * Record the initial state (should be empty)
-      const initialFiles = await fs.readdir(tempDir);
-      expect(initialFiles.length).toBe(0);
+    // * Find the real games/ directory
+    const gamesDir = path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "..",
+      "..",
+      "..",
+      "games",
+    );
 
-      // * Create a valid pack with media
-      const pack: QuizPack = {
-        id: "no-disk-write",
-        title: "No Disk Write",
-        version: 1,
-        rounds: [
-          {
-            id: "r1",
-            title: "Round 1",
-            questions: [
-              {
-                id: "q1",
-                prompt: "Question?",
-                choices: ["A", "B"],
-                correctIndex: 0,
-                points: 1,
-                imageUrl: "test.png",
-              },
-            ],
-          },
-        ],
-      };
-
-      const zipBuffer = createZipBuffer(pack, [{ path: "test.png", content: Buffer.from("fake-image", "utf8") }]);
-
-      // * Perform the import (this should NOT write to disk)
-      const result = importZipPack(zipBuffer, DEFAULT_MAX_ZIP_BYTES, new Set(), new Set());
-
-      expect(result.pack.id).toBe("no-disk-write");
-
-      // * Verify that NO files were written to the games directory
-      const finalFiles = await fs.readdir(tempDir);
-      expect(finalFiles.length).toBe(0);
-
-      // * Verify the pack is NOT on disk (no JSON file created)
-      const jsonPath = path.join(tempDir, "no-disk-write.json");
-      await expect(fs.access(jsonPath)).rejects.toThrow();
-
-      // * Verify the media is NOT on disk
-      const mediaPath = path.join(tempDir, "test.png");
-      await expect(fs.access(mediaPath)).rejects.toThrow();
-
-    } finally {
-      // * Clean up temp directory
+    // * Snapshot the games/ directory before import
+    async function snapshotDirectory(dir: string): Promise<Set<string>> {
+      const files = new Set<string>();
       try {
-        await fs.rm(tempDir, { recursive: true, force: true });
+        const entries = await fs.readdir(dir, { withFileTypes: true, recursive: true });
+        for (const entry of entries) {
+          const relativePath = path.relative(dir, path.join(entry.path ?? entry.parentPath ?? "", entry.name));
+          files.add(relativePath);
+        }
       } catch {
-        // * Ignore cleanup errors
+        // * Directory may not exist or be inaccessible
       }
+      return files;
     }
+
+    const beforeFiles = await snapshotDirectory(gamesDir);
+
+    // * Create a valid pack with media
+    const pack: QuizPack = {
+      id: "no-disk-write-test",
+      title: "No Disk Write",
+      version: 1,
+      rounds: [
+        {
+          id: "r1",
+          title: "Round 1",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Question?",
+              choices: ["A", "B"],
+              correctIndex: 0,
+              points: 1,
+              imageUrl: "test-image.png",
+            },
+          ],
+        },
+      ],
+    };
+
+    const zipBuffer = createZipBuffer(pack, [
+      { path: "test-image.png", content: Buffer.from("fake-image-data", "utf8") },
+    ]);
+
+    // * Perform the import (this should NOT write to disk)
+    const result = importZipPack(zipBuffer, DEFAULT_MAX_ZIP_BYTES, new Set(), new Set());
+
+    expect(result.pack.id).toBe("no-disk-write-test");
+
+    // * Snapshot the games/ directory after import
+    const afterFiles = await snapshotDirectory(gamesDir);
+
+    // * Verify that NO new files were added to games/
+    const newFiles = [...afterFiles].filter((f) => !beforeFiles.has(f));
+    if (newFiles.length > 0) {
+      throw new Error(`FAIL: Import wrote files to games/: ${newFiles.join(", ")}`);
+    }
+
+    // * Verify the pack JSON was not written
+    const jsonPath = path.join(gamesDir, "no-disk-write-test.json");
+    try {
+      await fs.access(jsonPath);
+      throw new Error(`FAIL: Pack JSON was written to disk at ${jsonPath}`);
+    } catch (err: any) {
+      if (err.message?.startsWith("FAIL:")) throw err;
+      // * File does not exist - good
+    }
+
+    // * Verify the media was not written
+    const mediaPath = path.join(gamesDir, "test-image.png");
+    try {
+      await fs.access(mediaPath);
+      throw new Error(`FAIL: Media was written to disk at ${mediaPath}`);
+    } catch (err: any) {
+      if (err.message?.startsWith("FAIL:")) throw err;
+      // * File does not exist - good
+    }
+
+    // * The files should be equal (no new files)
+    expect(afterFiles.size).toBe(beforeFiles.size);
   });
 });

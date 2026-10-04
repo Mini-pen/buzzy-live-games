@@ -11,6 +11,7 @@ export const DEFAULT_MAX_ZIP_BYTES = 50 * 1024 * 1024;
  * Pre-process pack JSON to prefix relative media paths with "games/"
  * so they pass optionalPublicUrlSchema validation (which rejects plain relative paths).
  * This allows ZIP packs to reference media with simple paths like "images/x.png".
+ * Rejects URLs containing ".." to prevent path traversal.
  */
 function prefixRelativeMediaPaths(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null) return obj;
@@ -26,6 +27,13 @@ function prefixRelativeMediaPaths(obj: unknown): unknown {
       typeof value === "string"
     ) {
       const trimmed = value.trim();
+      // * Reject paths containing ".." before prefixing (path traversal attempt)
+      if (trimmed.includes("..")) {
+        throw Object.assign(
+          new Error(`Chemin interdit dans ${key} : tentative de traversée de répertoire détectée.`),
+          { code: "MEDIA_URL_TRAVERSAL" },
+        );
+      }
       // * Prefix relative paths (not starting with /, http, https, or games/)
       if (
         !trimmed.startsWith("/") &&
