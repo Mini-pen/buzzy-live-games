@@ -154,6 +154,10 @@ export class PartyStore {
     return this.parties.get(partyId);
   }
 
+  getAllParties(): Party[] {
+    return [...this.parties.values()];
+  }
+
   getByJoinCode(code: string): Party | undefined {
     const normalized = code.trim().toUpperCase();
     const id = this.indexByJoinCode.get(normalized);
@@ -224,6 +228,8 @@ export class PartyStore {
       winnerScreenMode: "question",
       readyPlayers: new Set(),
       readyPhaseStartedAt: null,
+      countdownStartedAt: null,
+      winnerDisplay: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -1038,7 +1044,38 @@ export class PartyStore {
     this.broadcast(party);
   }
 
-  playerMarkReady(party: Party, playerId: string): void {
+  computeAndShowWinner(party: Party): void {
+    if (party.players.size === 0) {
+      party.winnerDisplay = null;
+      return;
+    }
+    
+    let bestPlayer: { id: string; name: string; avatarKey: string; score: number } | null = null;
+    for (const [pid, player] of party.players) {
+      if (bestPlayer === null || player.score > bestPlayer.score) {
+        bestPlayer = { id: pid, name: player.displayName, avatarKey: player.avatarKey, score: player.score };
+      }
+    }
+    
+    if (bestPlayer !== null) {
+      party.winnerDisplay = {
+        playerId: bestPlayer.id,
+        playerName: bestPlayer.name,
+        avatarKey: bestPlayer.avatarKey,
+        score: bestPlayer.score,
+      };
+      this.touch(party);
+      this.broadcast(party);
+    }
+  }
+
+  adminDismissWinnerScreen(party: Party): void {
+    party.winnerDisplay = null;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  playerMarkReady(party: Party, playerId: string, readyTimeoutMs: number): void {
     if (party.state !== "round_active") {
       throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
     }
@@ -1050,13 +1087,60 @@ export class PartyStore {
     if (party.readyPhaseStartedAt === null) {
       party.readyPhaseStartedAt = Date.now();
     }
+    
+    const allReady = party.readyPlayers.size >= party.players.size;
+    const elapsed = Date.now() - party.readyPhaseStartedAt;
+    const timeoutReached = elapsed >= readyTimeoutMs;
+    
+    if (allReady || timeoutReached) {
+      party.countdownStartedAt = Date.now();
+    }
+    
     this.touch(party);
     this.broadcast(party);
+  }
+  
+  maybeStartCountdownIfReady(party: Party, readyTimeoutMs: number): boolean {
+    if (party.state !== "round_active") return false;
+    if (party.readyPhaseStartedAt === null) return false;
+    if (party.countdownStartedAt !== null) return false;
+    if (party.buzzWindowOpen) return false;
+    
+    const allReady = party.readyPlayers.size >= party.players.size && party.players.size > 0;
+    const elapsed = Date.now() - party.readyPhaseStartedAt;
+    const timeoutReached = elapsed >= readyTimeoutMs;
+    
+    if (allReady || timeoutReached) {
+      party.countdownStartedAt = Date.now();
+      this.touch(party);
+      this.broadcast(party);
+      return true;
+    }
+    return false;
+  }
+  
+  maybeOpenBuzzAfterCountdown(party: Party): boolean {
+    if (party.countdownStartedAt === null) return false;
+    if (party.buzzWindowOpen) return false;
+    
+    const elapsed = Date.now() - party.countdownStartedAt;
+    const countdownMs = party.countdownDurationSec * 1000;
+    
+    if (elapsed >= countdownMs) {
+      party.buzzWindowOpen = true;
+      this.clearReadyPhase(party);
+      this.touch(party);
+      this.broadcast(party);
+      return true;
+    }
+    return false;
   }
 
   clearReadyPhase(party: Party): void {
     party.readyPlayers.clear();
     party.readyPhaseStartedAt = null;
+    party.countdownStartedAt = null;
+    party.winnerDisplay = null;
   }
 
   adminStartCountdownAndOpenBuzz(party: Party): void {

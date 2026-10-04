@@ -301,8 +301,10 @@ export function partySnapshotWithGame(
   const buzzQuizQueueDetail =
     audience === "host" ? deriveBuzzQuizQueueDetail(party, gameBoard) : undefined;
   const readyFields = {
-    readyPlayers: [...party.readyPlayers],
+    readyPlayers: party.readyPlayers ? [...party.readyPlayers] : [],
     readyPhaseStartedAt: party.readyPhaseStartedAt,
+    countdownStartedAt: party.countdownStartedAt,
+    winnerDisplay: party.winnerDisplay,
   };
   const hostExtraFields =
     audience === "host"

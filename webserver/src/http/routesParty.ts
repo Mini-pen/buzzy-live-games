@@ -563,7 +563,7 @@ export async function registerPartyRoutes(
         if (partyId !== req.params.partyId)
           return reply.status(403).send({ error: "FORBIDDEN" });
         const party = requireParty(store, partyId);
-        store.playerMarkReady(party, playerId);
+        store.playerMarkReady(party, playerId, config.readyTimeoutMs);
         return snapPlayer(party);
       } catch (err) {
         return replyDomain(reply, err);
@@ -838,6 +838,38 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminStartCountdownAndOpenBuzz(party);
+        return snapHost(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/show-winner",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.computeAndShowWinner(party);
+        return snapHost(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/dismiss-winner",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminDismissWinnerScreen(party);
         return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);

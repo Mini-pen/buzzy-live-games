@@ -139,6 +139,10 @@ export interface Party {
   readyPlayers: Set<string>;
   /** * Timestamp (ms) when the ready phase started; null when not in ready phase. */
   readyPhaseStartedAt: number | null;
+  /** * Timestamp (ms) when the countdown actually started; null when not in countdown. */
+  countdownStartedAt: number | null;
+  /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
+  winnerDisplay: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -345,6 +349,10 @@ export interface PartyPublicSnapshot {
   readyPlayers?: string[];
   /** * Timestamp when ready phase started; null when not in ready phase. */
   readyPhaseStartedAt?: number | null;
+  /** * Timestamp when countdown actually started; null when not in countdown. */
+  countdownStartedAt?: number | null;
+  /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
+  winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
 }
 
 /** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */

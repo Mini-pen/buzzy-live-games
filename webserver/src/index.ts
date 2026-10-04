@@ -141,6 +141,22 @@ async function main(): Promise<void> {
   };
   setInterval(autoPlayTick, 1000).unref?.();
 
+  // Countdown ticker: check every 500ms if countdown should start or buzzer should open
+  const countdownTick = (): void => {
+    for (const party of store.getAllParties()) {
+      if (party.state !== "round_active") continue;
+      
+      if (party.countdownStartedAt === null && party.readyPhaseStartedAt !== null) {
+        store.maybeStartCountdownIfReady(party, config.readyTimeoutMs);
+      }
+      
+      if (party.countdownStartedAt !== null && !party.buzzWindowOpen) {
+        store.maybeOpenBuzzAfterCountdown(party);
+      }
+    }
+  };
+  setInterval(countdownTick, 500).unref?.();
+
   await app.listen({
     host: config.host,
     port: config.port,
