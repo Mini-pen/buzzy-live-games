@@ -145,6 +145,13 @@ function partyStub(over: Partial<Party>): Party {
     },
     mancheScript: [],
     activeMancheId: null,
+    autoPlay: {
+      enabled: false,
+      paused: false,
+      currentScriptIndex: 0,
+      currentItemStartedAt: null,
+      waitingForManualAction: false,
+    },
   };
   return { ...base, ...over };
 }
@@ -160,6 +167,8 @@ function quizMancheOverPack(basenameKey: string, idForItem = "mid-quiz"): Manche
     directVideoUrl: null,
     savedRoundIndex: 0,
     savedQuestionIndex: 0,
+    transitionKind: null,
+    transitionDurationMs: null,
   };
 }
 

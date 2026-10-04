@@ -2,7 +2,9 @@
 export type PartyState = "lobby" | "round_active" | "between_rounds" | "ended";
 
 /** * Item in the host's ordered script (manches). */
-export type MancheKind = "pack_quiz" | "iframe" | "youtube" | "direct_video";
+export type MancheKind = "pack_quiz" | "iframe" | "youtube" | "direct_video" | "transition";
+
+export type TransitionKind = "pause" | "fade" | "countdown";
 
 export interface MancheCatalogItem {
   id: string;
@@ -17,6 +19,24 @@ export interface MancheCatalogItem {
   /** * Saved quiz position inside the loaded pack while this item is active. */
   savedRoundIndex: number;
   savedQuestionIndex: number;
+  /** * For transitions: type of transition (pause, fade, countdown, etc.). */
+  transitionKind: TransitionKind | null;
+  /** * For transitions: duration in milliseconds. */
+  transitionDurationMs: number | null;
+}
+
+/** * Automatic play mode state. */
+export interface AutoPlayState {
+  /** * Whether automatic play mode is currently enabled. */
+  enabled: boolean;
+  /** * Whether playback is currently paused. */
+  paused: boolean;
+  /** * Index of the current item in mancheScript being played. */
+  currentScriptIndex: number;
+  /** * Timestamp when the current item started playing (for progress tracking). */
+  currentItemStartedAt: number | null;
+  /** * Whether the mode is waiting for a manual host action (e.g., buzz validation). */
+  waitingForManualAction: boolean;
 }
 
 export interface ChatEntry {
@@ -99,6 +119,8 @@ export interface Party {
   mancheScript: MancheCatalogItem[];
   /** * Matches `mancheScript[0].id` while a manche is actively running. */
   activeMancheId: string | null;
+  /** * Automatic play mode state. */
+  autoPlay: AutoPlayState;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -208,6 +230,16 @@ export interface PartyGameBoardYoutube {
   replaySerial: number;
 }
 
+/** * Transition between rounds in automatic play mode. */
+export interface PartyGameBoardTransition {
+  kind: "transition";
+  transitionKind: TransitionKind;
+  title: string;
+  durationMs: number;
+  /** * Timestamp when this transition started (for progress calculation). */
+  startedAt: number;
+}
+
 export type PartyGameBoardSurface =
   | PartyGameBoardQuiz
   | PartyGameBoardVideo
@@ -216,7 +248,8 @@ export type PartyGameBoardSurface =
   | PartyGameBoardProgressiveGuess
   | PartyGameBoardAudioBlind
   | PartyGameBoardIframe
-  | PartyGameBoardYoutube;
+  | PartyGameBoardYoutube
+  | PartyGameBoardTransition;
 
 export interface PartyPublicSnapshot {
   id: string;
@@ -279,6 +312,13 @@ export interface PartyPublicSnapshot {
   autoOpenBuzzOnCueAdvance?: boolean;
   /** * Authenticated host only : QCM — score + question suivante dès que chaque joueur a buzzé. */
   autoAdvanceQuizWhenAllBuzzed?: boolean;
+  /** * Automatic play mode state (visible to all). */
+  autoPlay?: {
+    enabled: boolean;
+    paused: boolean;
+    currentScriptIndex: number;
+    waitingForManualAction: boolean;
+  };
 }
 
 /** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */

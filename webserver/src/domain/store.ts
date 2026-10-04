@@ -207,6 +207,13 @@ export class PartyStore {
       },
       mancheScript: [],
       activeMancheId: null,
+      autoPlay: {
+        enabled: false,
+        paused: false,
+        currentScriptIndex: 0,
+        currentItemStartedAt: null,
+        waitingForManualAction: false,
+      },
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -961,4 +968,116 @@ export class PartyStore {
     }
     return 1;
   }
+
+  /** * Enable or disable automatic play mode. */
+  adminToggleAutoPlay(party: Party, enabled: boolean): void {
+    if (enabled && party.mancheScript.length === 0) {
+      throw Object.assign(
+        new Error("Impossible d'activer le mode automatique : aucune manche dans le script."),
+        { code: "EMPTY_SCRIPT" },
+      );
+    }
+    party.autoPlay.enabled = enabled;
+    party.autoPlay.paused = false;
+    party.autoPlay.currentScriptIndex = 0;
+    party.autoPlay.currentItemStartedAt = enabled ? Date.now() : null;
+    party.autoPlay.waitingForManualAction = false;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Pause or resume automatic play mode. */
+  adminAutoPlayPauseResume(party: Party, paused: boolean): void {
+    if (!party.autoPlay.enabled) {
+      throw Object.assign(
+        new Error("Le mode automatique n'est pas activé."),
+        { code: "AUTO_PLAY_NOT_ENABLED" },
+      );
+    }
+    party.autoPlay.paused = paused;
+    if (!paused && party.autoPlay.currentItemStartedAt === null) {
+      party.autoPlay.currentItemStartedAt = Date.now();
+    }
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Skip to next item in automatic play mode. */
+  adminAutoPlaySkipForward(party: Party, packs: Map<string, QuizPack>): void {
+    if (!party.autoPlay.enabled) {
+      throw Object.assign(
+        new Error("Le mode automatique n'est pas activé."),
+        { code: "AUTO_PLAY_NOT_ENABLED" },
+      );
+    }
+    this.autoPlayAdvanceToNextItem(party, packs);
+  }
+
+  /** * Go back to previous item in automatic play mode. */
+  adminAutoPlaySkipBackward(party: Party, packs: Map<string, QuizPack>): void {
+    if (!party.autoPlay.enabled) {
+      throw Object.assign(
+        new Error("Le mode automatique n'est pas activé."),
+        { code: "AUTO_PLAY_NOT_ENABLED" },
+      );
+    }
+    if (party.autoPlay.currentScriptIndex > 0) {
+      party.autoPlay.currentScriptIndex -= 1;
+      const item = party.mancheScript[party.autoPlay.currentScriptIndex];
+      if (item) {
+        this.loadScriptItem(party, item, packs);
+      }
+    }
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Mark that automatic play is waiting for a manual action. */
+  adminAutoPlayWaitForManualAction(party: Party, waiting: boolean): void {
+    party.autoPlay.waitingForManualAction = waiting;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Advance to the next item in the script (internal helper for auto-play). */
+  private autoPlayAdvanceToNextItem(party: Party, packs: Map<string, QuizPack>): void {
+    party.autoPlay.currentScriptIndex += 1;
+    if (party.autoPlay.currentScriptIndex >= party.mancheScript.length) {
+      party.autoPlay.enabled = false;
+      party.autoPlay.currentScriptIndex = party.mancheScript.length - 1;
+      party.state = "lobby";
+      this.touch(party);
+      this.broadcast(party);
+      return;
+    }
+    const item = party.mancheScript[party.autoPlay.currentScriptIndex];
+    if (item) {
+      this.loadScriptItem(party, item, packs);
+    }
+    party.autoPlay.currentItemStartedAt = Date.now();
+    party.autoPlay.waitingForManualAction = false;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Load a script item (manche or transition) into the party state. */
+  private loadScriptItem(party: Party, item: MancheCatalogItem, packs: Map<string, QuizPack>): void {
+    if (item.kind === "transition") {
+      party.state = "between_rounds";
+      party.activeMancheId = item.id;
+      party.currentRoundIndex = null;
+      party.currentQuestionIndex = null;
+      party.loadedPackId = null;
+      party.buzzWindowOpen = false;
+      clearBuzzQueue(party);
+    } else {
+      party.activeMancheId = item.id;
+      this.hydrateRuntimeFromMancheItem(party, item, packs);
+      party.state = "round_active";
+      party.hasStartedRound = true;
+      const pk = quizPackFromLoadedId(packs, party.loadedPackId);
+      this.reopenBuzzAccordingToCueAdvancePolicy(party, pk);
+    }
+  }
 }
+

@@ -64,10 +64,22 @@ function deriveGameBoard(
   pack: QuizPack | null,
   audience: "player" | "host",
 ): PartyGameBoardSurface | null {
-  if (party.state !== "round_active") return null;
   if (party.activeMancheId === null) return null;
   const item = party.mancheScript.find((m) => m.id === party.activeMancheId);
   if (item === undefined) return null;
+
+  if (item.kind === "transition") {
+    if (item.transitionKind === null || item.transitionDurationMs === null) return null;
+    return {
+      kind: "transition",
+      transitionKind: item.transitionKind,
+      title: item.title,
+      durationMs: item.transitionDurationMs,
+      startedAt: party.autoPlay.currentItemStartedAt ?? Date.now(),
+    };
+  }
+
+  if (party.state !== "round_active") return null;
 
   if (item.kind === "iframe") {
     if (typeof item.iframeUrl !== "string" || item.iframeUrl.trim() === "")

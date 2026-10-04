@@ -148,10 +148,26 @@ const addMancheDirectVideoBody = z.object({
   url: z.string().min(1).max(2048),
 });
 
+const addMancheTransitionBody = z.object({
+  kind: z.literal("transition"),
+  title: z.string().min(1).max(160),
+  transitionKind: z.enum(["pause", "fade", "countdown"]),
+  durationMs: z.number().int().min(1000).max(60000),
+});
+
+const autoPlayToggleSchema = z.object({
+  enabled: z.boolean(),
+});
+
+const autoPlayPauseResumeSchema = z.object({
+  paused: z.boolean(),
+});
+
 const addMancheBody = z.union([
   addManchePackBody,
   addMancheYoutubeBody,
   addMancheDirectVideoBody,
+  addMancheTransitionBody,
 ]);
 
 function requireParty(store: PartyStore, id: string) {
@@ -771,6 +787,8 @@ export async function registerPartyRoutes(
             directVideoUrl: null,
             savedRoundIndex: 0,
             savedQuestionIndex: 0,
+            transitionKind: null,
+            transitionDurationMs: null,
           });
         } else if (body.kind === "youtube") {
           const embed = youtubeWatchUrlToEmbedUrl(body.url);
@@ -788,8 +806,10 @@ export async function registerPartyRoutes(
             directVideoUrl: null,
             savedRoundIndex: 0,
             savedQuestionIndex: 0,
+            transitionKind: null,
+            transitionDurationMs: null,
           });
-        } else {
+        } else if (body.kind === "direct_video") {
           const safeUrl = assertDirectVideoUrlForPartyManche(config.gamesDir, body.url);
           store.hostAppendManche(party, {
             kind: "direct_video",
@@ -800,6 +820,21 @@ export async function registerPartyRoutes(
             directVideoUrl: safeUrl,
             savedRoundIndex: 0,
             savedQuestionIndex: 0,
+            transitionKind: null,
+            transitionDurationMs: null,
+          });
+        } else {
+          store.hostAppendManche(party, {
+            kind: "transition",
+            title: body.title.trim(),
+            packBasename: null,
+            iframeUrl: null,
+            youtubeEmbedUrl: null,
+            directVideoUrl: null,
+            savedRoundIndex: 0,
+            savedQuestionIndex: 0,
+            transitionKind: body.transitionKind,
+            transitionDurationMs: body.durationMs,
           });
         }
 
@@ -886,6 +921,78 @@ export async function registerPartyRoutes(
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
         }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/auto-play/toggle",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        const body = autoPlayToggleSchema.parse(req.body ?? {});
+        store.adminToggleAutoPlay(party, body.enabled);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/auto-play/pause-resume",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        const body = autoPlayPauseResumeSchema.parse(req.body ?? {});
+        store.adminAutoPlayPauseResume(party, body.paused);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/auto-play/skip-forward",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminAutoPlaySkipForward(party, allPacks());
+        return snapHost(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/auto-play/skip-backward",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminAutoPlaySkipBackward(party, allPacks());
+        return snapHost(party);
+      } catch (err) {
         return replyDomain(reply, err);
       }
     },

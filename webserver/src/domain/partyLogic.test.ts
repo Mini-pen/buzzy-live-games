@@ -257,6 +257,13 @@ describe("publicSnapshotForParty", () => {
         playPlayerBuzzTone: true,
         echoPlayerBuzzOnHost: false,
       },
+      autoPlay: {
+        enabled: false,
+        paused: false,
+        currentScriptIndex: 0,
+        currentItemStartedAt: null,
+        waitingForManualAction: false,
+      },
     });
 
     expect(snap.players.map((p) => p.displayName)).toEqual(["Alice", "Étienne", "Zoé"]);
@@ -297,6 +304,13 @@ describe("publicSnapshotForParty", () => {
         allowedBadKeys: [],
         playPlayerBuzzTone: true,
         echoPlayerBuzzOnHost: false,
+      },
+      autoPlay: {
+        enabled: false,
+        paused: false,
+        currentScriptIndex: 0,
+        currentItemStartedAt: null,
+        waitingForManualAction: false,
       },
     });
 
@@ -360,6 +374,13 @@ describe("publicSnapshotForParty", () => {
         playPlayerBuzzTone: true,
         echoPlayerBuzzOnHost: false,
       },
+      autoPlay: {
+        enabled: false,
+        paused: false,
+        currentScriptIndex: 0,
+        currentItemStartedAt: null,
+        waitingForManualAction: false,
+      },
     });
 
     expect(snap.teamScores).toEqual({ "1": 10, "2": 5 });
@@ -392,6 +413,13 @@ describe("publicSnapshotForParty", () => {
         allowedBadKeys: [],
         playPlayerBuzzTone: true,
         echoPlayerBuzzOnHost: true,
+      },
+      autoPlay: {
+        enabled: false,
+        paused: false,
+        currentScriptIndex: 0,
+        currentItemStartedAt: null,
+        waitingForManualAction: false,
       },
     });
 
