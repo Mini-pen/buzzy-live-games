@@ -3419,6 +3419,40 @@ function Admin(): JSX.Element {
                   téléphone, puis passer à la question suivante automatiquement.
                 </span>
               </label>
+              <div className="bz-settings" style={{ marginTop: 16, padding: 16, background: "var(--bz-surface)", borderRadius: "var(--bz-r-md)" }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Réglages évolution 4.5</h3>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                  <input
+                    type="checkbox"
+                    checked={snap.soundBuzzerHostConfig?.allowedGoodKeys?.length === 0 || false}
+                    onChange={(e) => void onHostVerdictSoundsToggle(!e.target.checked)}
+                  />
+                  <span>Jouer les sons bon/mauvais après jugement de buzz</span>
+                </label>
+                <label className="bz-settings-label">
+                  Durée du compte à rebours (3–10 secondes)
+                  <input
+                    type="number"
+                    min={3}
+                    max={10}
+                    value={snap.countdownDurationSec ?? 5}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (val >= 3 && val <= 10) void onHostCountdownDurationChange(val);
+                    }}
+                  />
+                </label>
+                <label className="bz-settings-label" style={{ marginTop: 12 }}>
+                  Écran de gagnant
+                  <select
+                    value={snap.winnerScreenMode ?? "question"}
+                    onChange={(e) => void onHostWinnerScreenModeChange(e.target.value as "question" | "round")}
+                  >
+                    <option value="question">Fin de question</option>
+                    <option value="round">Fin de manche</option>
+                  </select>
+                </label>
+              </div>
             </div>
             {snap.gameBoard?.kind === "audio_blind" ? (
               <label
