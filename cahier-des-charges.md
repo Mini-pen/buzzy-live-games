@@ -277,7 +277,7 @@ Application web temps réel permettant d'animer des soirées quiz et jeux de typ
 
 - Joueurs : room `player`, snapshot joueur.
 - Animateur : room `admin`, snapshot admin enrichi (inclut `correctChoiceIndex`, `revealTitle`, `autoOpenBuzzOnCueAdvance`, etc.).
-- Spectateurs (broadcast) : room `broadcast`, snapshot joueur (pas d'auth bearer requis, mais `partyId` validé).
+- Spectateurs (broadcast) : room `broadcast`, snapshot joueur (pas d'auth bearer requis, mais `partyId` validé). Voir section 2.9 pour l'UI dédiée.
 
 **Règles métier :**
 
@@ -298,19 +298,54 @@ Application web temps réel permettant d'animer des soirées quiz et jeux de typ
 
 ---
 
-### 2.9 Authentification et autorisations
+### 2.9 Grand écran spectateur (broadcast)
+
+**Comportement :**
+
+- Route `/party/:partyId/broadcast` : affichage plein écran optimisé pour vidéo-projecteur ou grand écran.
+- Affiche en temps réel le snapshot de la partie : `gameBoard` (questions, choix QCM, images, vidéos), liste des joueurs, scores par équipe, état de la partie (`lobby`, `round_active`).
+- Pas de contrôles animateur : interface en lecture seule, synchronisée via Socket.IO.
+- L'interface admin contient un lien « 📺 Ouvrir la diffusion (nouvel onglet) » pointant vers cette route.
+
+**Acteurs :**
+
+- Spectateurs (public, projecteur) : visualisation en lecture seule.
+
+**Règles métier :**
+
+- Pas d'authentification Bearer requise : seul le `partyId` dans `handshake.auth` est nécessaire.
+- Le client rejoint la room Socket.IO `party:{id}:broadcast` avec le rôle `"broadcast"`.
+- Le snapshot reçu est le snapshot public (sans les informations réservées à l'animateur comme `correctChoiceIndex`, `revealTitle`/`revealArtist`, flags admin).
+
+**Critères d'acceptation :**
+
+- La route `/party/:partyId/broadcast` affiche en grand le `gameBoard` (prompt, choix QCM, image, vidéo) selon le type de round actif.
+- En lobby, affiche le QR code de rejoindre, le code join, et le nombre de joueurs présents.
+- Les scores équipes sont visibles en permanence.
+- La mise à jour se fait en temps réel via `party:patch`.
+
+**Cas limites :**
+
+- Si la partie n'existe pas, message « Partie introuvable. »
+- Si la partie est supprimée pendant la diffusion, le client reçoit `party_deleted` et doit afficher un message.
+
+**Statut :** Livré (route `/party/:partyId/broadcast`, composant `Broadcast` dans `webserver/client/src/App.tsx`, room Socket.IO `broadcast`).
+
+---
+
+### 2.10 Authentification et autorisations
 
 **Comportement :**
 
 - **Joueur :** JWT signé avec `JWT_SECRET`, payload `{ pid, sub }`, durée illimitée tant que la partie existe. Le JWT est renvoyé à chaque appel nécessitant une authentification joueur (`@fastify/jwt` + hook `gatePlayerJwt`).
 - **Animateur :** Bearer opaque (64 caractères hexa), généré à la création, vérifié par `timingSafeEqual` côté serveur. Transmis en fragment de hash côté client (`#token=`), puis en header `Authorization: Bearer …` pour toutes les routes `/host/*`.
-- **Spectateur (broadcast) :** pas de Bearer requis, seulement le `partyId` dans `handshake.auth` ; rejoint la room `broadcast` pour affichage grand écran.
+- **Spectateur (broadcast) :** pas de Bearer requis, seulement le `partyId` dans `handshake.auth` ; rejoint la room `broadcast` pour la diffusion grand écran (voir section 2.9).
 
 **Acteurs :**
 
 - Joueur : possède un `playerToken` (JWT).
 - Animateur : possède un `adminToken` (secret opaque).
-- Spectateur : pas de token, rejoint en lecture seule.
+- Spectateur : pas de token, rejoint en lecture seule via la route `/party/:partyId/broadcast`.
 
 **Règles métier :**
 
