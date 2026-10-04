@@ -183,6 +183,8 @@ interface PartySnapshot {
   winnerScreenMode?: "question" | "round";
   readyPlayers?: string[];
   readyPhaseStartedAt?: number | null;
+  countdownStartedAt?: number | null;
+  winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -216,6 +218,63 @@ function mancheKindShort(kind: MancheCatalogItemView["kind"]): string {
     default:
       return kind;
   }
+}
+
+function CountdownDisplay(props: {
+  durationSec: number;
+  onComplete: () => void;
+}): JSX.Element {
+  const [remaining, setRemaining] = React.useState(props.durationSec);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          props.onComplete();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [props]);
+
+  if (remaining === 0) {
+    return (
+      <div className="bz-countdown-display">
+        <div className="bz-countdown-go">GO !</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bz-countdown-display">
+      <div className="bz-countdown-digit">{remaining}</div>
+    </div>
+  );
+}
+
+function WinnerScreen(props: {
+  playerName: string;
+  avatarKey: string;
+  score: number;
+  onDismiss?: () => void;
+}): JSX.Element {
+  const avatarUrl = withBase(`/avatars/${props.avatarKey}`);
+  return (
+    <div className="bz-winner-screen">
+      <h2 className="bz-winner-title">🏆 Gagnant</h2>
+      <AvatarFigure src={avatarUrl} sizePx={120} />
+      <p className="bz-winner-name">{props.playerName}</p>
+      <p className="bz-winner-score">{props.score} pts</p>
+      {props.onDismiss && (
+        <button type="button" className="bz-winner-skip" onClick={props.onDismiss}>
+          Suivant
+        </button>
+      )}
+    </div>
+  );
 }
 
 /** * Decorative round mascot image — surrounding context supplies the audible name. */
@@ -551,12 +610,29 @@ function playSfxUrl(url: string | undefined | null): void {
 function ReadyCountdownHero(props: {
   readyPlayers: string[];
   readyPhaseStartedAt: number;
+  countdownStartedAt: number | null;
+  allPlayersCount: number;
   myId: string;
   isReady: boolean;
   onMarkReady: () => void;
   readyLoading: boolean;
+  countdownDurationSec: number;
+  onCountdownComplete: () => void;
 }): JSX.Element {
-  const { readyPlayers, isReady, onMarkReady, readyLoading } = props;
+  const {
+    readyPlayers,
+    allPlayersCount,
+    isReady,
+    onMarkReady,
+    readyLoading,
+    countdownStartedAt,
+    countdownDurationSec,
+    onCountdownComplete,
+  } = props;
+
+  if (countdownStartedAt !== null) {
+    return <CountdownDisplay durationSec={countdownDurationSec} onComplete={onCountdownComplete} />;
+  }
 
   if (!isReady) {
     return (
@@ -564,7 +640,7 @@ function ReadyCountdownHero(props: {
         <p className="bz-ready-message">
           {readyPlayers.length === 0
             ? "Prêt pour la prochaine question ?"
-            : `${readyPlayers.length} joueur${readyPlayers.length === 1 ? "" : "s"} prêt${readyPlayers.length === 1 ? "" : "s"}`}
+            : `${readyPlayers.length} / ${allPlayersCount} joueur${readyPlayers.length === 1 ? "" : "s"} prêt${readyPlayers.length === 1 ? "" : "s"}`}
         </p>
         <button
           type="button"
@@ -584,7 +660,7 @@ function ReadyCountdownHero(props: {
         ✓ En attente des autres joueurs...
       </p>
       <p className="bz-muted" style={{ fontSize: 14, margin: "8px 0 0" }}>
-        {readyPlayers.length} joueur{readyPlayers.length === 1 ? "" : "s"} prêt{readyPlayers.length === 1 ? "" : "s"}
+        {readyPlayers.length} / {allPlayersCount} joueur{readyPlayers.length === 1 ? "" : "s"} prêt{readyPlayers.length === 1 ? "" : "s"}
       </p>
     </div>
   );
@@ -2284,6 +2360,14 @@ function Play(): JSX.Element {
         }
       />
 
+      {snap.winnerDisplay && (
+        <WinnerScreen
+          playerName={snap.winnerDisplay.playerName}
+          avatarKey={snap.winnerDisplay.avatarKey}
+          score={snap.winnerDisplay.score}
+        />
+      )}
+
       <section className="bz-buzz-hero">
         {snap.state === "round_active" &&
         snap.readyPhaseStartedAt !== null &&
@@ -2291,11 +2375,15 @@ function Play(): JSX.Element {
         !canBuzz ? (
           <ReadyCountdownHero
             readyPlayers={snap.readyPlayers ?? []}
-            readyPhaseStartedAt={snap.readyPhaseStartedAt}
+            readyPhaseStartedAt={snap.readyPhaseStartedAt ?? Date.now()}
+            countdownStartedAt={snap.countdownStartedAt ?? null}
+            allPlayersCount={snap.players?.length ?? 0}
             myId={myId ?? ""}
             isReady={(snap.readyPlayers ?? []).includes(myId ?? "")}
             onMarkReady={() => void markReady()}
             readyLoading={readyLoading}
+            countdownDurationSec={snap.countdownDurationSec ?? 5}
+            onCountdownComplete={() => {}}
           />
         ) : canBuzz ? (
           <button
@@ -3007,6 +3095,71 @@ function Admin(): JSX.Element {
     }
   }, [callHostSnapshot, hostBasePath, hostChat]);
 
+  const onHostVerdictSoundsToggle = useCallback(
+    async (enabled: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/verdict-sounds`, "POST", {
+          enabled,
+        });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostCountdownDurationChange = useCallback(
+    async (durationSec: number): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/countdown-duration`, "POST", {
+          durationSec,
+        });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostWinnerScreenModeChange = useCallback(
+    async (mode: "question" | "round"): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/winner-screen-mode`, "POST", {
+          mode,
+        });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostShowWinner = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const n = await callHostSnapshot(`${hostBasePath}/host/show-winner`, "POST", {});
+      setSnap(n);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
+  const onHostDismissWinner = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const n = await callHostSnapshot(`${hostBasePath}/host/dismiss-winner`, "POST", {});
+      setSnap(n);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
   const onPlayerScoreDelta = useCallback(
     async (playerDbId: string, delta: number): Promise<void> => {
       if (delta !== 1 && delta !== -1) return;
@@ -3452,6 +3605,23 @@ function Admin(): JSX.Element {
                     <option value="round">Fin de manche</option>
                   </select>
                 </label>
+                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => void onHostShowWinner()}
+                    disabled={snap.winnerDisplay !== null}
+                  >
+                    Afficher le gagnant
+                  </button>
+                  {snap.winnerDisplay && (
+                    <button
+                      type="button"
+                      onClick={() => void onHostDismissWinner()}
+                    >
+                      Suivant
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
             {snap.gameBoard?.kind === "audio_blind" ? (
@@ -4092,6 +4262,14 @@ function Broadcast(): JSX.Element {
       </header>
 
       <main className="bz-bc-stage">
+        {snap.winnerDisplay && (
+          <WinnerScreen
+            playerName={snap.winnerDisplay.playerName}
+            avatarKey={snap.winnerDisplay.avatarKey}
+            score={snap.winnerDisplay.score}
+          />
+        )}
+
         {snap.state === "lobby" ? (
           <div className="bz-bc-lobby">
             <div>
