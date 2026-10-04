@@ -10,6 +10,7 @@ import type { QuizPack } from "./games/pack.js";
 import { getAvatarCatalog } from "./avatars/catalog.js";
 import { scanQuizPacks } from "./games/pack.js";
 import { ImportedPackStore } from "./games/zipPackImporter.js";
+import { PackEditorStore } from "./games/packEditor.js";
 import { attachSocketIO } from "./realtime/socket.js";
 
 let socketRef: Server | undefined;
@@ -30,6 +31,8 @@ async function main(): Promise<void> {
 
   const importedPacks = new ImportedPackStore();
   importedPacksRef = importedPacks;
+
+  const packEditor = new PackEditorStore();
 
   const buzzCatalog = await loadBuzzSoundCatalog(config.gamesDir);
   console.info(`Buzz SFX catalogue: ${buzzCatalog.sounds.length} clip(s)`);
@@ -100,7 +103,7 @@ async function main(): Promise<void> {
   const avatarN = getAvatarCatalog().length;
   console.info(avatarN > 0 ? `Avatar library: ${avatarN} file(s)` : "Avatar library: empty");
 
-  const app = await buildApp({ config, packs, importedPacks, store, buzzCatalog });
+  const app = await buildApp({ config, packs, importedPacks, packEditor, store, buzzCatalog });
   await app.ready();
 
   socketRef = attachSocketIO(app.server, { store, config });
