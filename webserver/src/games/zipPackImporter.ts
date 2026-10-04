@@ -7,6 +7,54 @@ import { quizPackSchema, type QuizPack } from "./pack.js";
 /** * Max ZIP file size (configurable via env). */
 export const DEFAULT_MAX_ZIP_BYTES = 50 * 1024 * 1024;
 
+/**
+ * Pre-process pack JSON to prefix relative media paths with "games/"
+ * so they pass optionalPublicUrlSchema validation (which rejects plain relative paths).
+ * This allows ZIP packs to reference media with simple paths like "images/x.png".
+ * Rejects URLs containing ".." to prevent path traversal.
+ */
+function prefixRelativeMediaPaths(obj: unknown): unknown {
+  if (typeof obj !== "object" || obj === null) return obj;
+  if (Array.isArray(obj)) return obj.map(prefixRelativeMediaPaths);
+
+  const record = obj as Record<string, unknown>;
+  const result: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(record)) {
+    // * URL fields that optionalPublicUrlSchema validates
+    if (
+      (key === "imageUrl" || key === "videoUrl" || key === "audioUrl") &&
+      typeof value === "string"
+    ) {
+      const trimmed = value.trim();
+      // * Reject paths containing ".." before prefixing (path traversal attempt)
+      if (trimmed.includes("..")) {
+        throw Object.assign(
+          new Error(`Chemin interdit dans ${key} : tentative de traversée de répertoire détectée.`),
+          { code: "MEDIA_URL_TRAVERSAL" },
+        );
+      }
+      // * Prefix relative paths (not starting with /, http, https, or games/)
+      if (
+        !trimmed.startsWith("/") &&
+        !trimmed.startsWith("http://") &&
+        !trimmed.startsWith("https://") &&
+        !trimmed.startsWith("games/")
+      ) {
+        result[key] = `games/${trimmed}`;
+      } else {
+        result[key] = value;
+      }
+    } else if (typeof value === "object") {
+      result[key] = prefixRelativeMediaPaths(value);
+    } else {
+      result[key] = value;
+    }
+  }
+
+  return result;
+}
+
 /** * In-memory storage for imported packs (process-scoped, not persisted). */
 export class ImportedPackStore {
   private readonly packsById = new Map<string, { pack: QuizPack; zipEntries: AdmZip.IZipEntry[] }>();
@@ -118,6 +166,10 @@ export function importZipPack(
     );
   }
 
+  // * Pre-process the JSON to prefix relative media paths with "games/"
+  // * so they pass optionalPublicUrlSchema validation.
+  packJson = prefixRelativeMediaPaths(packJson);
+
   let pack: QuizPack;
   try {
     pack = quizPackSchema.parse(packJson);
@@ -192,23 +244,31 @@ export function importZipPack(
   const missingMedia: string[] = [];
   for (const url of mediaUrls) {
     const trimmed = url.trim();
-    // * Skip absolute URLs (HTTPS, HTTP localhost, or root-relative starting with /)
-    if (
-      trimmed.startsWith("http://") ||
-      trimmed.startsWith("https://") ||
-      trimmed.startsWith("/")
-    ) {
+    // * Skip HTTPS and HTTP localhost
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
       continue;
     }
 
-    const normalized = trimmed.replace(/\\/gu, "/");
+    // * For /games/... or games/... URLs (transformed by optionalPublicUrlSchema or prefixed by us),
+    // * strip the games/ prefix to match ZIP entries.
+    let pathInZip = trimmed;
+    if (trimmed.startsWith("/games/")) {
+      pathInZip = trimmed.slice("/games/".length);
+    } else if (trimmed.startsWith("games/")) {
+      pathInZip = trimmed.slice("games/".length);
+    } else if (trimmed.startsWith("/")) {
+      // * Other absolute paths (e.g. /avatars/) are server-side, skip validation
+      continue;
+    }
+
+    const normalized = pathInZip.replace(/\\/gu, "/");
     const found = entries.some((e) => {
       const eName = e.entryName.replace(/\\/gu, "/");
       return eName === normalized && !e.isDirectory;
     });
 
     if (!found) {
-      missingMedia.push(trimmed);
+      missingMedia.push(pathInZip);
     }
   }
 
@@ -280,15 +340,24 @@ function normalizePack(pack: QuizPack): QuizPack {
 
 function normalizeMediaUrl(packId: string, url: string): string {
   const trimmed = url.trim();
-  // * Keep absolute URLs unchanged
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://") ||
-    trimmed.startsWith("/")
-  ) {
+  // * Keep HTTPS/HTTP URLs unchanged
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     return url;
   }
-  // * Convert relative path to /imported-packs/:packId/:path
+  // * Convert /games/... or games/... (from imported ZIP) to /imported-packs/:packId/...
+  if (trimmed.startsWith("/games/")) {
+    const relativePath = trimmed.slice("/games/".length);
+    return `/imported-packs/${encodeURIComponent(packId)}/${relativePath}`;
+  }
+  if (trimmed.startsWith("games/")) {
+    const relativePath = trimmed.slice("games/".length);
+    return `/imported-packs/${encodeURIComponent(packId)}/${relativePath}`;
+  }
+  // * Keep other absolute paths unchanged (e.g. /avatars/)
+  if (trimmed.startsWith("/")) {
+    return url;
+  }
+  // * Convert remaining relative paths to /imported-packs/:packId/:path
   return `/imported-packs/${encodeURIComponent(packId)}/${trimmed}`;
 }
 

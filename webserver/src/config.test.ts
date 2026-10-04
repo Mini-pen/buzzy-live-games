@@ -212,4 +212,25 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config.partySweepMaxAgeMs).toBe(3600000);
   });
+
+  it("parses MAX_ZIP_PACK_BYTES with default 50 MB", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+    };
+
+    const config = loadConfig();
+    expect(config.maxZipPackBytes).toBe(50 * 1024 * 1024);
+  });
+
+  it("parses MAX_ZIP_PACK_BYTES custom value", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+      MAX_ZIP_PACK_BYTES: "104857600",
+    };
+
+    const config = loadConfig();
+    expect(config.maxZipPackBytes).toBe(104857600);
+  });
 });
