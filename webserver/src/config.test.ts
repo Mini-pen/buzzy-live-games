@@ -233,4 +233,25 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config.maxZipPackBytes).toBe(104857600);
   });
+
+  it("parses MAX_EDITOR_IMAGE_BYTES with default 500 KB", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+    };
+
+    const config = loadConfig();
+    expect(config.maxEditorImageBytes).toBe(500 * 1024);
+  });
+
+  it("parses MAX_EDITOR_IMAGE_BYTES custom value", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+      MAX_EDITOR_IMAGE_BYTES: "262144",
+    };
+
+    const config = loadConfig();
+    expect(config.maxEditorImageBytes).toBe(262144);
+  });
 });
