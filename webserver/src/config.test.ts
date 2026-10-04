@@ -254,4 +254,67 @@ describe("loadConfig", () => {
     const config = loadConfig();
     expect(config.maxEditorImageBytes).toBe(262144);
   });
+
+  it("parses AUTO_PLAY_QUESTION_DURATION_MS with default 30 seconds", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+    };
+
+    const config = loadConfig();
+    expect(config.autoPlayQuestionDurationMs).toBe(30 * 1000);
+  });
+
+  it("parses AUTO_PLAY_QUESTION_DURATION_MS custom value", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+      AUTO_PLAY_QUESTION_DURATION_MS: "60000",
+    };
+
+    const config = loadConfig();
+    expect(config.autoPlayQuestionDurationMs).toBe(60000);
+  });
+
+  it("parses AUTO_PLAY_ROUND_DURATION_MS with default 5 minutes", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+    };
+
+    const config = loadConfig();
+    expect(config.autoPlayRoundDurationMs).toBe(5 * 60 * 1000);
+  });
+
+  it("parses AUTO_PLAY_ROUND_DURATION_MS custom value", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+      AUTO_PLAY_ROUND_DURATION_MS: "600000",
+    };
+
+    const config = loadConfig();
+    expect(config.autoPlayRoundDurationMs).toBe(600000);
+  });
+
+  it("parses AUTO_PLAY_TRANSITION_DURATION_MS with default 3 seconds", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+    };
+
+    const config = loadConfig();
+    expect(config.autoPlayTransitionDurationMs).toBe(3 * 1000);
+  });
+
+  it("parses AUTO_PLAY_TRANSITION_DURATION_MS custom value", () => {
+    process.env = {
+      NODE_ENV: "development",
+      PUBLIC_URL: "http://localhost:3000",
+      AUTO_PLAY_TRANSITION_DURATION_MS: "10000",
+    };
+
+    const config = loadConfig();
+    expect(config.autoPlayTransitionDurationMs).toBe(10000);
+  });
 });
