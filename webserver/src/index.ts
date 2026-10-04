@@ -9,10 +9,12 @@ import { loadBuzzSoundCatalog, resolveBuzzSoundPublicUrl } from "./games/buzzSou
 import type { QuizPack } from "./games/pack.js";
 import { getAvatarCatalog } from "./avatars/catalog.js";
 import { scanQuizPacks } from "./games/pack.js";
+import { ImportedPackStore } from "./games/zipPackImporter.js";
 import { attachSocketIO } from "./realtime/socket.js";
 
 let socketRef: Server | undefined;
 let quizPacksByRun: Map<string, QuizPack> | undefined;
+let importedPacksRef: ImportedPackStore | undefined;
 
 function partyNotifyExtras(meta?: PartyNotifyMeta | PartyNotifyMeta[]): PartyNotifyMeta[] {
   if (meta === undefined) return [];
@@ -26,12 +28,17 @@ async function main(): Promise<void> {
   quizPacksByRun = packs;
   console.info(`Indexed ${packs.size} quiz pack(s) under ${config.gamesDir}`);
 
+  const importedPacks = new ImportedPackStore();
+  importedPacksRef = importedPacks;
+
   const buzzCatalog = await loadBuzzSoundCatalog(config.gamesDir);
   console.info(`Buzz SFX catalogue: ${buzzCatalog.sounds.length} clip(s)`);
 
   const store = new PartyStore((partyId, party, meta) => {
-    if (socketRef === undefined || quizPacksByRun === undefined) return;
+    if (socketRef === undefined || quizPacksByRun === undefined || importedPacksRef === undefined) return;
     const packsSnap = quizPacksByRun;
+    const importedSnap = importedPacksRef;
+    const allPacks = new Map([...packsSnap, ...importedSnap.getAll()]);
     if (meta !== undefined && !Array.isArray(meta) && meta.kind === "party_deleted") {
       const payload = { partyId };
       socketRef.to(`party:${partyId}:player`).emit("party:terminated", payload);
@@ -41,13 +48,13 @@ async function main(): Promise<void> {
     }
     socketRef
       .to(`party:${partyId}:player`)
-      .emit("party:patch", partySnapshotWithGame(party, packsSnap, "player"));
+      .emit("party:patch", partySnapshotWithGame(party, allPacks, "player"));
     socketRef
       .to(`party:${partyId}:admin`)
-      .emit("party:patch", partySnapshotWithGame(party, packsSnap, "host"));
+      .emit("party:patch", partySnapshotWithGame(party, allPacks, "host"));
     socketRef
       .to(`party:${partyId}:broadcast`)
-      .emit("party:patch", partySnapshotWithGame(party, packsSnap, "player"));
+      .emit("party:patch", partySnapshotWithGame(party, allPacks, "player"));
     const extras = partyNotifyExtras(meta);
     for (const m of extras) {
       if (m.kind === "buzz_fx") {
@@ -93,7 +100,7 @@ async function main(): Promise<void> {
   const avatarN = getAvatarCatalog().length;
   console.info(avatarN > 0 ? `Avatar library: ${avatarN} file(s)` : "Avatar library: empty");
 
-  const app = await buildApp({ config, packs, store, buzzCatalog });
+  const app = await buildApp({ config, packs, importedPacks, store, buzzCatalog });
   await app.ready();
 
   socketRef = attachSocketIO(app.server, { store, config });

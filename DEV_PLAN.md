@@ -200,7 +200,7 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 ### 7.1 Import de jeux au format ZIP
 
-**Statut :** À implémenter.
+**Statut :** ✅ Fait (PR #4, merged).
 
 **Description :** L'animateur peut importer un fichier ZIP contenant un pack de jeu (JSON + ressources médias : images, audio, vidéo). Le ZIP est décompressé et les ressources sont rendues disponibles pour la partie en cours. Les packs importés s'ajoutent dynamiquement à la liste des packs disponibles.
 
