@@ -265,20 +265,22 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 ### 7.5 Alertes sonores/visuelles, compte à rebours configurable
 
-**Statut :** À implémenter.
+**Statut :** ✅ Fait (PR #15, merged).
 
 **Description :**
-- **Alertes sonores :** Sons de validation bon/mauvais joués automatiquement (si pas encore le cas).
+- **Alertes sonores :** Sons de validation bon/mauvais joués automatiquement après jugement de buzz (toggle hôte).
 - **Visuel de victoire :** Écran de victoire affichant le gagnant (joueur ou équipe) sur le grand écran et dans l'interface joueur.
 - **Compte à rebours avant question :** Compte à rebours configurable (3 à 10 secondes) avant chaque question, démarrant lorsque tous les participants ont marqué « Prêt ». Le buzzer reste fermé pendant le compte à rebours et s'ouvre automatiquement à la fin.
 
 **Important :** Le compte à rebours de 3-10 secondes s'applique uniquement avant chaque question (démarre une fois tous prêts, buzzer ouvre après la fin). Ce n'est pas la durée du tutoriel.
 
-**Règles :**
+**Règles implémentées :**
 - Le bouton « Prêt » apparaît dans l'interface joueur avant chaque question.
-- Le compte à rebours démarre lorsque tous ont cliqué « Prêt » (ou après timeout de 30s).
+- Le compte à rebours démarre lorsque tous ont cliqué « Prêt » (ou après timeout de 30s, configurable via READY_TIMEOUT_MS).
 - Le buzzer s'ouvre automatiquement à la fin du compte à rebours.
 - Le visuel de victoire affiche pseudo, avatar, score final (joueur ou équipe).
+- Durée du countdown : réglage hôte 3-10s (défaut 5s).
+- Mode winner screen : réglage hôte question/manche (défaut question).
 
 ---
 
