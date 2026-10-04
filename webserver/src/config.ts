@@ -28,6 +28,12 @@ export interface AppConfig {
   maxZipPackBytes: number;
   /** * Max image weight in bytes after compression (editor URL download). */
   maxEditorImageBytes: number;
+  /** * Default duration per quiz question in automatic play mode (milliseconds). */
+  autoPlayQuestionDurationMs: number;
+  /** * Default duration per round/manche in automatic play mode (milliseconds). */
+  autoPlayRoundDurationMs: number;
+  /** * Default duration for transitions between rounds in automatic play mode (milliseconds). */
+  autoPlayTransitionDurationMs: number;
 }
 
 function envString(name: string, fallback?: string): string {
@@ -90,5 +96,8 @@ export function loadConfig(): AppConfig {
     corsOrigin: corsParsed,
     maxZipPackBytes: envInt("MAX_ZIP_PACK_BYTES", 50 * 1024 * 1024),
     maxEditorImageBytes: envInt("MAX_EDITOR_IMAGE_BYTES", 500 * 1024),
+    autoPlayQuestionDurationMs: envInt("AUTO_PLAY_QUESTION_DURATION_MS", 30 * 1000),
+    autoPlayRoundDurationMs: envInt("AUTO_PLAY_ROUND_DURATION_MS", 5 * 60 * 1000),
+    autoPlayTransitionDurationMs: envInt("AUTO_PLAY_TRANSITION_DURATION_MS", 3 * 1000),
   };
 }

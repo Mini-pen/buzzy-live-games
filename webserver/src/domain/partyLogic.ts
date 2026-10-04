@@ -90,6 +90,7 @@ export function publicSnapshotForParty(part: {
   activeMancheId: string | null;
   allowPlayerAudioControl: boolean;
   buzzSound: PartyBuzzSoundPolicy;
+  autoPlay: import("./types.js").AutoPlayState;
 }): PartyPublicSnapshot {
   const playersArr = [...part.players.values()].map((p) => ({
     id: p.id,
@@ -131,6 +132,12 @@ export function publicSnapshotForParty(part: {
     soundBuzzerPublic: {
       playOnPlayerDevice: part.buzzSound.playPlayerBuzzTone,
       echoOnHostDevice: part.buzzSound.echoPlayerBuzzOnHost,
+    },
+    autoPlay: {
+      enabled: part.autoPlay.enabled,
+      paused: part.autoPlay.paused,
+      currentScriptIndex: part.autoPlay.currentScriptIndex,
+      waitingForManualAction: part.autoPlay.waitingForManualAction,
     },
   };
 }
