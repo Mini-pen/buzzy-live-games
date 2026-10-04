@@ -320,33 +320,37 @@ describe("Editor integration tests (4.2)", () => {
   });
 
   describe("Dirty state for unsaved changes warning", () => {
-    it("documents the expected dirty-state tracking for unsaved changes warning", () => {
-      // * This test documents the expected behavior:
-      // * - The UI tracks whether the pack has been modified since the last export
-      // * - If the user tries to leave without exporting, the UI shows a warning
-      // * - The warning is typically implemented as a browser beforeunload event
-      // * - We test the dirty-state flag the UI uses, not the actual browser event
+    it("verifies the editor session reflects that changes have been made", () => {
+      // * This test verifies that the PackEditorStore tracks that a pack has been modified.
+      // * The UI (App.tsx) uses editorDirty state:
+      // *   - Set to true when onUpdateEditorPack is called (line 2837)
+      // *   - Set to false when starting editing (line 2810) or using the pack (line 2924)
+      // *   - Used in onCloseEditor to warn about unsaved changes (line 2931)
+      // * 
+      // * Note: The current implementation does NOT clear the dirty flag after export.
+      // * Export downloads a ZIP but doesn't "save" in the system.
+      // * Only "Use" (which re-imports the pack) clears the dirty flag.
 
       const store = new PackEditorStore();
-      const pack = createTestPack("test-dirty-state", "Test Pack");
+      const pack = createTestPack("test-changes", "Original Pack");
       const editorId = store.startEditing(pack, new Map());
 
-      // * Track dirty state (this would be in the UI state, not the store)
-      let isDirty = false;
+      // * Verify the pack was stored
+      const retrieved = store.get(editorId);
+      expect(retrieved?.title).toBe("Original Pack");
 
       // * User makes a change
       const updatedPack = { ...pack, title: "Modified Pack" };
       store.update(editorId, updatedPack);
-      isDirty = true; // * UI marks as dirty
 
-      expect(isDirty).toBe(true);
+      // * Verify the change was applied
+      const afterUpdate = store.get(editorId);
+      expect(afterUpdate?.title).toBe("Modified Pack");
+      expect(afterUpdate).not.toBe(pack); // * Different object reference
 
-      // * User exports
-      const zipBuffer = store.exportAsZip(editorId);
-      isDirty = false; // * UI clears dirty flag after export
-
-      expect(isDirty).toBe(false);
-      expect(zipBuffer.length).toBeGreaterThan(0);
+      // * The store itself doesn't track "dirty" - that's UI state.
+      // * But we can verify that the pack has been modified by comparing with the original.
+      expect(afterUpdate?.title).not.toBe(pack.title);
     });
   });
 

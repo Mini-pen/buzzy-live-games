@@ -42,19 +42,15 @@ describe("downloadAndCompressImage", () => {
       });
     }
 
-    // * IPv6 private address checks are documented but not tested due to timeout issues
-    // * The implementation checks IPv6 patterns (::1, fc00:, fd00:, fe80:) as hostname strings
-    it("documents IPv6 address handling (not actively tested)", () => {
-      // * IPv6 loopback and private addresses SHOULD be rejected:
-      // * - http://[::1]/img.png (loopback)
-      // * - http://[fc00::1]/img.png (ULA)
-      // * - http://[fd00::1]/img.png (ULA)
-      // * - http://[fe80::1]/img.png (link-local)
-      // * 
-      // * The implementation checks hostname.startsWith for these patterns.
-      // * Active network tests timeout due to IPv6 network stack behavior.
-      expect(true).toBe(true);
-    });
+    // * IPv6 private address checks are documented but not actively tested due to timeout issues.
+    // * The implementation checks hostname.startsWith for these patterns:
+    // *   - "::1" (loopback)
+    // *   - "fc00:" (ULA)
+    // *   - "fd00:" (ULA)
+    // *   - "fe80:" (link-local)
+    // * 
+    // * See imageDownloader.ts lines 54-57 for the actual checks.
+    // * Active network tests timeout due to IPv6 network stack behavior, so they are omitted.
   });
 
   describe("image size limits", () => {
