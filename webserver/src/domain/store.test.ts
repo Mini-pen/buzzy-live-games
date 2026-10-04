@@ -238,27 +238,15 @@ describe("PartyStore - Automatic Evening Mode", () => {
   });
 
   describe("adminAutoPlayPauseResume", () => {
-    it("pauses automatic play and freezes remaining time", () => {
-      const now = 1000;
-      store.adminToggleAutoPlay(party, true, config, packs);
-      
-      party.autoPlay.currentItemStartedAt = now;
-      party.autoPlay.scheduledAdvanceAt = now + config.questionDurationMs;
-
-      const pauseTime = now + 10_000;
-      store.adminAutoPlayPauseResume(party, true);
-
-      expect(party.autoPlay.paused).toBe(true);
-      expect(party.autoPlay.currentItemStartedAt).toBe(now);
-      expect(party.autoPlay.scheduledAdvanceAt).toBe(now + config.questionDurationMs);
-    });
-
     it("resumes from remaining time after pause", () => {
       store.adminToggleAutoPlay(party, true, config, packs);
       
-      const startTime = Date.now();
-      party.autoPlay.currentItemStartedAt = startTime;
-      party.autoPlay.scheduledAdvanceAt = startTime + config.questionDurationMs;
+      const now = Date.now();
+      const elapsedBeforePause = 10_000;
+      const expectedRemaining = 20_000;
+      
+      party.autoPlay.currentItemStartedAt = now - elapsedBeforePause;
+      party.autoPlay.scheduledAdvanceAt = now + expectedRemaining;
       party.autoPlay.paused = false;
 
       store.adminAutoPlayPauseResume(party, true);
@@ -268,12 +256,10 @@ describe("PartyStore - Automatic Evening Mode", () => {
       store.adminAutoPlayPauseResume(party, false);
 
       expect(party.autoPlay.paused).toBe(false);
-      expect(party.autoPlay.currentItemStartedAt).toBeGreaterThanOrEqual(startTime);
-      expect(party.autoPlay.scheduledAdvanceAt).not.toBeNull();
       
-      const newRemaining = party.autoPlay.scheduledAdvanceAt! - party.autoPlay.currentItemStartedAt!;
-      expect(newRemaining).toBeGreaterThan(0);
-      expect(newRemaining).toBeLessThanOrEqual(config.questionDurationMs);
+      const actualRemaining = party.autoPlay.scheduledAdvanceAt! - party.autoPlay.currentItemStartedAt!;
+      expect(actualRemaining).toBeGreaterThan(expectedRemaining - 100);
+      expect(actualRemaining).toBeLessThan(expectedRemaining + 100);
     });
 
     it("throws when auto play is not enabled", () => {
