@@ -140,6 +140,7 @@ export class PartyStore {
       allowedBadKeys: b,
       playPlayerBuzzTone: next.playPlayerBuzzTone,
       echoPlayerBuzzOnHost: next.echoPlayerBuzzOnHost,
+      playVerdictSounds: party.buzzSound.playVerdictSounds,
     };
     this.touch(party);
     this.broadcast(party);
@@ -205,6 +206,7 @@ export class PartyStore {
         allowedBadKeys: pol.allowedBadKeys,
         playPlayerBuzzTone: true,
         echoPlayerBuzzOnHost: true,
+        playVerdictSounds: true,
       },
       mancheScript: [],
       activeMancheId: null,
@@ -218,6 +220,10 @@ export class PartyStore {
         pendingScriptUpdates: null,
       },
       seenGameKinds: new Set(),
+      countdownDurationSec: 5,
+      winnerScreenMode: "question",
+      readyPlayers: new Set(),
+      readyPhaseStartedAt: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -539,6 +545,17 @@ export class PartyStore {
         verdict: good ? "good" : "bad",
       });
       extras.push({ kind: "quiz_auto_toast", playerId: pid, correct: good });
+      if (party.buzzSound.playVerdictSounds) {
+        const keys = good ? party.buzzSound.allowedGoodKeys : party.buzzSound.allowedBadKeys;
+        if (keys.length > 0) {
+          const pickKey = keys[Math.floor(Math.random() * keys.length)]!;
+          const sfx = this.buzzCatalog.byKey.get(pickKey);
+          if (sfx) {
+            const url = resolveBuzzSoundPublicUrl(sfx).trim();
+            if (url !== "") extras.push({ kind: "answer_fx", url });
+          }
+        }
+      }
     }
     clearBuzzQueue(party);
     this.syncActiveQuizProgressIntoScriptItem(party);
@@ -993,6 +1010,48 @@ export class PartyStore {
     this.broadcast(party);
   }
 
+  adminSetVerdictSoundsEnabled(party: Party, enabled: boolean): void {
+    party.buzzSound.playVerdictSounds = enabled;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  adminSetCountdownDuration(party: Party, seconds: number): void {
+    if (seconds < 3 || seconds > 10 || !Number.isInteger(seconds)) {
+      throw Object.assign(new Error("Durée entre 3 et 10 secondes."), { code: "INVALID_DURATION" });
+    }
+    party.countdownDurationSec = seconds;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  adminSetWinnerScreenMode(party: Party, mode: "question" | "round"): void {
+    party.winnerScreenMode = mode;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  playerMarkReady(party: Party, playerId: string): void {
+    if (party.state !== "round_active") {
+      throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
+    }
+    const player = party.players.get(playerId);
+    if (!player) {
+      throw Object.assign(new Error("Joueur introuvable."), { code: "PLAYER_NOT_FOUND" });
+    }
+    party.readyPlayers.add(playerId);
+    if (party.readyPhaseStartedAt === null) {
+      party.readyPhaseStartedAt = Date.now();
+    }
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  clearReadyPhase(party: Party): void {
+    party.readyPlayers.clear();
+    party.readyPhaseStartedAt = null;
+  }
+
   /** * Picks a good/bad outcome sound, optionally awards current-cue points, removes the player from the buzz queue. */
   adminValidateBuzzAnswer(
     party: Party,
@@ -1035,7 +1094,9 @@ export class PartyStore {
     if (this.activeCueIsQuizMultipleChoice(party, pack)) {
       extras.push({ kind: "buzz_verdict", playerId, verdict });
     }
-    if (url !== "") extras.push({ kind: "answer_fx", url });
+    if (party.buzzSound.playVerdictSounds && url !== "") {
+      extras.push({ kind: "answer_fx", url });
+    }
     this.notify(party.id, party, extras.length > 0 ? extras : undefined);
   }
 
