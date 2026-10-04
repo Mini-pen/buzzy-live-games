@@ -935,7 +935,12 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         const body = autoPlayToggleSchema.parse(req.body ?? {});
-        store.adminToggleAutoPlay(party, body.enabled);
+        const autoPlayConfig = {
+          questionDurationMs: config.autoPlayQuestionDurationMs,
+          roundDurationMs: config.autoPlayRoundDurationMs,
+          transitionDurationMs: config.autoPlayTransitionDurationMs,
+        };
+        store.adminToggleAutoPlay(party, body.enabled, autoPlayConfig, allPacks());
         return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
@@ -974,7 +979,12 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        store.adminAutoPlaySkipForward(party, allPacks());
+        const autoPlayConfig = {
+          questionDurationMs: config.autoPlayQuestionDurationMs,
+          roundDurationMs: config.autoPlayRoundDurationMs,
+          transitionDurationMs: config.autoPlayTransitionDurationMs,
+        };
+        store.adminAutoPlaySkipForward(party, autoPlayConfig, allPacks());
         return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);
@@ -990,7 +1000,12 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        store.adminAutoPlaySkipBackward(party, allPacks());
+        const autoPlayConfig = {
+          questionDurationMs: config.autoPlayQuestionDurationMs,
+          roundDurationMs: config.autoPlayRoundDurationMs,
+          transitionDurationMs: config.autoPlayTransitionDurationMs,
+        };
+        store.adminAutoPlaySkipBackward(party, autoPlayConfig, allPacks());
         return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);

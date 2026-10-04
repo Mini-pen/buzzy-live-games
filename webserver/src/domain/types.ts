@@ -37,6 +37,10 @@ export interface AutoPlayState {
   currentItemStartedAt: number | null;
   /** * Whether the mode is waiting for a manual host action (e.g., buzz validation). */
   waitingForManualAction: boolean;
+  /** * Timestamp when the current item should automatically advance (null if paused or waiting). */
+  scheduledAdvanceAt: number | null;
+  /** * Pending script modifications to apply after the current item finishes. */
+  pendingScriptUpdates: MancheCatalogItem[] | null;
 }
 
 export interface ChatEntry {

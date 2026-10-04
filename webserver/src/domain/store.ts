@@ -213,6 +213,8 @@ export class PartyStore {
         currentScriptIndex: 0,
         currentItemStartedAt: null,
         waitingForManualAction: false,
+        scheduledAdvanceAt: null,
+        pendingScriptUpdates: null,
       },
     };
     this.parties.set(party.id, party);
@@ -645,44 +647,87 @@ export class PartyStore {
 
   hostAppendManche(party: Party, draft: Omit<MancheCatalogItem, "id">): void {
     const item: MancheCatalogItem = { ...draft, id: nanoid(12) };
-    party.mancheScript.push(item);
+    
+    if (party.autoPlay.enabled && !party.autoPlay.paused) {
+      // Defer the update until after the current item
+      const updatedScript = party.autoPlay.pendingScriptUpdates !== null
+        ? [...party.autoPlay.pendingScriptUpdates]
+        : [...party.mancheScript];
+      updatedScript.push(item);
+      party.autoPlay.pendingScriptUpdates = updatedScript;
+    } else {
+      party.mancheScript.push(item);
+    }
+    
     this.touch(party);
     this.broadcast(party);
   }
 
   hostRemoveManche(party: Party, mancheId: string): void {
-    const idx = party.mancheScript.findIndex((m) => m.id === mancheId);
+    const targetScript = party.autoPlay.enabled && !party.autoPlay.paused && party.autoPlay.pendingScriptUpdates !== null
+      ? party.autoPlay.pendingScriptUpdates
+      : party.mancheScript;
+      
+    const idx = targetScript.findIndex((m) => m.id === mancheId);
     if (idx < 0)
       throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
-    const removing = party.mancheScript[idx];
-    const activePlaying =
-      removing.id === party.activeMancheId && party.state === "round_active";
-    if (activePlaying) this.syncActiveQuizProgressIntoScriptItem(party);
-    party.mancheScript.splice(idx, 1);
-    if (removing.id === party.activeMancheId) {
-      party.activeMancheId = null;
-      party.loadedPackId = null;
-      party.currentRoundIndex = null;
-      party.currentQuestionIndex = null;
-      if (party.state === "round_active") party.state = "lobby";
-      party.buzzWindowOpen = false;
-      clearBuzzQueue(party);
+    
+    if (party.autoPlay.enabled && !party.autoPlay.paused) {
+      // Defer the update until after the current item
+      const updatedScript = party.autoPlay.pendingScriptUpdates !== null
+        ? [...party.autoPlay.pendingScriptUpdates]
+        : [...party.mancheScript];
+      updatedScript.splice(idx, 1);
+      party.autoPlay.pendingScriptUpdates = updatedScript;
+    } else {
+      const removing = party.mancheScript[idx];
+      const activePlaying =
+        removing.id === party.activeMancheId && party.state === "round_active";
+      if (activePlaying) this.syncActiveQuizProgressIntoScriptItem(party);
+      party.mancheScript.splice(idx, 1);
+      if (removing.id === party.activeMancheId) {
+        party.activeMancheId = null;
+        party.loadedPackId = null;
+        party.currentRoundIndex = null;
+        party.currentQuestionIndex = null;
+        if (party.state === "round_active") party.state = "lobby";
+        party.buzzWindowOpen = false;
+        clearBuzzQueue(party);
+      }
     }
+    
     this.touch(party);
     this.broadcast(party);
   }
 
   hostMoveManche(party: Party, mancheId: string, delta: number): void {
-    const i = party.mancheScript.findIndex((m) => m.id === mancheId);
+    const targetScript = party.autoPlay.enabled && !party.autoPlay.paused && party.autoPlay.pendingScriptUpdates !== null
+      ? party.autoPlay.pendingScriptUpdates
+      : party.mancheScript;
+      
+    const i = targetScript.findIndex((m) => m.id === mancheId);
     if (i < 0)
       throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
     const j = i + delta;
-    if (j < 0 || j >= party.mancheScript.length)
+    if (j < 0 || j >= targetScript.length)
       throw Object.assign(new Error("BAD_MOVE"), { code: "BAD_MOVE" });
-    const arr = party.mancheScript;
-    const tmp = arr[i];
-    arr[i] = arr[j]!;
-    arr[j] = tmp!;
+    
+    if (party.autoPlay.enabled && !party.autoPlay.paused) {
+      // Defer the update until after the current item
+      const updatedScript = party.autoPlay.pendingScriptUpdates !== null
+        ? [...party.autoPlay.pendingScriptUpdates]
+        : [...party.mancheScript];
+      const tmp = updatedScript[i];
+      updatedScript[i] = updatedScript[j]!;
+      updatedScript[j] = tmp!;
+      party.autoPlay.pendingScriptUpdates = updatedScript;
+    } else {
+      const arr = party.mancheScript;
+      const tmp = arr[i];
+      arr[i] = arr[j]!;
+      arr[j] = tmp!;
+    }
+    
     this.touch(party);
     this.broadcast(party);
   }
@@ -970,18 +1015,41 @@ export class PartyStore {
   }
 
   /** * Enable or disable automatic play mode. */
-  adminToggleAutoPlay(party: Party, enabled: boolean): void {
+  adminToggleAutoPlay(
+    party: Party,
+    enabled: boolean,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+  ): void {
     if (enabled && party.mancheScript.length === 0) {
       throw Object.assign(
         new Error("Impossible d'activer le mode automatique : aucune manche dans le script."),
         { code: "EMPTY_SCRIPT" },
       );
     }
+    
     party.autoPlay.enabled = enabled;
     party.autoPlay.paused = false;
     party.autoPlay.currentScriptIndex = 0;
-    party.autoPlay.currentItemStartedAt = enabled ? Date.now() : null;
     party.autoPlay.waitingForManualAction = false;
+    party.autoPlay.pendingScriptUpdates = null;
+    
+    if (enabled) {
+      const now = Date.now();
+      party.autoPlay.currentItemStartedAt = now;
+      const item = party.mancheScript[0];
+      if (item) {
+        this.loadScriptItem(party, item, packs);
+        const duration = this.calculateItemDuration(party, item, config, packs);
+        party.autoPlay.scheduledAdvanceAt = duration !== null ? now + duration : null;
+      } else {
+        party.autoPlay.scheduledAdvanceAt = null;
+      }
+    } else {
+      party.autoPlay.currentItemStartedAt = null;
+      party.autoPlay.scheduledAdvanceAt = null;
+    }
+    
     this.touch(party);
     this.broadcast(party);
   }
@@ -994,27 +1062,50 @@ export class PartyStore {
         { code: "AUTO_PLAY_NOT_ENABLED" },
       );
     }
+    
+    const wasPaused = party.autoPlay.paused;
     party.autoPlay.paused = paused;
-    if (!paused && party.autoPlay.currentItemStartedAt === null) {
-      party.autoPlay.currentItemStartedAt = Date.now();
+    
+    if (!paused && wasPaused) {
+      // Resume: recalculate scheduledAdvanceAt based on remaining time
+      const now = Date.now();
+      if (party.autoPlay.scheduledAdvanceAt !== null && party.autoPlay.currentItemStartedAt !== null) {
+        const elapsed = now - party.autoPlay.currentItemStartedAt;
+        const originalDuration = party.autoPlay.scheduledAdvanceAt - party.autoPlay.currentItemStartedAt;
+        const remaining = Math.max(0, originalDuration - elapsed);
+        party.autoPlay.scheduledAdvanceAt = now + remaining;
+        party.autoPlay.currentItemStartedAt = now;
+      }
+    } else if (paused) {
+      // When pausing, we keep the elapsed time by not updating currentItemStartedAt
+      // scheduledAdvanceAt stays the same so we can calculate remaining time on resume
     }
+    
     this.touch(party);
     this.broadcast(party);
   }
 
   /** * Skip to next item in automatic play mode. */
-  adminAutoPlaySkipForward(party: Party, packs: Map<string, QuizPack>): void {
+  adminAutoPlaySkipForward(
+    party: Party,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+  ): void {
     if (!party.autoPlay.enabled) {
       throw Object.assign(
         new Error("Le mode automatique n'est pas activé."),
         { code: "AUTO_PLAY_NOT_ENABLED" },
       );
     }
-    this.autoPlayAdvanceToNextItem(party, packs);
+    this.autoPlayAdvanceToNextItem(party, config, packs);
   }
 
   /** * Go back to previous item in automatic play mode. */
-  adminAutoPlaySkipBackward(party: Party, packs: Map<string, QuizPack>): void {
+  adminAutoPlaySkipBackward(
+    party: Party,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+  ): void {
     if (!party.autoPlay.enabled) {
       throw Object.assign(
         new Error("Le mode automatique n'est pas activé."),
@@ -1025,39 +1116,143 @@ export class PartyStore {
       party.autoPlay.currentScriptIndex -= 1;
       const item = party.mancheScript[party.autoPlay.currentScriptIndex];
       if (item) {
+        const now = Date.now();
         this.loadScriptItem(party, item, packs);
+        party.autoPlay.currentItemStartedAt = now;
+        party.autoPlay.waitingForManualAction = false;
+        const duration = this.calculateItemDuration(party, item, config, packs);
+        party.autoPlay.scheduledAdvanceAt = duration !== null ? now + duration : null;
       }
     }
     this.touch(party);
     this.broadcast(party);
   }
 
-  /** * Mark that automatic play is waiting for a manual action. */
+  /** * Mark that automatic play is waiting for a manual action, and clear the timer. */
   adminAutoPlayWaitForManualAction(party: Party, waiting: boolean): void {
     party.autoPlay.waitingForManualAction = waiting;
+    if (waiting) {
+      party.autoPlay.scheduledAdvanceAt = null;
+    }
     this.touch(party);
     this.broadcast(party);
   }
 
+  /** * Resume automatic play after a manual action was completed. */
+  adminAutoPlayResumeAfterManualAction(
+    party: Party,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+  ): void {
+    if (!party.autoPlay.enabled || !party.autoPlay.waitingForManualAction) {
+      return;
+    }
+    
+    party.autoPlay.waitingForManualAction = false;
+    const now = Date.now();
+    party.autoPlay.currentItemStartedAt = now;
+    
+    const item = party.mancheScript[party.autoPlay.currentScriptIndex];
+    if (item) {
+      const duration = this.calculateItemDuration(party, item, config, packs);
+      party.autoPlay.scheduledAdvanceAt = duration !== null ? now + duration : null;
+    }
+    
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Calculate the duration for the current item (question, round, or transition). */
+  private calculateItemDuration(
+    party: Party,
+    item: MancheCatalogItem,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+  ): number | null {
+    if (item.kind === "transition") {
+      return item.transitionDurationMs ?? config.transitionDurationMs;
+    }
+    
+    if (item.kind === "pack_quiz") {
+      const pack = quizPackFromLoadedId(packs, party.loadedPackId);
+      if (!pack) return config.roundDurationMs;
+      
+      const ri = party.currentRoundIndex;
+      const qi = party.currentQuestionIndex;
+      
+      if (ri === null || qi === null) return config.roundDurationMs;
+      
+      const round = pack.rounds[ri];
+      if (!round) return config.roundDurationMs;
+      
+      // For quiz rounds with questions, use question duration
+      if (isQuizRound(round) && round.questions.length > 0) {
+        return config.questionDurationMs;
+      }
+      
+      // For other round types, use round duration
+      return config.roundDurationMs;
+    }
+    
+    // For video, youtube, direct_video, use round duration
+    return config.roundDurationMs;
+  }
+
   /** * Advance to the next item in the script (internal helper for auto-play). */
-  private autoPlayAdvanceToNextItem(party: Party, packs: Map<string, QuizPack>): void {
+  private autoPlayAdvanceToNextItem(
+    party: Party,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+  ): void {
+    // Apply pending script updates if any
+    if (party.autoPlay.pendingScriptUpdates !== null) {
+      party.mancheScript = party.autoPlay.pendingScriptUpdates;
+      party.autoPlay.pendingScriptUpdates = null;
+    }
+    
     party.autoPlay.currentScriptIndex += 1;
     if (party.autoPlay.currentScriptIndex >= party.mancheScript.length) {
       party.autoPlay.enabled = false;
       party.autoPlay.currentScriptIndex = party.mancheScript.length - 1;
+      party.autoPlay.scheduledAdvanceAt = null;
       party.state = "lobby";
       this.touch(party);
       this.broadcast(party);
       return;
     }
+    
     const item = party.mancheScript[party.autoPlay.currentScriptIndex];
     if (item) {
+      const now = Date.now();
       this.loadScriptItem(party, item, packs);
+      party.autoPlay.currentItemStartedAt = now;
+      party.autoPlay.waitingForManualAction = false;
+      const duration = this.calculateItemDuration(party, item, config, packs);
+      party.autoPlay.scheduledAdvanceAt = duration !== null ? now + duration : null;
     }
-    party.autoPlay.currentItemStartedAt = Date.now();
-    party.autoPlay.waitingForManualAction = false;
     this.touch(party);
     this.broadcast(party);
+  }
+
+  /** * Check if a party needs automatic advancement and advance it if the time has come. */
+  tickAutoPlay(
+    party: Party,
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+    now: number,
+  ): void {
+    if (
+      !party.autoPlay.enabled ||
+      party.autoPlay.paused ||
+      party.autoPlay.waitingForManualAction ||
+      party.autoPlay.scheduledAdvanceAt === null
+    ) {
+      return;
+    }
+    
+    if (now >= party.autoPlay.scheduledAdvanceAt) {
+      this.autoPlayAdvanceToNextItem(party, config, packs);
+    }
   }
 
   /** * Load a script item (manche or transition) into the party state. */
@@ -1077,6 +1272,17 @@ export class PartyStore {
       party.hasStartedRound = true;
       const pk = quizPackFromLoadedId(packs, party.loadedPackId);
       this.reopenBuzzAccordingToCueAdvancePolicy(party, pk);
+    }
+  }
+
+  /** * Tick all parties for automatic play advancement. */
+  tickAllAutoPlay(
+    config: { questionDurationMs: number; roundDurationMs: number; transitionDurationMs: number },
+    packs: Map<string, QuizPack>,
+    now: number,
+  ): void {
+    for (const party of this.parties.values()) {
+      this.tickAutoPlay(party, config, packs, now);
     }
   }
 }

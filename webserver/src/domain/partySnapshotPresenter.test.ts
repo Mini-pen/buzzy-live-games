@@ -143,16 +143,18 @@ function partyStub(over: Partial<Party>): Party {
       playPlayerBuzzTone: true,
       echoPlayerBuzzOnHost: true,
     },
-    mancheScript: [],
-    activeMancheId: null,
-    autoPlay: {
-      enabled: false,
-      paused: false,
-      currentScriptIndex: 0,
-      currentItemStartedAt: null,
-      waitingForManualAction: false,
-    },
-  };
+      mancheScript: [],
+      activeMancheId: null,
+      autoPlay: {
+        enabled: false,
+        paused: false,
+        currentScriptIndex: 0,
+        currentItemStartedAt: null,
+        waitingForManualAction: false,
+        scheduledAdvanceAt: null,
+        pendingScriptUpdates: null,
+      },
+    };
   return { ...base, ...over };
 }
 

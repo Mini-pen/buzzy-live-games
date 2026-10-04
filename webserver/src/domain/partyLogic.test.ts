@@ -263,6 +263,8 @@ describe("publicSnapshotForParty", () => {
         currentScriptIndex: 0,
         currentItemStartedAt: null,
         waitingForManualAction: false,
+        scheduledAdvanceAt: null,
+        pendingScriptUpdates: null,
       },
     });
 
@@ -311,6 +313,8 @@ describe("publicSnapshotForParty", () => {
         currentScriptIndex: 0,
         currentItemStartedAt: null,
         waitingForManualAction: false,
+        scheduledAdvanceAt: null,
+        pendingScriptUpdates: null,
       },
     });
 
@@ -380,6 +384,8 @@ describe("publicSnapshotForParty", () => {
         currentScriptIndex: 0,
         currentItemStartedAt: null,
         waitingForManualAction: false,
+        scheduledAdvanceAt: null,
+        pendingScriptUpdates: null,
       },
     });
 
@@ -420,6 +426,8 @@ describe("publicSnapshotForParty", () => {
         currentScriptIndex: 0,
         currentItemStartedAt: null,
         waitingForManualAction: false,
+        scheduledAdvanceAt: null,
+        pendingScriptUpdates: null,
       },
     });
 
