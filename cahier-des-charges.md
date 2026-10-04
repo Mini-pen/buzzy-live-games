@@ -583,7 +583,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 **Comportement :**
 
-- Avant chaque type de jeu (quiz, blind test, révélation progressive, etc.), une courte introduction animée (3 à 10 secondes) explique la mécanique aux joueurs.
+- Avant chaque type de jeu (quiz, blind test, révélation progressive, etc.), une courte introduction animée explique la mécanique aux joueurs.
 - Le tutoriel est affiché sur le grand écran spectateur et dans l'interface joueur.
 - Chaque type de jeu est marqué dans les métadonnées comme nécessitant une validation manuelle de l'animateur (points attribués manuellement) ou entièrement automatique (scoring sans intervention).
 - Chaque jeu peut être lancé en mode « Normal » (avec tutoriel et contrôle animateur) ou « Autonome » (sans tutoriel, enchaînement automatique).
@@ -603,7 +603,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 **Critères d'acceptation :**
 
 - Chaque type de jeu (`quiz`, `audio_blind`, `progressive_guess`, etc.) a un tutoriel associé.
-- Au lancement d'une manche, si c'est la première du type dans la partie, le tutoriel s'affiche (3 à 10 secondes).
+- Au lancement d'une manche, si c'est la première du type dans la partie, le tutoriel s'affiche.
 - L'interface admin affiche un badge « Auto » ou « Manuel » pour chaque manche du script.
 - L'animateur peut choisir « Lancer en mode autonome » (skip tutoriel, enchaînement auto) ou « Lancer en mode normal ».
 
