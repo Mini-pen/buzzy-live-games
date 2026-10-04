@@ -1983,6 +1983,7 @@ function Play(): JSX.Element {
   const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
   const [readyLoading, setReadyLoading] = useState(false);
+  const [countdownCompleted, setCountdownCompleted] = useState(false);
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
