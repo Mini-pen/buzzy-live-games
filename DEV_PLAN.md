@@ -249,15 +249,17 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 ### 7.4 Introductions animées et tutoriels automatiques
 
-**Statut :** À implémenter.
+**Statut :** ✅ Fait (commit 0392f22, merged dans main).
 
 **Description :** Avant chaque type de jeu (quiz, blind test, révélation progressive, etc.), une courte introduction animée explique la mécanique. Le tutoriel est affiché sur le grand écran et dans l'interface joueur. Chaque jeu peut être lancé en mode « Normal » (avec tutoriel) ou « Autonome » (sans tutoriel, enchaînement automatique).
 
 **Règles :**
-- Les tutoriels sont pré-conçus (vidéo courte, animation SVG, slides).
+- Les tutoriels sont pré-conçus (slides avec icônes et texte, stockés côté serveur).
 - Le tutoriel est affiché uniquement au premier lancement d'un type de jeu dans une partie.
 - Les jeux automatiques (ex. QCM avec auto-avance) enchaînent sans attendre l'animateur.
 - Les jeux manuels attendent la validation après chaque buzz.
+- Badges « Auto » et « Manuel » affichés dans le script des manches.
+- Interface en français avec boutons « Lancer en mode normal » et « Lancer en mode autonome ».
 
 ---
 
