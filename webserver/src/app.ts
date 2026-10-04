@@ -12,6 +12,7 @@ import type { PartyStore } from "./domain/store.js";
 import type { LoadedBuzzSoundCatalog } from "./games/buzzSoundCatalog.js";
 import type { QuizPack } from "./games/pack.js";
 import type { ImportedPackStore } from "./games/zipPackImporter.js";
+import type { PackEditorStore } from "./games/packEditor.js";
 import { registerPartyRoutes } from "./http/routesParty.js";
 import { resolveAvatarsServingRoot } from "./avatars/catalog.js";
 
@@ -20,6 +21,7 @@ export interface BuildDeps {
   store: PartyStore;
   packs: Map<string, QuizPack>;
   importedPacks: ImportedPackStore;
+  packEditor: PackEditorStore;
   buzzCatalog: LoadedBuzzSoundCatalog;
 }
 
@@ -48,6 +50,7 @@ export async function buildApp(opts: BuildDeps): Promise<ReturnType<typeof Fasti
     store: opts.store,
     packs: opts.packs,
     importedPacks: opts.importedPacks,
+    packEditor: opts.packEditor,
     config: opts.config,
     buzzCatalog: opts.buzzCatalog,
   });

@@ -2199,6 +2199,16 @@ function Admin(): JSX.Element {
   const [importZipUploading, setImportZipUploading] = useState(false);
   const [importZipError, setImportZipError] = useState<string | null>(null);
 
+  /** * Pack editor */
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorId, setEditorId] = useState<string | null>(null);
+  const [editorPack, setEditorPack] = useState<unknown>(null);
+  const [editorError, setEditorError] = useState<string | null>(null);
+  const [editorValidationErrors, setEditorValidationErrors] = useState<string[]>([]);
+  const [editorDownloadingImage, setEditorDownloadingImage] = useState(false);
+  const [editorImageUrl, setEditorImageUrl] = useState("");
+  const [editorDirty, setEditorDirty] = useState(false);
+
   useEffect(() => {
     void fetchJson<{
       packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
@@ -2776,6 +2786,157 @@ function Admin(): JSX.Element {
     },
     [deltaById, onPlayerScoreDelta],
   );
+
+  const onStartPackEditor = useCallback(
+    async (packId: string): Promise<void> => {
+      setEditorError(null);
+      setEditorValidationErrors([]);
+      try {
+        const res = await fetchJson<{ editorId: string; pack: unknown }>(
+          `${hostBasePath}/host/editor/start`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${bearer}`,
+            },
+            body: JSON.stringify({ packId }),
+          },
+        );
+        setEditorId(res.editorId);
+        setEditorPack(res.pack);
+        setEditorDirty(false);
+        setEditorOpen(true);
+      } catch (e) {
+        setEditorError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [hostBasePath, bearer],
+  );
+
+  const onUpdateEditorPack = useCallback(
+    async (pack: unknown): Promise<void> => {
+      if (!editorId) return;
+      setEditorError(null);
+      setEditorValidationErrors([]);
+      try {
+        const res = await fetchJson<{ pack: unknown }>(
+          `${hostBasePath}/host/editor/${encodeURIComponent(editorId)}`,
+          {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${bearer}`,
+            },
+            body: JSON.stringify({ pack }),
+          },
+        );
+        setEditorPack(res.pack);
+        setEditorDirty(true);
+      } catch (e) {
+        if (typeof e === "object" && e !== null && "error" in e && e.error === "VALIDATION") {
+          const issues = (e as { issues?: Array<{ message: string; path: string[] }> }).issues ?? [];
+          setEditorValidationErrors(issues.map((i) => `${i.path.join(".")}: ${i.message}`));
+        }
+        setEditorError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [editorId, hostBasePath, bearer],
+  );
+
+  const onDownloadImage = useCallback(
+    async (imageUrl: string): Promise<string | null> => {
+      if (!editorId) return null;
+      setEditorError(null);
+      setEditorDownloadingImage(true);
+      try {
+        const res = await fetchJson<{ relativePath: string; size: number }>(
+          `${hostBasePath}/host/editor/${encodeURIComponent(editorId)}/download-image`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${bearer}`,
+            },
+            body: JSON.stringify({ imageUrl }),
+          },
+        );
+        return res.relativePath;
+      } catch (e) {
+        setEditorError(e instanceof Error ? e.message : String(e));
+        return null;
+      } finally {
+        setEditorDownloadingImage(false);
+      }
+    },
+    [editorId, hostBasePath, bearer],
+  );
+
+  const onExportPack = useCallback(async (): Promise<void> => {
+    if (!editorId) return;
+    setEditorError(null);
+    try {
+      const res = await fetch(
+        withBase(`${hostBasePath}/host/editor/${encodeURIComponent(editorId)}/export`),
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${bearer}`,
+          },
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Erreur ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${(editorPack as { id?: string })?.id ?? "pack"}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setEditorError(e instanceof Error ? e.message : String(e));
+    }
+  }, [editorId, editorPack, hostBasePath, bearer]);
+
+  const onUseEditedPack = useCallback(async (): Promise<void> => {
+    if (!editorId) return;
+    setEditorError(null);
+    try {
+      await fetchJson<{ pack: { id: string; title: string; version: number; roundCount: number } }>(
+        `${hostBasePath}/host/editor/${encodeURIComponent(editorId)}/use`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${bearer}`,
+          },
+        },
+      );
+      // * Refresh packs list
+      const r = await fetchJson<{
+        packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
+      }>(`/api/packs`);
+      setPacksList(r.packs);
+      setEditorDirty(false);
+    } catch (e) {
+      setEditorError(e instanceof Error ? e.message : String(e));
+    }
+  }, [editorId, hostBasePath, bearer]);
+
+  const onCloseEditor = useCallback((): void => {
+    if (editorDirty && !window.confirm("Les modifications non exportées seront perdues. Continuer ?")) {
+      return;
+    }
+    setEditorOpen(false);
+    setEditorId(null);
+    setEditorPack(null);
+    setEditorError(null);
+    setEditorValidationErrors([]);
+    setEditorDirty(false);
+    setEditorImageUrl("");
+  }, [editorDirty]);
 
   const onHostRoundStart = useCallback(async (): Promise<void> => {
     if (snap === null) return;
@@ -3360,6 +3521,21 @@ function Admin(): JSX.Element {
                       ))}
                     </select>
                   </label>
+                  <div style={{ marginBottom: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selectedPack = packsList.find((p) => p.basename === modalPackBasename);
+                        if (selectedPack) {
+                          void onStartPackEditor(selectedPack.id);
+                          setAddMancheOpen(false);
+                        }
+                      }}
+                      style={{ width: "100%" }}
+                    >
+                      Éditer ce pack
+                    </button>
+                  </div>
                   <label style={{ display: "block", marginBottom: 8 }}>
                     Titre affiché (optionnel ; par défaut le titre du JSON)
                     <input
@@ -3550,6 +3726,112 @@ function Admin(): JSX.Element {
                   }}
                 >
                   {importZipUploading ? "Fermer après import" : "Annuler"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editorOpen && editorPack ? (
+          <div
+            role="presentation"
+            className="bz-modal-overlay"
+            onMouseDown={(evt) => {
+              if (evt.target === evt.currentTarget) onCloseEditor();
+            }}
+          >
+            <div
+              role="dialog"
+              aria-labelledby="editor-title"
+              className="bz-modal-dialog"
+              style={{ maxWidth: 800, width: "90%" }}
+              onMouseDown={(evt) => {
+                evt.stopPropagation();
+              }}
+            >
+              <h2 id="editor-title">Éditeur de pack</h2>
+              {editorError ? (
+                <p style={{ color: "crimson", marginBottom: 12 }}>{editorError}</p>
+              ) : null}
+              {editorValidationErrors.length > 0 ? (
+                <div style={{ color: "crimson", marginBottom: 12, fontSize: 13 }}>
+                  <p style={{ margin: "0 0 8px", fontWeight: "bold" }}>Erreurs de validation :</p>
+                  <ul style={{ margin: 0, paddingLeft: 20 }}>
+                    {editorValidationErrors.map((err, i) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", marginBottom: 8 }}>
+                  Ajouter une image depuis URL
+                  <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                    <input
+                      type="url"
+                      value={editorImageUrl}
+                      onChange={(e) => setEditorImageUrl(e.target.value)}
+                      placeholder="https://exemple.com/image.jpg"
+                      style={{ flex: 1 }}
+                      disabled={editorDownloadingImage}
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const relativePath = await onDownloadImage(editorImageUrl);
+                        if (relativePath) {
+                          setEditorImageUrl("");
+                          alert(`Image téléchargée : ${relativePath}`);
+                        }
+                      }}
+                      disabled={editorDownloadingImage || !editorImageUrl.trim()}
+                    >
+                      {editorDownloadingImage ? "Téléchargement…" : "Ajouter"}
+                    </button>
+                  </div>
+                </label>
+                <p style={{ fontSize: 13, color: "#666", margin: "4px 0 0" }}>
+                  L'image sera redimensionnée (max 1920×1080) et comprimée (max 500 Ko par défaut).
+                </p>
+              </div>
+              <div style={{ marginBottom: 16, maxHeight: 400, overflowY: "auto", border: "1px solid #ddd", padding: 12, borderRadius: 4 }}>
+                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Structure du pack (JSON)</h3>
+                <textarea
+                  value={JSON.stringify(editorPack, null, 2)}
+                  onChange={(e) => {
+                    try {
+                      const parsed = JSON.parse(e.target.value);
+                      void onUpdateEditorPack(parsed);
+                    } catch {
+                      // * Keep typing
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    minHeight: 300,
+                    fontFamily: "monospace",
+                    fontSize: 12,
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <div className="bz-modal-actions">
+                <button
+                  type="button"
+                  onClick={() => void onUseEditedPack()}
+                  disabled={editorValidationErrors.length > 0}
+                >
+                  Utiliser immédiatement
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void onExportPack()}
+                  disabled={editorValidationErrors.length > 0}
+                >
+                  Exporter en ZIP
+                </button>
+                <button type="button" onClick={onCloseEditor}>
+                  Fermer
                 </button>
               </div>
             </div>

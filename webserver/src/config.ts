@@ -26,6 +26,8 @@ export interface AppConfig {
   corsOrigin: boolean | string | string[];
   /** * Max size in bytes for imported ZIP packs. */
   maxZipPackBytes: number;
+  /** * Max image weight in bytes after compression (editor URL download). */
+  maxEditorImageBytes: number;
 }
 
 function envString(name: string, fallback?: string): string {
@@ -87,5 +89,6 @@ export function loadConfig(): AppConfig {
         : path.resolve(MODULE_DIR, "../../games"),
     corsOrigin: corsParsed,
     maxZipPackBytes: envInt("MAX_ZIP_PACK_BYTES", 50 * 1024 * 1024),
+    maxEditorImageBytes: envInt("MAX_EDITOR_IMAGE_BYTES", 500 * 1024),
   };
 }

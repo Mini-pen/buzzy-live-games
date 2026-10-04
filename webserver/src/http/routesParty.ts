@@ -12,10 +12,12 @@ import type { PartyStore, QuizBuzzChoiceOpts } from "../domain/store.js";
 import type { Party } from "../domain/types.js";
 import { partySnapshotWithGame, quizPackFromLoadedId } from "../domain/partySnapshotPresenter.js";
 import type { QuizPack } from "../games/pack.js";
-import { isQuizRound } from "../games/pack.js";
+import { isQuizRound, quizPackSchema } from "../games/pack.js";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
 import type { ImportedPackStore } from "../games/zipPackImporter.js";
 import { importZipPack } from "../games/zipPackImporter.js";
+import { PackEditorStore } from "../games/packEditor.js";
+import { downloadAndCompressImage } from "../games/imageDownloader.js";
 import {
   isBuzzerClipForPlayerChoice,
   resolveBuzzSoundPublicUrl,
@@ -37,6 +39,7 @@ export interface PartyRouteDeps {
   store: PartyStore;
   packs: Map<string, QuizPack>;
   importedPacks: ImportedPackStore;
+  packEditor: PackEditorStore;
   config: AppConfig;
   buzzCatalog: LoadedBuzzSoundCatalog;
 }
@@ -926,6 +929,252 @@ export async function registerPartyRoutes(
             roundCount: pack.rounds.length,
           },
         });
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  const { packEditor } = deps;
+
+  app.post<{ Params: { partyId: string }; Body: { packId: string } }>(
+    "/api/parties/:partyId/host/editor/start",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const body = z.object({ packId: z.string().min(1) }).parse(req.body);
+
+        let pack = packs.get(body.packId);
+        const existingMedia = new Map<string, Buffer>();
+
+        if (!pack) {
+          pack = importedPacks.get(body.packId);
+          if (!pack) {
+            return reply.status(404).send({ error: "PACK_NOT_FOUND" });
+          }
+          // * For imported packs, collect existing media
+          // * (Media paths in imported packs are already normalized to /imported-packs/:id/...)
+        }
+
+        const editorId = packEditor.startEditing(pack, existingMedia);
+
+        app.log.info({ partyId: party.id, packId: body.packId, editorId }, "Pack editor started");
+
+        return reply.status(200).send({
+          editorId,
+          pack,
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.get<{ Params: { partyId: string; editorId: string } }>(
+    "/api/parties/:partyId/host/editor/:editorId",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const pack = packEditor.get(req.params.editorId);
+        if (!pack) {
+          return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
+        }
+
+        return reply.status(200).send({ pack });
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.put<{ Params: { partyId: string; editorId: string }; Body: { pack: unknown } }>(
+    "/api/parties/:partyId/host/editor/:editorId",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const body = z.object({ pack: z.unknown() }).parse(req.body);
+        const validated = quizPackSchema.parse(body.pack);
+
+        packEditor.update(req.params.editorId, validated);
+
+        app.log.info(
+          { partyId: party.id, editorId: req.params.editorId, packId: validated.id },
+          "Pack editor updated",
+        );
+
+        return reply.status(200).send({ pack: validated });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string; editorId: string }; Body: { imageUrl: string } }>(
+    "/api/parties/:partyId/host/editor/:editorId/download-image",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const body = z.object({ imageUrl: z.string().url() }).parse(req.body);
+
+        const { buffer, format } = await downloadAndCompressImage(
+          body.imageUrl,
+          config.maxEditorImageBytes,
+        );
+
+        const filename = `images/${Date.now()}.${format}`;
+        const relativePath = packEditor.addMedia(req.params.editorId, filename, buffer);
+
+        app.log.info(
+          {
+            partyId: party.id,
+            editorId: req.params.editorId,
+            imageUrl: body.imageUrl,
+            filename,
+            size: buffer.length,
+          },
+          "Image downloaded and added to pack",
+        );
+
+        return reply.status(200).send({
+          relativePath,
+          size: buffer.length,
+        });
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.get<{ Params: { partyId: string; editorId: string } }>(
+    "/api/parties/:partyId/host/editor/:editorId/export",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const zipBuffer = packEditor.exportAsZip(req.params.editorId);
+        const pack = packEditor.get(req.params.editorId);
+
+        if (!pack) {
+          return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
+        }
+
+        app.log.info(
+          { partyId: party.id, editorId: req.params.editorId, packId: pack.id },
+          "Pack exported as ZIP",
+        );
+
+        return reply
+          .status(200)
+          .header("Content-Type", "application/zip")
+          .header("Content-Disposition", `attachment; filename="${pack.id}.zip"`)
+          .send(zipBuffer);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string; editorId: string } }>(
+    "/api/parties/:partyId/host/editor/:editorId/use",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        const pack = packEditor.get(req.params.editorId);
+        if (!pack) {
+          return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
+        }
+
+        const media = packEditor.getMedia(req.params.editorId);
+        if (!media) {
+          return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
+        }
+
+        // * Create a synthetic ZIP to re-import the edited pack
+        const zipBuffer = packEditor.exportAsZip(req.params.editorId);
+
+        const existingDiskPackIds = new Set([...packs.values()].map((p) => p.id));
+        const existingImportedPackIds = new Set([...importedPacks.getAll().values()].map((p) => p.id));
+
+        // * Remove the existing imported pack with the same id if it exists
+        existingImportedPackIds.delete(pack.id);
+
+        const { pack: importedPack, zipEntries } = importZipPack(
+          zipBuffer,
+          config.maxZipPackBytes,
+          existingDiskPackIds,
+          existingImportedPackIds,
+        );
+
+        importedPacks.add(importedPack, zipEntries);
+
+        app.log.info(
+          { partyId: party.id, editorId: req.params.editorId, packId: pack.id },
+          "Edited pack imported for immediate use",
+        );
+
+        return reply.status(200).send({
+          pack: {
+            id: importedPack.id,
+            title: importedPack.title,
+            version: importedPack.version,
+            roundCount: importedPack.rounds.length,
+          },
+        });
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.delete<{ Params: { partyId: string; editorId: string } }>(
+    "/api/parties/:partyId/host/editor/:editorId",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+
+        packEditor.close(req.params.editorId);
+
+        app.log.info(
+          { partyId: party.id, editorId: req.params.editorId },
+          "Pack editor session closed",
+        );
+
+        return reply.status(204).send();
       } catch (err) {
         return replyDomain(reply, err);
       }
