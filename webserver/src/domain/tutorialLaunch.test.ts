@@ -416,7 +416,7 @@ describe("PartyStore - Tutorial System (evolution 4.4)", () => {
   });
 
   describe("Tutorial not shown in autonomous mode", () => {
-    it("shows tutorial in autonomous mode on first launch (autonomous does not skip tutorial)", () => {
+    it("does not show tutorial when launching in autonomous mode", () => {
       const quizPack = createQuizPack("quiz-pack");
       packs.set("quiz-pack", quizPack);
       addManche(store, party, "quiz-pack", "Quiz Manche");
@@ -430,20 +430,20 @@ describe("PartyStore - Tutorial System (evolution 4.4)", () => {
         packs,
       );
 
-      expect(result.shouldShowTutorial).toBe(true);
+      expect(result.shouldShowTutorial).toBe(false);
       expect(result.gameKind).toBe("quiz");
-      expect(party.seenGameKinds.has("quiz")).toBe(true);
+      expect(party.seenGameKinds.has("quiz")).toBe(false);
 
       const tutorialNotif = notifications.find((n) => {
         const meta = Array.isArray(n.meta) ? n.meta : [n.meta];
         return meta.some((m) => m?.kind === "tutorial");
       });
-      expect(tutorialNotif).toBeDefined();
+      expect(tutorialNotif).toBeUndefined();
     });
   });
 
-  describe("Skip intro flag marks kind as seen", () => {
-    it("marks kind as seen when skipIntro is true", () => {
+  describe("Skip intro flag does not mark kind as seen", () => {
+    it("does not mark kind as seen when skipIntro is true", () => {
       const quizPack = createQuizPack("quiz-pack");
       packs.set("quiz-pack", quizPack);
       addManche(store, party, "quiz-pack", "Quiz Manche");
@@ -515,14 +515,14 @@ describe("PartyStore - Tutorial System (evolution 4.4)", () => {
       expect(party.seenGameKinds.has("quiz")).toBe(true);
     });
 
-    it("adds kind to seenGameKinds in autonomous mode when tutorial is shown", () => {
+    it("does not add kind to seenGameKinds when autonomous mode is used", () => {
       const quizPack = createQuizPack("quiz-pack");
       packs.set("quiz-pack", quizPack);
       addManche(store, party, "quiz-pack", "Quiz Manche");
 
       store.hostLaunchManche(party, party.mancheScript[0]!.id, "autonomous", false, packs);
 
-      expect(party.seenGameKinds.has("quiz")).toBe(true);
+      expect(party.seenGameKinds.has("quiz")).toBe(false);
     });
 
     it("does not add kind to seenGameKinds when skipIntro is true", () => {
