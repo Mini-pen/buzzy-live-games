@@ -591,11 +591,18 @@ export class PartyStore {
     return false;
   }
 
-  /** * Clears any buzz queue then optionally opens the buzzer per host « auto suivant » policy. */
+  /** * Clears any buzz queue then optionally starts ready phase or opens the buzzer per host « auto suivant » policy. */
   private reopenBuzzAccordingToCueAdvancePolicy(party: Party, pack: QuizPack | null): void {
     clearBuzzQueue(party);
-    party.buzzWindowOpen =
-      pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
+    const shouldOpen = pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
+    if (shouldOpen) {
+      this.clearReadyPhase(party);
+      party.readyPhaseStartedAt = Date.now();
+      party.buzzWindowOpen = false;
+    } else {
+      party.buzzWindowOpen = false;
+      this.clearReadyPhase(party);
+    }
   }
 
   private syncActiveQuizProgressIntoScriptItem(party: Party): void {
@@ -1050,6 +1057,16 @@ export class PartyStore {
   clearReadyPhase(party: Party): void {
     party.readyPlayers.clear();
     party.readyPhaseStartedAt = null;
+  }
+
+  adminStartCountdownAndOpenBuzz(party: Party): void {
+    if (party.state !== "round_active") {
+      throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
+    }
+    this.clearReadyPhase(party);
+    party.buzzWindowOpen = true;
+    this.touch(party);
+    this.broadcast(party);
   }
 
   /** * Picks a good/bad outcome sound, optionally awards current-cue points, removes the player from the buzz queue. */

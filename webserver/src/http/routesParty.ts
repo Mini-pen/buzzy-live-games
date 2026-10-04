@@ -830,6 +830,22 @@ export async function registerPartyRoutes(
   );
 
   app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/start-countdown",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminStartCountdownAndOpenBuzz(party);
+        return snapHost(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
     "/api/parties/:partyId/host/delete",
     async (req, reply) => {
       try {
