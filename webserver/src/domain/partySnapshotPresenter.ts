@@ -305,12 +305,12 @@ export function partySnapshotWithGame(
     readyPlayers: party.readyPlayers ? [...party.readyPlayers] : [],
     readyPhaseStartedAt: party.readyPhaseStartedAt,
     countdownStartedAt: party.countdownStartedAt,
+    countdownDurationSec: party.countdownDurationSec,
     winnerDisplay: party.winnerDisplay,
   };
   const hostExtraFields =
     audience === "host"
       ? {
-          countdownDurationSec: party.countdownDurationSec,
           winnerScreenMode: party.winnerScreenMode,
         }
       : {};
