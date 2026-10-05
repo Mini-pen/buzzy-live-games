@@ -294,6 +294,7 @@ export function partySnapshotWithGame(
             allowedGoodKeys: [...party.buzzSound.allowedGoodKeys],
             allowedBadKeys: [...party.buzzSound.allowedBadKeys],
           },
+          playVerdictSounds: party.buzzSound.playVerdictSounds,
           autoOpenBuzzOnCueAdvance: party.autoOpenBuzzOnCueAdvance === true,
           autoAdvanceQuizWhenAllBuzzed: party.autoAdvanceQuizWhenAllBuzzed === true,
         }
