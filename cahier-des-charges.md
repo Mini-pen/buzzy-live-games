@@ -577,6 +577,8 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 - Si une manche nécessite une intervention manuelle (ex. validation de buzz), le mode automatique attend l'action de l'animateur avant de continuer.
 - Si l'animateur modifie le `mancheScript` pendant le mode automatique, les changements sont pris en compte après la manche en cours.
 
+**Statut :** Livré et testé.
+
 ---
 
 ### 4.4 Introductions animées et tutoriels automatiques
@@ -606,11 +608,14 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 - Au lancement d'une manche, si c'est la première du type dans la partie, le tutoriel s'affiche.
 - L'interface admin affiche un badge « Auto » ou « Manuel » pour chaque manche du script.
 - L'animateur peut choisir « Lancer en mode autonome » (skip tutoriel, enchaînement auto) ou « Lancer en mode normal ».
+- En mode autonome, aucun tutoriel n'est présenté, ni sur l'écran de diffusion (broadcast) ni dans l'interface joueur.
 
 **Cas limites :**
 
 - Si l'animateur skip le tutoriel manuellement, il n'est pas affiché.
 - Si un joueur rejoint après le tutoriel, il ne le voit pas (sauf si l'animateur relance explicitement).
+
+**Statut :** Livré — tests présents sur main (PR 13, `6f310f8`) mais suite Vitest non rejouée / non vérifiée (quota).
 
 ---
 
