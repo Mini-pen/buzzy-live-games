@@ -611,6 +611,20 @@ export class PartyStore {
     }
   }
 
+  /** * Triggers winner screen automatically if configured for end-of-question and conditions are met. */
+  private maybeAutoShowWinnerEndOfQuestion(party: Party): void {
+    if (party.winnerScreenMode === "question" && party.state === "round_active") {
+      this.computeAndShowWinner(party);
+    }
+  }
+
+  /** * Triggers winner screen automatically if configured for end-of-round and conditions are met. */
+  private maybeAutoShowWinnerEndOfRound(party: Party): void {
+    if (party.winnerScreenMode === "round" && party.state === "round_active") {
+      this.computeAndShowWinner(party);
+    }
+  }
+
   private syncActiveQuizProgressIntoScriptItem(party: Party): void {
     if (party.activeMancheId === null || party.state !== "round_active") return;
     const item = party.mancheScript.find((m) => m.id === party.activeMancheId);
@@ -880,6 +894,7 @@ export class PartyStore {
     }
     if (isFreeBuzzRound(round)) {
       const qix = party.currentQuestionIndex ?? 0;
+      this.maybeAutoShowWinnerEndOfQuestion(party);
       party.currentQuestionIndex = qix + 1;
       this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
       this.syncActiveQuizProgressIntoScriptItem(party);
@@ -891,6 +906,7 @@ export class PartyStore {
       const qix = party.currentQuestionIndex ?? 0;
       const nextIx = qix + 1;
       if (nextIx < round.tracks.length) {
+        this.maybeAutoShowWinnerEndOfQuestion(party);
         party.currentQuestionIndex = nextIx;
         party.videoReplaySerial += 1;
         this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
@@ -899,6 +915,7 @@ export class PartyStore {
         this.broadcast(party);
         return;
       }
+      this.maybeAutoShowWinnerEndOfRound(party);
       throw Object.assign(
         new Error("Fin des extraits de cette manche — passez à la suivante ou mettez en pause."),
         { code: "ROUND_EXHAUSTED" },
@@ -908,6 +925,7 @@ export class PartyStore {
       const qix = party.currentQuestionIndex ?? 0;
       const nextIx = qix + 1;
       if (nextIx < round.slides.length) {
+        this.maybeAutoShowWinnerEndOfQuestion(party);
         party.currentQuestionIndex = nextIx;
         party.videoReplaySerial += 1;
         this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
@@ -916,6 +934,7 @@ export class PartyStore {
         this.broadcast(party);
         return;
       }
+      this.maybeAutoShowWinnerEndOfRound(party);
       throw Object.assign(
         new Error("Fin des images de cette manche — passez à la suivante ou mettez en pause."),
         { code: "ROUND_EXHAUSTED" },
@@ -926,6 +945,7 @@ export class PartyStore {
       const nextIx = qix + 1;
       const total = progressiveGuessTotalFlatSteps(round);
       if (nextIx < total) {
+        this.maybeAutoShowWinnerEndOfQuestion(party);
         party.currentQuestionIndex = nextIx;
         party.videoReplaySerial += 1;
         this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
@@ -934,6 +954,7 @@ export class PartyStore {
         this.broadcast(party);
         return;
       }
+      this.maybeAutoShowWinnerEndOfRound(party);
       throw Object.assign(
         new Error("Fin des énigmes de cette manche — passez à la suivante ou mettez en pause."),
         { code: "ROUND_EXHAUSTED" },
@@ -948,6 +969,7 @@ export class PartyStore {
     }
     const nextQ = qi + 1;
     if (nextQ < round.questions.length) {
+      this.maybeAutoShowWinnerEndOfQuestion(party);
       party.currentQuestionIndex = nextQ;
       this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
       this.syncActiveQuizProgressIntoScriptItem(party);
@@ -955,6 +977,7 @@ export class PartyStore {
       this.broadcast(party);
       return;
     }
+    this.maybeAutoShowWinnerEndOfRound(party);
     throw Object.assign(
       new Error("Fin des questions de cette manche — passez à la suivante ou mettez en pause."),
       { code: "ROUND_EXHAUSTED" },
@@ -1128,6 +1151,7 @@ export class PartyStore {
     
     if (elapsed >= countdownMs) {
       party.buzzWindowOpen = true;
+      party.winnerDisplay = null;
       this.clearReadyPhase(party);
       this.touch(party);
       this.broadcast(party);
@@ -1140,7 +1164,6 @@ export class PartyStore {
     party.readyPlayers.clear();
     party.readyPhaseStartedAt = null;
     party.countdownStartedAt = null;
-    party.winnerDisplay = null;
   }
 
   adminStartCountdownAndOpenBuzz(party: Party): void {
@@ -1148,6 +1171,7 @@ export class PartyStore {
       throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
     }
     this.clearReadyPhase(party);
+    party.winnerDisplay = null;
     party.buzzWindowOpen = true;
     this.touch(party);
     this.broadcast(party);

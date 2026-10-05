@@ -170,6 +170,7 @@ interface PartySnapshot {
     allowedGoodKeys: string[];
     allowedBadKeys: string[];
   };
+  playVerdictSounds?: boolean;
   buzzQuizQueueDetail?: Array<{
     playerId: string;
     choiceIndex: number;
@@ -3577,8 +3578,8 @@ function Admin(): JSX.Element {
                 <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                   <input
                     type="checkbox"
-                    checked={snap.soundBuzzerHostConfig?.allowedGoodKeys?.length === 0 || false}
-                    onChange={(e) => void onHostVerdictSoundsToggle(!e.target.checked)}
+                    checked={snap.playVerdictSounds === true}
+                    onChange={(e) => void onHostVerdictSoundsToggle(e.target.checked)}
                   />
                   <span>Jouer les sons bon/mauvais après jugement de buzz</span>
                 </label>
@@ -4269,6 +4270,17 @@ function Broadcast(): JSX.Element {
             score={snap.winnerDisplay.score}
           />
         )}
+
+        {snap.state === "round_active" &&
+        snap.countdownStartedAt !== null &&
+        !snap.buzzWindowOpen ? (
+          <CountdownDisplay
+            durationSec={5}
+            onComplete={() => {
+              /* * Countdown completes when server opens buzz; no client action needed. */
+            }}
+          />
+        ) : null}
 
         {snap.state === "lobby" ? (
           <div className="bz-bc-lobby">
