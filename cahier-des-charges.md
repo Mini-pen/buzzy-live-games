@@ -615,7 +615,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 - Si l'animateur skip le tutoriel manuellement, il n'est pas affiché.
 - Si un joueur rejoint après le tutoriel, il ne le voit pas (sauf si l'animateur relance explicitement).
 
-**Statut :** Livré — tests présents sur main (PR 13, `6f310f8`) mais suite Vitest non rejouée / non vérifiée (quota).
+**Statut :** Livré et testé — suite Vitest rejouée sur main à `c1e8408` : 288/288 tests verts (20 fichiers), dont `tutorials` et `tutorialLaunch` (mode autonome sans tutoriel ni marquage `seenGameKinds`).
 
 ---
 
