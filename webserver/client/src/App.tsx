@@ -222,24 +222,30 @@ function mancheKindShort(kind: MancheCatalogItemView["kind"]): string {
 }
 
 function CountdownDisplay(props: {
+  countdownStartedAt: number;
   durationSec: number;
   onComplete: () => void;
 }): JSX.Element {
-  const [remaining, setRemaining] = React.useState(props.durationSec);
+  const computeRemaining = (): number => {
+    const elapsed = Date.now() - props.countdownStartedAt;
+    const elapsedSec = Math.floor(elapsed / 1000);
+    const remaining = Math.max(0, props.durationSec - elapsedSec);
+    return remaining;
+  };
+
+  const [remaining, setRemaining] = React.useState(computeRemaining);
 
   React.useEffect(() => {
     const interval = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval);
-          props.onComplete();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
+      const newRemaining = computeRemaining();
+      setRemaining(newRemaining);
+      if (newRemaining <= 0) {
+        clearInterval(interval);
+        props.onComplete();
+      }
+    }, 100);
     return () => clearInterval(interval);
-  }, [props]);
+  }, [props.countdownStartedAt, props.durationSec]);
 
   if (remaining === 0) {
     return (
@@ -632,7 +638,13 @@ function ReadyCountdownHero(props: {
   } = props;
 
   if (countdownStartedAt !== null) {
-    return <CountdownDisplay durationSec={countdownDurationSec} onComplete={onCountdownComplete} />;
+    return (
+      <CountdownDisplay
+        countdownStartedAt={countdownStartedAt}
+        durationSec={countdownDurationSec}
+        onComplete={onCountdownComplete}
+      />
+    );
   }
 
   if (!isReady) {
@@ -4275,7 +4287,8 @@ function Broadcast(): JSX.Element {
         snap.countdownStartedAt !== null &&
         !snap.buzzWindowOpen ? (
           <CountdownDisplay
-            durationSec={5}
+            countdownStartedAt={snap.countdownStartedAt}
+            durationSec={snap.countdownDurationSec ?? 5}
             onComplete={() => {
               /* * Countdown completes when server opens buzz; no client action needed. */
             }}
