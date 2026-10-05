@@ -140,6 +140,7 @@ export class PartyStore {
       allowedBadKeys: b,
       playPlayerBuzzTone: next.playPlayerBuzzTone,
       echoPlayerBuzzOnHost: next.echoPlayerBuzzOnHost,
+      playVerdictSounds: party.buzzSound.playVerdictSounds,
     };
     this.touch(party);
     this.broadcast(party);
@@ -151,6 +152,10 @@ export class PartyStore {
 
   get(partyId: string): Party | undefined {
     return this.parties.get(partyId);
+  }
+
+  getAllParties(): Party[] {
+    return [...this.parties.values()];
   }
 
   getByJoinCode(code: string): Party | undefined {
@@ -205,6 +210,7 @@ export class PartyStore {
         allowedBadKeys: pol.allowedBadKeys,
         playPlayerBuzzTone: true,
         echoPlayerBuzzOnHost: true,
+        playVerdictSounds: true,
       },
       mancheScript: [],
       activeMancheId: null,
@@ -218,6 +224,12 @@ export class PartyStore {
         pendingScriptUpdates: null,
       },
       seenGameKinds: new Set(),
+      countdownDurationSec: 5,
+      winnerScreenMode: "question",
+      readyPlayers: new Set(),
+      readyPhaseStartedAt: null,
+      countdownStartedAt: null,
+      winnerDisplay: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -539,6 +551,17 @@ export class PartyStore {
         verdict: good ? "good" : "bad",
       });
       extras.push({ kind: "quiz_auto_toast", playerId: pid, correct: good });
+      if (party.buzzSound.playVerdictSounds) {
+        const keys = good ? party.buzzSound.allowedGoodKeys : party.buzzSound.allowedBadKeys;
+        if (keys.length > 0) {
+          const pickKey = keys[Math.floor(Math.random() * keys.length)]!;
+          const sfx = this.buzzCatalog.byKey.get(pickKey);
+          if (sfx) {
+            const url = resolveBuzzSoundPublicUrl(sfx).trim();
+            if (url !== "") extras.push({ kind: "answer_fx", url });
+          }
+        }
+      }
     }
     clearBuzzQueue(party);
     this.syncActiveQuizProgressIntoScriptItem(party);
@@ -574,11 +597,18 @@ export class PartyStore {
     return false;
   }
 
-  /** * Clears any buzz queue then optionally opens the buzzer per host « auto suivant » policy. */
+  /** * Clears any buzz queue then optionally starts ready phase or opens the buzzer per host « auto suivant » policy. */
   private reopenBuzzAccordingToCueAdvancePolicy(party: Party, pack: QuizPack | null): void {
     clearBuzzQueue(party);
-    party.buzzWindowOpen =
-      pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
+    const shouldOpen = pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
+    if (shouldOpen) {
+      this.clearReadyPhase(party);
+      party.readyPhaseStartedAt = Date.now();
+      party.buzzWindowOpen = false;
+    } else {
+      party.buzzWindowOpen = false;
+      this.clearReadyPhase(party);
+    }
   }
 
   private syncActiveQuizProgressIntoScriptItem(party: Party): void {
@@ -784,7 +814,11 @@ export class PartyStore {
     }
     
     const gameKind = this.inferGameKindFromManche(picked, packs);
-    const shouldShowTutorial = !skipIntro && gameKind !== null && !party.seenGameKinds.has(gameKind);
+    const shouldShowTutorial =
+      mode !== "autonomous" &&
+      !skipIntro &&
+      gameKind !== null &&
+      !party.seenGameKinds.has(gameKind);
     
     if (shouldShowTutorial && gameKind !== null) {
       party.seenGameKinds.add(gameKind);
@@ -989,6 +1023,136 @@ export class PartyStore {
     this.broadcast(party);
   }
 
+  adminSetVerdictSoundsEnabled(party: Party, enabled: boolean): void {
+    party.buzzSound.playVerdictSounds = enabled;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  adminSetCountdownDuration(party: Party, seconds: number): void {
+    if (seconds < 3 || seconds > 10 || !Number.isInteger(seconds)) {
+      throw Object.assign(new Error("Durée entre 3 et 10 secondes."), { code: "INVALID_DURATION" });
+    }
+    party.countdownDurationSec = seconds;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  adminSetWinnerScreenMode(party: Party, mode: "question" | "round"): void {
+    party.winnerScreenMode = mode;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  computeAndShowWinner(party: Party): void {
+    if (party.players.size === 0) {
+      party.winnerDisplay = null;
+      return;
+    }
+    
+    let bestPlayer: { id: string; name: string; avatarKey: string; score: number } | null = null;
+    for (const [pid, player] of party.players) {
+      if (bestPlayer === null || player.score > bestPlayer.score) {
+        bestPlayer = { id: pid, name: player.displayName, avatarKey: player.avatarKey, score: player.score };
+      }
+    }
+    
+    if (bestPlayer !== null) {
+      party.winnerDisplay = {
+        playerId: bestPlayer.id,
+        playerName: bestPlayer.name,
+        avatarKey: bestPlayer.avatarKey,
+        score: bestPlayer.score,
+      };
+      this.touch(party);
+      this.broadcast(party);
+    }
+  }
+
+  adminDismissWinnerScreen(party: Party): void {
+    party.winnerDisplay = null;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  playerMarkReady(party: Party, playerId: string, readyTimeoutMs: number): void {
+    if (party.state !== "round_active") {
+      throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
+    }
+    const player = party.players.get(playerId);
+    if (!player) {
+      throw Object.assign(new Error("Joueur introuvable."), { code: "PLAYER_NOT_FOUND" });
+    }
+    party.readyPlayers.add(playerId);
+    if (party.readyPhaseStartedAt === null) {
+      party.readyPhaseStartedAt = Date.now();
+    }
+    
+    const allReady = party.readyPlayers.size >= party.players.size;
+    const elapsed = Date.now() - party.readyPhaseStartedAt;
+    const timeoutReached = elapsed >= readyTimeoutMs;
+    
+    if (allReady || timeoutReached) {
+      party.countdownStartedAt = Date.now();
+    }
+    
+    this.touch(party);
+    this.broadcast(party);
+  }
+  
+  maybeStartCountdownIfReady(party: Party, readyTimeoutMs: number): boolean {
+    if (party.state !== "round_active") return false;
+    if (party.readyPhaseStartedAt === null) return false;
+    if (party.countdownStartedAt !== null) return false;
+    if (party.buzzWindowOpen) return false;
+    
+    const allReady = party.readyPlayers.size >= party.players.size && party.players.size > 0;
+    const elapsed = Date.now() - party.readyPhaseStartedAt;
+    const timeoutReached = elapsed >= readyTimeoutMs;
+    
+    if (allReady || timeoutReached) {
+      party.countdownStartedAt = Date.now();
+      this.touch(party);
+      this.broadcast(party);
+      return true;
+    }
+    return false;
+  }
+  
+  maybeOpenBuzzAfterCountdown(party: Party): boolean {
+    if (party.countdownStartedAt === null) return false;
+    if (party.buzzWindowOpen) return false;
+    
+    const elapsed = Date.now() - party.countdownStartedAt;
+    const countdownMs = party.countdownDurationSec * 1000;
+    
+    if (elapsed >= countdownMs) {
+      party.buzzWindowOpen = true;
+      this.clearReadyPhase(party);
+      this.touch(party);
+      this.broadcast(party);
+      return true;
+    }
+    return false;
+  }
+
+  clearReadyPhase(party: Party): void {
+    party.readyPlayers.clear();
+    party.readyPhaseStartedAt = null;
+    party.countdownStartedAt = null;
+    party.winnerDisplay = null;
+  }
+
+  adminStartCountdownAndOpenBuzz(party: Party): void {
+    if (party.state !== "round_active") {
+      throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
+    }
+    this.clearReadyPhase(party);
+    party.buzzWindowOpen = true;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
   /** * Picks a good/bad outcome sound, optionally awards current-cue points, removes the player from the buzz queue. */
   adminValidateBuzzAnswer(
     party: Party,
@@ -1031,7 +1195,9 @@ export class PartyStore {
     if (this.activeCueIsQuizMultipleChoice(party, pack)) {
       extras.push({ kind: "buzz_verdict", playerId, verdict });
     }
-    if (url !== "") extras.push({ kind: "answer_fx", url });
+    if (party.buzzSound.playVerdictSounds && url !== "") {
+      extras.push({ kind: "answer_fx", url });
+    }
     this.notify(party.id, party, extras.length > 0 ? extras : undefined);
   }
 

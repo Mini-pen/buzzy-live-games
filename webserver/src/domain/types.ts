@@ -73,6 +73,8 @@ export interface PartyBuzzSoundPolicy {
   allowedBadKeys: string[];
   playPlayerBuzzTone: boolean;
   echoPlayerBuzzOnHost: boolean;
+  /** * Master toggle for good/bad sounds when judging buzz answers. */
+  playVerdictSounds: boolean;
 }
 
 export interface Party {
@@ -129,6 +131,18 @@ export interface Party {
   autoPlay: AutoPlayState;
   /** * Game kinds (round types) already seen in this party; used to determine if tutorial should be shown. */
   seenGameKinds: Set<string>;
+  /** * Pre-question countdown duration in seconds (3–10). */
+  countdownDurationSec: number;
+  /** * When to show winner screen: "question" or "round". */
+  winnerScreenMode: "question" | "round";
+  /** * Player IDs who marked themselves ready for the next question. */
+  readyPlayers: Set<string>;
+  /** * Timestamp (ms) when the ready phase started; null when not in ready phase. */
+  readyPhaseStartedAt: number | null;
+  /** * Timestamp (ms) when the countdown actually started; null when not in countdown. */
+  countdownStartedAt: number | null;
+  /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
+  winnerDisplay: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -327,6 +341,18 @@ export interface PartyPublicSnapshot {
     currentScriptIndex: number;
     waitingForManualAction: boolean;
   };
+  /** * Pre-question countdown duration in seconds (3–10), host only. */
+  countdownDurationSec?: number;
+  /** * Winner screen mode: "question" or "round", host only. */
+  winnerScreenMode?: "question" | "round";
+  /** * IDs of players who marked ready for the next question. */
+  readyPlayers?: string[];
+  /** * Timestamp when ready phase started; null when not in ready phase. */
+  readyPhaseStartedAt?: number | null;
+  /** * Timestamp when countdown actually started; null when not in countdown. */
+  countdownStartedAt?: number | null;
+  /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
+  winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
 }
 
 /** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */
