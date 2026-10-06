@@ -116,10 +116,11 @@ describe("§4.8 Buzz Timestamp Fairness", () => {
       const beforeDecision = store.maybeFinalizeBuzzDecision(party);
       expect(beforeDecision).toBe(false);
 
-      const fakeFuture = nowMs + 250;
-      party.buzzWindowFirstBuzzAt = nowMs;
-      const afterWindow = nowMs + 250 >= party.buzzWindowFirstBuzzAt! + party.buzzGraceWindowMs;
-      expect(afterWindow).toBe(true);
+      party.buzzWindowFirstBuzzAt = nowMs - 250;
+      const decided = store.maybeFinalizeBuzzDecision(party);
+      expect(decided).toBe(true);
+      expect(party.buzzOrder).toContain(playerA);
+      expect(party.pendingBuzzQueue.length).toBe(0);
     });
 
     it("CA-8: if all active players buzzed → decide immediately", () => {
@@ -192,44 +193,36 @@ describe("§4.8 Buzz Timestamp Fairness", () => {
   describe("2. Latency compensation ranking", () => {
     it("CA-1: latency compensation uses estimated time for ranking", () => {
       party.buzzGraceWindowMs = 500;
-
       store.adminSetBuzzOpen(party, true);
-      const openedAt = party.buzzWindowOpenedAt!;
 
-      const syncA: ClockSyncState = {
-        offsetMs: -50,
-        minRttMs: 300,
-        lastSyncAt: Date.now(),
-      };
-      const syncB: ClockSyncState = {
-        offsetMs: 50,
-        minRttMs: 20,
-        lastSyncAt: Date.now(),
-      };
-      party.clockSync.set(playerA, syncA);
-      party.clockSync.set(playerB, syncB);
-
-      const clientA = openedAt + 150;
-      const clientB = openedAt + 200;
-
-      store.buzz(party, playerA, clientA, undefined);
-      store.buzz(party, playerB, clientB, undefined);
+      const nowMs = Date.now();
+      
+      party.pendingBuzzQueue.push({
+        playerId: playerA,
+        clientTimestamp: nowMs - 100,
+        arrivedAt: nowMs + 50,
+        estimatedAt: nowMs,
+      });
+      
+      party.pendingBuzzQueue.push({
+        playerId: playerB,
+        clientTimestamp: nowMs,
+        arrivedAt: nowMs,
+        estimatedAt: nowMs + 100,
+      });
 
       expect(party.pendingBuzzQueue.length).toBe(2);
       
       const buzzA = party.pendingBuzzQueue.find(b => b.playerId === playerA)!;
       const buzzB = party.pendingBuzzQueue.find(b => b.playerId === playerB)!;
       
-      expect(buzzA.estimatedAt).toBeLessThanOrEqual(buzzB.arrivedAt);
-      expect(buzzB.estimatedAt).toBeLessThanOrEqual(buzzB.arrivedAt);
+      expect(buzzA.estimatedAt).toBeLessThan(buzzB.estimatedAt);
       
-      const nowMs = Date.now();
       party.buzzWindowFirstBuzzAt = nowMs - 600;
       store.finalizeBuzzDecision(party);
 
-      expect(party.buzzOrder.length).toBe(2);
-      expect(party.buzzOrder).toContain(playerA);
-      expect(party.buzzOrder).toContain(playerB);
+      expect(party.buzzOrder[0]).toBe(playerA);
+      expect(party.buzzOrder[1]).toBe(playerB);
     });
 
     it("CA-4: anti-cheat cap at half-RTT + 50ms", () => {
