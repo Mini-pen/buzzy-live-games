@@ -31,6 +31,7 @@ function clearBuzzQueue(party: Party): void {
   party.buzzQuizGuess.clear();
   party.pendingBuzzQueue = [];
   party.buzzWindowFirstBuzzAt = null;
+  party.lastBuzzGapMs = null;
 }
 export interface CreatePartyOpts {
   maxPlayers: number | null;
@@ -248,6 +249,7 @@ export class PartyStore {
       pendingBuzzQueue: [],
       buzzWindowFirstBuzzAt: null,
       buzzWindowOpenedAt: null,
+      lastBuzzGapMs: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -558,6 +560,13 @@ export class PartyStore {
       if (buzz.quizChoiceIndex !== undefined) {
         party.buzzQuizGuess.set(buzz.playerId, buzz.quizChoiceIndex);
       }
+    }
+
+    if (ranked.length >= 2) {
+      const gap = ranked[1].estimatedAt - ranked[0].estimatedAt;
+      party.lastBuzzGapMs = gap < 1000 && gap >= 0 ? gap : null;
+    } else {
+      party.lastBuzzGapMs = null;
     }
 
     party.pendingBuzzQueue = [];

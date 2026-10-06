@@ -179,6 +179,8 @@ export interface Party {
   buzzWindowFirstBuzzAt: number | null;
   /** * Timestamp when the buzz window opened (server time). */
   buzzWindowOpenedAt: number | null;
+  /** * Time gap (ms) between 1st and 2nd buzz after finalization (< 1000 ms), for broadcast display. */
+  lastBuzzGapMs: number | null;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -374,6 +376,8 @@ export interface PartyPublicSnapshot {
   autoAdvanceQuizWhenAllBuzzed?: boolean;
   /** * Grace window duration (ms) after first buzz before final decision (0–1000 ms), host only. */
   buzzGraceWindowMs?: number;
+  /** * Time gap in milliseconds between 1st and 2nd buzz (if both exist and gap < 1000 ms), broadcast only. */
+  buzzTimeGapMs?: number;
   /** * Automatic play mode state (visible to all). */
   autoPlay?: {
     enabled: boolean;

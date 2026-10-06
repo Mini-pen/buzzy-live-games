@@ -315,11 +315,18 @@ export function partySnapshotWithGame(
           winnerScreenMode: party.winnerScreenMode,
         }
       : {};
+
+  const broadcastGap =
+    audience === "player" && party.lastBuzzGapMs !== null
+      ? { buzzTimeGapMs: party.lastBuzzGapMs }
+      : {};
+
   return {
     ...base,
     ...hostSound,
     ...readyFields,
     ...hostExtraFields,
+    ...broadcastGap,
     gameBoard,
     ...(buzzQuizQueueDetail !== undefined ? { buzzQuizQueueDetail } : {}),
   };
