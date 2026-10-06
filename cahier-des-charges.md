@@ -660,13 +660,17 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
+**Statut :** Spec à valider par Minipen — rien d'implémenté.
+
 **Comportement :**
 
-- L'interface admin affiche une fenêtre miniature simulant l'écran projeté (`/party/:partyId/broadcast`).
-- L'animateur peut configurer l'affichage : afficher uniquement la question et les réponses, ou inclure aussi le classement en temps réel.
-- Option de masquage des scores numériques : seul l'ordre de classement est visible (1er, 2ème, 3ème…) pour maintenir le suspense.
-- Mise en évidence automatique du premier joueur ayant buzzé (highlight visuel).
-- Choix d'affichage des joueurs : groupés par équipe (vue consolidée par équipe) ou vue individuelle, configurable par manche.
+- L'interface admin (`/party/:partyId/admin`) affiche une fenêtre miniature en lecture seule du vrai rendu de l'écran projeté (`/party/:partyId/broadcast`), utilisant le même composant React `Broadcast` (pas une maquette).
+- La miniature est redimensionnable, muette (les sons ne doivent pas jouer deux fois sur la machine de l'animateur), et rafraîchit en temps réel via Socket.IO (room `broadcast` connectée indépendamment).
+- L'animateur peut configurer l'affichage projeté via quatre réglages persistés dans l'état de la partie et diffusés via `party:patch` :
+  1. **Afficher le classement** (oui/non) : contrôle la visibilité du footer contenant la file de buzz et les scores d'équipe sur le grand écran.
+  2. **Masquer les scores numériques** (oui/non) : remplace les scores numériques par des rangs seuls (1er, 2ème, 3ème…) sur le grand écran, l'écran du gagnant automatique du §4.5, et le classement final ; l'interface animateur et les téléphones des joueurs conservent toujours les scores numériques visibles.
+  3. **Mise en évidence du gagnant du buzz** (oui/non) : active/désactive le highlight visuel (bordure dorée, animation) du joueur ou de l'équipe ayant gagné le buzz (après décision finale du §4.8 uniquement, jamais pendant la fenêtre d'attente, pas de gagnant provisoire).
+  4. **Vue par équipe / Vue individuelle** : un réglage global de partie, et une valeur optionnelle par manche dans `mancheScript` (champ `broadcastViewMode` : `"team"`, `"individual"`, ou `null` pour suivre le global) ; la valeur de la manche l'emporte pendant cette manche, sinon la valeur globale s'applique. Changer le réglage global en cours de manche n'écrase pas la valeur de la manche.
 
 **Acteurs :**
 
@@ -674,24 +678,100 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 **Règles métier :**
 
-- Les modifications de configuration s'appliquent en temps réel sur `/party/:partyId/broadcast`.
-- La fenêtre miniature dans l'admin reflète l'affichage projeté (preview live).
-- Le masquage des scores numériques n'affecte que l'affichage projeté ; l'interface animateur conserve les scores numériques.
-- Le highlight du premier joueur buzzé (bordure, couleur, animation) est visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé.
-- Le mode d'affichage (équipe vs individuel) peut être défini globalement ou par manche dans le `mancheScript`.
+- Les quatre réglages sont enregistrés dans l'état de la partie (objet `Party` côté serveur, nouveaux champs à ajouter).
+- Chaque modification déclenche un `party:patch` diffusé à la room `broadcast` ; le composant `Broadcast` applique le réglage en moins d'une seconde sans recharger la page.
+- Au rechargement du grand écran (`/party/:partyId/broadcast`) ou à sa reconnexion Socket.IO, les réglages persistés sont réappliqués immédiatement (inclus dans le snapshot initial).
+- Au rechargement de l'interface admin, les réglages sont relus depuis le snapshot et les contrôles (cases à cocher, sélecteurs) reflètent l'état actuel.
+- **Cohérence avec le §4.8 (Régulation des buzz par horodatage) :**
+  - La mise en évidence du gagnant (réglage 3) ne s'affiche qu'après la décision finale du §4.8 (fin de la fenêtre d'attente de buzz), jamais pendant la fenêtre.
+  - Aujourd'hui, le code affiche la file de buzz (`buzzOrder`) dès qu'un joueur buzze, avant la décision. Cette règle est remplacée : **le surlignage du gagnant n'apparaît qu'après la décision, et reste visible jusqu'à la question suivante ou la réouverture du buzzer** (la règle actuelle « visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé » contredit le §4.8 ; elle est remplacée par « visible après décision jusqu'à la question suivante »).
+  - L'écart de temps 1er/2e (< 1 s) mentionné au §4.8 (CA-16 à CA-18) suit le réglage de mise en évidence : si le réglage 3 est désactivé (pas de highlight), l'écart n'est pas affiché non plus. **Point ouvert à trancher par Minipen.**
+- **Masquage des scores numériques (réglage 2) :**
+  - S'applique au grand écran (`/party/:partyId/broadcast`) seulement : footer scores équipes, file de buzz (si affichée avec rang + nom sans score), écran du gagnant automatique du §4.5, et classement final `state === "between_rounds"` ou `"ended"`.
+  - L'interface admin (`/party/:partyId/admin`) affiche toujours les scores numériques dans le panneau des joueurs et la file de buzz (pas de masquage côté animateur).
+  - Les téléphones des joueurs (`/party/:partyId/play`) affichent toujours le score personnel du joueur dans la barre d'identité (`rowMe.score`) et l'écran du gagnant si affiché (actuellement `snap.winnerDisplay` contient le score ; il reste visible). **Point ouvert :** faut-il masquer le score sur l'écran du gagnant côté téléphone également ? À trancher.
+- **Vue équipe / individuelle (réglage 4) :**
+  - Un champ `broadcastViewModeGlobal` dans `Party` (`"team"` ou `"individual"`, défaut `"individual"` si `maxTeams === null`, sinon `"team"`).
+  - Un champ optionnel `broadcastViewMode` dans chaque `MancheCatalogItem` du `mancheScript` (`"team"`, `"individual"`, ou `null`).
+  - Pendant une manche active, si `mancheScript[activeMancheIndex].broadcastViewMode !== null`, cette valeur l'emporte ; sinon `broadcastViewModeGlobal` s'applique.
+  - Si `maxTeams === null`, la vue par équipe n'est pas proposée dans les contrôles animateur et la vue individuelle est forcée.
+  - **Rendu actuel du grand écran (valeur par défaut à reproduire) :**
+    - Aujourd'hui, le footer du `Broadcast` affiche uniquement les scores d'équipe (`teamScores`, ligne 4248 `App.tsx`) lorsque `teamEntries.length > 0` (équipes activées). Pas de vue individuelle affichée.
+    - Le lobby affiche le nombre de joueurs (`snap.players.length`) mais pas la liste individuelle.
+    - En `state === "between_rounds"` ou `"ended"`, seuls les scores d'équipe sont affichés (lignes 4385-4394).
+    - **Conclusion :** la valeur par défaut du rendu actuel est « vue équipe si équipes activées, sinon pas de classement joueurs visible (seulement nombre de joueurs) ». La vue individuelle (liste des joueurs avec scores) n'existe pas encore.
+  - **Ce que doit faire la vue individuelle (à implémenter) :**
+    - Afficher la liste de tous les joueurs avec leur pseudo, avatar, et score (si scores non masqués) ou rang (si masqués), triée par score décroissant.
+    - Affichable dans le footer du `Broadcast` en remplacement ou en complément des scores d'équipe selon le réglage.
+- **Miniature dans l'interface admin :**
+  - La miniature embarque un second socket connecté à la room `broadcast` (même mécanisme que le grand écran) pour recevoir `party:patch` en temps réel.
+  - Les sons de verdict (`playVerdictSounds`), les sons de buzz (événement `party:buzz_fx` du §4.8), et tout autre effet sonore (`party:answer_fx`) ne doivent pas être joués par la miniature (désactiver `playSfxUrl` ou bloquer les handlers audio).
+  - La miniature est en lecture seule : pas de bouton « retour tableau », pas de lien cliquable.
+  - **Point ouvert :** la place de la miniature (panneau latéral, modal, onglet dédié) et du panneau de réglages (à côté de « Jouer les sons bon/mauvais », sous forme de section pliable, ou dans un onglet séparé) doit être décidée par Design UI.
 
 **Critères d'acceptation :**
 
-- L'interface admin affiche une fenêtre miniature redimensionnable montrant le rendu de `/party/:partyId/broadcast`.
-- Les réglages d'affichage sont accessibles via un panneau : « Afficher classement », « Masquer scores numériques », « Vue par équipe / Vue individuelle », « Highlight premier buzz ».
-- Les changements sont appliqués en temps réel sur le grand écran.
-- Le premier joueur ayant buzzé est mis en évidence visuellement (bordure dorée, animation, etc.).
-- En vue par équipe, les joueurs sont regroupés ; en vue individuelle, tous les joueurs sont listés séparément.
+**Réglages et persistance :**
+
+1. **CA-1 :** Chaque réglage (afficher classement, masquer scores, mise en évidence, vue équipe/individuelle global) change l'affichage du grand écran en moins d'1 seconde sans recharger la page (via `party:patch`).
+2. **CA-2 :** Les quatre réglages sont persistés dans l'état de la partie (nouveaux champs dans `Party` côté serveur).
+3. **CA-3 :** Au rechargement du grand écran (`/party/:partyId/broadcast`) ou à sa reconnexion Socket.IO, les réglages sont réappliqués immédiatement (snapshot initial contient les valeurs).
+4. **CA-4 :** Au rechargement de l'interface admin (`/party/:partyId/admin`), les contrôles (cases à cocher, sélecteurs) reflètent l'état actuel des réglages lus depuis le snapshot.
+
+**Masquage des scores numériques :**
+
+5. **CA-5 :** Quand le réglage « Masquer les scores numériques » est activé, le grand écran affiche uniquement les rangs (1er, 2ème, 3ème…) à la place des scores numériques dans le footer, l'écran du gagnant automatique, et le classement final.
+6. **CA-6 :** L'interface animateur (`/party/:partyId/admin`) affiche toujours les scores numériques dans le panneau des joueurs et la file de buzz, quel que soit l'état du réglage.
+7. **CA-7 :** Les téléphones des joueurs (`/party/:partyId/play`) affichent toujours le score personnel du joueur dans la barre d'identité (`rowMe.score`).
+8. **CA-8 :** L'écran du gagnant automatique du §4.5 (`snap.winnerDisplay`) respecte le masquage des scores : si activé, affiche le rang au lieu du score sur le grand écran ; les téléphones des joueurs continuent d'afficher le score (ou le rang, selon décision du point ouvert).
+
+**Mise en évidence du gagnant du buzz :**
+
+9. **CA-9 :** Quand le réglage « Mise en évidence du gagnant du buzz » est activé, le grand écran affiche un highlight visuel (bordure dorée, animation, classe CSS dédiée) uniquement après la décision finale du §4.8 (fin de la fenêtre d'attente).
+10. **CA-10 :** Aucun surlignage provisoire n'est affiché pendant la fenêtre d'attente du §4.8 (comportement différent d'aujourd'hui où `buzzOrder` est affiché dès le premier buzz).
+11. **CA-11 :** Le surlignage du gagnant reste visible jusqu'à la question suivante (avance cue) ou la réouverture du buzzer, même si le buzzer est fermé entre-temps.
+12. **CA-12 :** Quand le réglage est désactivé, aucun surlignage n'est affiché, quelle que soit la phase du buzz.
+13. **CA-13 :** L'écart de temps 1er/2e (< 1 s) du §4.8 (CA-16 à CA-18) ne s'affiche que si le réglage de mise en évidence est activé. **Point ouvert : décision à confirmer.**
+
+**Vue équipe / individuelle :**
+
+14. **CA-14 :** Si `maxTeams === null`, la vue par équipe n'est pas proposée dans les contrôles animateur et la vue individuelle est forcée sur le grand écran.
+15. **CA-15 :** Le réglage global (`broadcastViewModeGlobal`) s'applique par défaut ; une manche dont `mancheScript[i].broadcastViewMode !== null` applique sa valeur locale pendant qu'elle est active.
+16. **CA-16 :** Changer le réglage global en cours de manche n'écrase pas la valeur locale de la manche active (la valeur de la manche l'emporte).
+17. **CA-17 :** En vue équipe, le grand écran affiche les scores agrégés par équipe (`teamScores`) sans lister les joueurs individuellement (comportement actuel conservé).
+18. **CA-18 :** En vue individuelle, le grand écran affiche la liste de tous les joueurs triée par score décroissant, avec pseudo, avatar, et score (ou rang si masqué).
+
+**Miniature dans l'interface admin :**
+
+19. **CA-19 :** La miniature est redimensionnable (drag, poignée, ou conteneur CSS `resize: both`).
+20. **CA-20 :** La miniature est muette : aucun son de verdict, buzz, ou autre effet sonore n'est joué par la miniature (événements `party:answer_fx`, `party:buzz_fx` ignorés ou handlers audio bloqués).
+21. **CA-21 :** La miniature affiche fidèlement le rendu de `/party/:partyId/broadcast` en temps réel (même composant `Broadcast`, connecté à la room Socket.IO `broadcast`, snapshot identique).
+22. **CA-22 :** La miniature est en lecture seule : pas de bouton « retour tableau », pas de lien cliquable vers l'admin (ou lien désactivé visuellement).
+
+**Cas limites et Points ouverts :**
+
+23. **CA-23 :** Égalité de rang avec scores masqués : si deux joueurs ou équipes ont le même score, le même rang est affiché deux fois (ex. deux « 2ème »).
+24. **CA-24 :** Plusieurs grands écrans ouverts simultanément (`/party/:partyId/broadcast` dans plusieurs onglets ou machines) : tous reçoivent les mêmes réglages et affichent le même rendu.
+25. **CA-25 :** Un réglage changé pendant l'écran du gagnant automatique (`snap.winnerDisplay !== null`) s'applique immédiatement : si le masquage des scores est activé, le score disparaît et le rang apparaît sans fermer l'écran.
+26. **CA-26 :** Le classement masqué puis réaffiché instantanément (toggle rapide) ne provoque pas de flash ou d'erreur côté grand écran (transition CSS lisse ou pas de transition).
+27. **CA-27 :** Les équipes activées en cours de partie (changement de `maxTeams` via recréation de partie ou ajout de joueurs avec `teamId`) : le réglage global `broadcastViewModeGlobal` bascule automatiquement en `"team"` si `maxTeams !== null` et était à `"individual"` ; sinon, reste inchangé (à confirmer la règle).
+28. **CA-28 :** Un joueur sans équipe (`teamId === null`) en mode vue équipe : il n'apparaît pas dans les scores d'équipe (ligne `teamScores` ne l'inclut pas) ; faut-il l'afficher séparément (« Joueurs sans équipe ») ou le masquer ? **Point ouvert à trancher.**
 
 **Cas limites :**
 
-- Si les équipes sont désactivées (`maxTeams === null`), la vue par équipe n'est pas proposée.
-- Si le classement est masqué, l'animateur peut toujours le réafficher instantanément.
+- **Conflit trouvé dans le code :** La règle actuelle ligne 680 du cahier-des-charges (« visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé ») contredit le §4.8 qui spécifie que le surlignage du gagnant doit rester visible après la décision jusqu'à la question suivante, même si le buzzer est fermé. Cette règle est remplacée par CA-9 à CA-11.
+- Si le classement est masqué (réglage 1 désactivé), l'animateur peut toujours le réafficher instantanément via le panneau de réglages.
+- Si les équipes sont désactivées (`maxTeams === null`), la vue par équipe n'est pas proposée (CA-14).
+
+**Points ouverts :**
+
+- **Libellés exacts des contrôles UI :** « Afficher le classement », « Masquer les scores numériques », « Mettre en évidence le gagnant du buzz », « Vue par équipe / Vue individuelle » — à valider par Design UI.
+- **Place de la miniature et du panneau de réglages dans l'interface admin :** panneau latéral, modal, onglet dédié, section pliable — à définir par Design UI.
+- **Lien entre écart 1er/2e (§4.8 CA-16 à CA-18) et réglage de mise en évidence :** si le réglage 3 est désactivé, faut-il masquer aussi l'écart de temps ? À trancher.
+- **Masquage des scores sur l'écran du gagnant côté téléphone des joueurs :** actuellement `snap.winnerDisplay` contient le score et il reste visible ; faut-il le masquer également si le réglage 2 est activé ? À trancher.
+- **Joueur sans équipe en mode vue équipe (CA-28) :** faut-il l'afficher séparément (section « Joueurs sans équipe ») ou le masquer complètement ? À trancher.
+- **Transition automatique du réglage global en cas d'activation des équipes (CA-27) :** faut-il basculer `broadcastViewModeGlobal` en `"team"` automatiquement ou laisser l'animateur choisir ? À trancher.
+- **Conflit potentiel avec le code existant :** La vue individuelle (liste des joueurs avec scores) n'est pas implémentée aujourd'hui ; le footer du `Broadcast` affiche seulement les scores d'équipe. Il faut ajouter un composant pour la vue individuelle (tri par score, affichage pseudo + avatar + score/rang).
 
 ---
 
