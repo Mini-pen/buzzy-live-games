@@ -740,7 +740,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.8 Régulation des buzz par horodatage
 
-**Statut :** Spec validée par Minipen (6 oct. 2026) — à implémenter.
+**Statut :** Backend livré (backend implémenté, tests ajoutés, 302/302 tests verts) — intégration client et tests end-to-end restants.
 
 **Comportement :**
 

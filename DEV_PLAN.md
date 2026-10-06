@@ -303,6 +303,8 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 **Statut :** À implémenter.
 
+**Note de correspondance :** Section 4.7 du cahier-des-charges.
+
 **Description :** L'application héberge une bibliothèque de jeux accessible depuis l'interface admin et publique (lecture seule pour visiteurs). La bibliothèque contient une petite version intégrée de chaque type de jeu pour essai rapide. Les utilisateurs peuvent uploader des packs au format ZIP dans la bibliothèque ; ces packs sont stockés côté serveur et téléchargeables par tous. Lors de la création, l'animateur peut choisir un pack depuis la bibliothèque (téléchargement automatique et import).
 
 **Règles :**
@@ -312,6 +314,38 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 - Limite de taille par upload : configurable (ex. 50 Mo).
 - Indexation et recherche par titre, auteur, type de jeu, tags.
 - Système de signalement recommandé pour modération.
+
+---
+
+### 7.8 Régulation des buzz par horodatage (compensation latence)
+
+**Statut :** Backend livré (tests end-to-end et intégration client restants).
+
+**Note de correspondance :** Section 4.8 du cahier-des-charges.
+
+**Description :** Synchronisation d'horloge de type NTP pour compenser la latence réseau lors des buzz. Le joueur qui a buzzé en premier gagne, même si son paquet arrive plus tard au serveur. Fenêtre d'attente configurable (0–1000 ms) après le premier buzz avant décision finale. Mode de son de buzz à 3 états (joueurs, animation, les deux).
+
+**Implémentation backend (livrée) :**
+- Types : `ClockSyncState`, `BuzzSoundMode`, `PendingBuzz`
+- Module `clockSync.ts` avec estimation offset, validation sync, classement buzz
+- Fenêtre d'attente avec décision différée dans `store.ts`
+- Compensation latence plafonnée (RTT/2 + 50 ms)
+- Refus des buzz estimés avant ouverture fenêtre
+- Routes API : `POST /api/parties/:partyId/me/time-sync`, `POST /api/parties/:partyId/host/buzz-grace-window`, `POST /api/parties/:partyId/host/buzz-sound-mode`
+- Tests unitaires : 14 tests ajoutés pour `clockSync`, total 302/302 tests verts
+- Champ `clientTimestamp` dans buzz, `buzzGraceWindowMs` dans snapshot host
+- Mode son `buzzSoundMode` dans snapshot public
+
+**Reste à faire (client + tests e2e) :**
+- Intégration socket.ts : middleware connect, synchro périodique toutes les 30s
+- Client : envoi `clientTimestamp` dans POST buzz, burst de 5 pings à la connexion
+- Tests end-to-end : scénarios avec latence simulée, vérification classement
+
+**Règles implémentées :**
+- Grace window de 0 à 1000 ms (défaut 500 ms)
+- Si window = 0, comportement actuel inchangé (premier arrivé)
+- Tous les joueurs buzzés → décision immédiate (fin anticipée de la window)
+- Son côté joueur immédiat (si autorisé), son côté animation à la réception serveur
 
 ---
 
