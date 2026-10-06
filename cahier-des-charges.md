@@ -738,6 +738,142 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ---
 
+### 4.8 Régulation des buzz par horodatage
+
+**Statut :** Spec validée par Minipen (6 oct. 2026) — à implémenter.
+
+**Comportement :**
+
+- **Objectif :** Le joueur qui a buzzé le premier gagne même si sa connexion est plus lente. Aujourd'hui, le gagnant est désigné par ordre d'arrivée au serveur : le premier playerId ajouté à `buzzOrder` l'emporte, sans compensation de latence réseau.
+- **Synchronisation d'horloge (type NTP) :** Le client envoie un timestamp t0 (heure locale), le serveur répond avec son heure serveur ts, le client reçoit à t1. RTT (Round-Trip Time) = t1 − t0. Décalage d'horloge = ts − (t0 + t1)/2. Une salve de 5 pings est effectuée ; on retient l'échantillon au RTT le plus court. La synchro est faite à la connexion, à la reconnexion, au début de chaque manche, et toutes les 30 s pendant une manche active. Le serveur mémorise par joueur : décalage d'horloge, RTT minimal mesuré, date de la dernière synchro. Le client utilise une horloge monotone (`performance.now()`) pour éviter les sauts d'heure système.
+- **Buzz horodaté :** Le joueur envoie l'heure client au moment du buzz (heure monotone locale). Le serveur calcule l'heure estimée = heure client + décalage, puis classe les buzz selon cette heure estimée.
+- **Garde-fous :**
+  - (a) Un buzz dont l'heure estimée est antérieure à l'heure d'ouverture des buzzers (heure serveur) est refusé comme hors fenêtre (traitement aligné sur les buzz trop tôt s'ils existent déjà).
+  - (b) L'heure estimée ne peut jamais être postérieure à l'heure d'arrivée : si c'est le cas, on prend l'heure d'arrivée.
+  - (c) La compensation (heure arrivée − heure estimée) est plafonnée à RTT minimal/2 + 50 ms de marge ; au-delà, on ramène à cette valeur plafond. **Valeur de la marge confirmée : 50 ms.**
+  - (d) Un joueur sans synchro valide (aucune synchro, ou dernière synchro plus vieille que 60 s, ou RTT mesuré > 1000 ms) : pas de compensation, on utilise l'heure d'arrivée.
+- **Fenêtre d'attente :** Au premier buzz reçu, le serveur attend 500 ms avant de désigner le gagnant. Il prend ensuite la plus petite heure estimée parmi tous les buzz reçus pendant la fenêtre. Réglable dans l'admin (à côté des réglages existants tels que `autoOpenBuzzOnCueAdvance` et `autoAdvanceQuizWhenAllBuzzed`), de 0 à 1000 ms par pas de 50, défaut 500 ms. Si la fenêtre est à 0, comportement actuel inchangé : premier arrivé sans compensation. Si tous les joueurs actifs ont buzzé avant la fin de la fenêtre, la décision est prise immédiatement. Un buzz reçu après la fin de la fenêtre ne peut plus gagner.
+- **Sons de buzz (nouveau mode de configuration, distinct des sons de verdict) :** Un bouton unique côté animation permet de faire tourner 3 modes dans cet ordre : `Sons de buzz : joueurs` → `Sons de buzz : animation` → `Sons de buzz : joueurs + animation` → (retour au début). Le libellé du bouton affiche toujours le mode actif ; une aide sous le bouton indique « Cliquez pour changer ». Le bouton est placé juste sous la case « Jouer les sons bon/mauvais » (`playVerdictSounds`), dans le même bloc de réglages. **Remarque importante :** ce mode de son à 3 états ne concerne que les sons de buzz ; la case existante des sons de verdict (`playVerdictSounds`) reste séparée et inchangée. Le mode est enregistré pour la partie (persiste à un rechargement) et diffusé aux joueurs via `party:patch` (champ reçu par tous les publics, comme `countdownDurationSec`) : il active ou coupe leur son de buzz local. Valeur par défaut : « joueurs + animation » (comportement actuel du code : `playPlayerBuzzTone: true`, `echoPlayerBuzzOnHost: true`). **Son côté joueur :** part sur le téléphone dès l'appui, sans attendre le serveur (lecture locale immédiate si le mode l'autorise), mais seulement si l'écran du joueur montre le buzzer ouvert (voir règle ci-dessous). **Son côté animation :** part à chaque buzz reçu par le serveur (événement `buzz_fx` émis via Socket.IO à la room admin), sans attendre la fin de la fenêtre. Les noms réels dans le code : `playPlayerBuzzTone` (joueur), `echoPlayerBuzzOnHost` (animation), événement `party:buzz_fx` avec `{ playerId, url }`.
+- **Son joueur avant réponse serveur :** Quand l'écran du joueur montre le buzzer fermé (buzzer pas encore ouvert, joueur déjà buzzé, ou bloqué d'après le dernier état reçu via `party:patch`), l'appui sur le bouton buzz est désactivé : ni requête HTTP ni son local. Quand l'écran montre le buzzer ouvert mais que le serveur refuse ensuite le buzz (course avec la fermeture du buzzer, buzz estimé avant l'ouverture réelle, etc.), le son local est déjà parti : c'est accepté, et le joueur voit simplement le message de refus sans que le son côté animation ne soit joué (le serveur n'a pas ajouté le joueur à `buzzOrder` donc pas d'événement `buzz_fx`).
+- **Comportement pendant la fenêtre d'attente (changement par rapport à aujourd'hui) :** Le joueur qui vient de buzzer voit immédiatement « Buzz reçu », sans rang ni indication de classement. Les autres joueurs gardent leur buzzer actif jusqu'à la fin de la fenêtre (un second joueur peut buzzer pendant la fenêtre). Le son du buzz part immédiatement (côté joueur dès l'appui si l'écran montre le buzzer ouvert, côté animation dès réception par le serveur), mais seuls le surlignage du gagnant et l'avance automatique attendent la décision finale. Aucun classement provisoire n'est affiché pendant la fenêtre. Aujourd'hui, tous les retours (son, surlignage, ajout à `buzzOrder` visible) sont immédiats ; avec cette évolution, le son reste immédiat, seuls le surlignage et l'avance sont différés.
+- **Égalité d'heure estimée (à la ms) :** En cas d'égalité, l'arrivée la plus tôt gagne.
+- **Retours visuels :** Sur le téléphone, affichage « Buzz reçu » immédiatement après l'appui ; le résultat (gagnant/perdant) est affiché après la décision serveur. Le grand écran (`/party/:partyId/broadcast`) n'affiche le surlignage du gagnant qu'après la décision finale (pas de gagnant provisoire qui change). **Affichage de l'écart de temps entre 1er et 2e :** l'écart est affiché sur le grand écran seulement s'il est inférieur à 1 seconde ; si l'écart est ≥ 1 s ou s'il n'y a qu'un seul buzz, aucun écart n'est affiché.
+- **Mode automatique (§4.3) et avance automatique :** Un buzz dont l'heure estimée se situe avant la fin du minuteur de question compte, même si son paquet arrive au serveur juste après ; la fenêtre d'attente peut donc dépasser le minuteur d'au plus sa durée configurée. L'avance automatique (question suivante) sur QCM lorsque tous les joueurs ont buzzé (`autoAdvanceQuizWhenAllBuzzed`) se déclenche après la décision finale, jamais avant : la règle « tous ont buzzé = décision immédiate » reste vraie (fin de la fenêtre si tous ont buzzé), mais l'avance à la question suivante attend que cette décision soit prise et notifiée.
+- **Journal de debug :** Pour chaque décision de gagnant, le serveur journalise (logs internes, pas affichés aux joueurs) : heure client, décalage appliqué, heure estimée, heure d'arrivée, et si un plafond a été appliqué. Utile pour debug et détection de comportements anormaux.
+- **Hors périmètre :** Compensation de la latence d'affichage de la question sur le téléphone ; détection de triche au-delà des plafonds (signalement automatique, ban).
+- **Points ouverts (remarques techniques d'intégration) :**
+  - Le système de reconnexion actuel (socket.ts, handshake JWT) ne prévoit pas de synchro temps ; à intégrer lors de `io.use()` middleware.
+  - Le tick serveur pour synchro périodique (toutes les 30 s) nécessite un intervalle dans `store.ts` ou `app.ts`.
+  - Le mode automatique actuel ne gère qu'un seul minuteur par manche ; l'intégration de la fenêtre d'attente peut nécessiter un timer supplémentaire.
+
+**Acteurs :**
+
+- Joueur : envoie un buzz horodaté (heure client), reçoit la confirmation immédiate puis le résultat après décision.
+- Animateur : configure la durée de la fenêtre d'attente, consulte les logs de debug si besoin.
+
+**Règles métier :**
+
+- La synchro d'horloge est obligatoire pour bénéficier de la compensation ; un joueur qui refuse ou dont le client ne supporte pas la synchro voit ses buzz traités en mode « ordre d'arrivée ».
+- La fenêtre d'attente ne bloque jamais plus longtemps que sa durée configurée, sauf si tous les joueurs ont buzzé plus tôt (décision immédiate).
+- Un joueur ne peut buzzer qu'une fois par fenêtre (règle existante conservée : `playerId` déjà présent dans `buzzOrder` refuse le double buzz).
+- Les événements Socket.IO `party:patch` notifient l'ouverture du buzzer, le premier buzz reçu (démarrage de la fenêtre), et la décision finale (gagnant désigné).
+- Le mode de son des buzz (3 modes cycliques) est enregistré dans l'état de la partie et diffusé aux joueurs connectés via `party:patch`. Un joueur qui se connecte ou se reconnecte après un changement de mode reçoit le mode actuel et applique immédiatement le réglage (son local activé ou coupé). Le changement de mode en pleine fenêtre d'attente prend effet au buzz suivant (les sons déjà joués ne sont pas annulés).
+
+**Critères d'acceptation :**
+
+**Compensation de latence et fenêtre d'attente :**
+
+1. **CA-1 :** Joueur A (RTT 300 ms) buzze 100 ms avant joueur B (RTT 20 ms) selon l'heure réelle ; A gagne malgré son arrivée plus tardive au serveur.
+2. **CA-2 :** Joueur B (RTT 20 ms) buzze 100 ms avant joueur A (RTT élevé) ; B gagne.
+3. **CA-3 :** Joueur A buzze dans la fenêtre, joueur B buzze après la fin de la fenêtre ; A gagne même si B avait une meilleure heure estimée.
+4. **CA-4 :** Joueur trafique son heure client de −2 secondes (anticipe le buzz) ; la compensation est plafonnée à RTT/2 + 50 ms, l'avantage ne dépasse pas cette limite.
+5. **CA-5 :** Buzz dont l'heure estimée est antérieure à l'ouverture des buzzers (avant `buzzWindowOpen = true`) ; refusé par le serveur (code erreur `BUZZ_TOO_EARLY` ou équivalent).
+6. **CA-6 :** Fenêtre d'attente configurée à 0 ; comportement actuel inchangé (premier arrivé, aucune compensation), tests existants restent verts.
+7. **CA-7 :** Joueur sans synchro valide (aucune synchro, ou synchro trop ancienne > 60 s, ou RTT > 1000 ms) ; son buzz est traité en mode « heure d'arrivée » sans compensation.
+8. **CA-8 :** Tous les joueurs ont buzzé avant la fin de la fenêtre ; décision prise immédiatement sans attendre la fin du timer.
+9. **CA-9 :** Égalité d'heure estimée (à la milliseconde) entre deux joueurs ; le joueur dont le paquet est arrivé en premier au serveur gagne.
+10. **CA-10 :** Joueur se reconnecte en pleine manche active ; une nouvelle synchro est effectuée avant que ses buzz ne soient compensés.
+11. **CA-11 :** Réglage de la fenêtre d'attente dans l'admin persiste et est borné entre 0 et 1000 ms (validation Zod côté serveur).
+12. **CA-12 :** Un second joueur buzze pendant la fenêtre d'attente (après le premier buzz mais avant la fin de la fenêtre) ; son buzz est accepté, enregistré avec son heure estimée, et pris en compte lors de la décision finale.
+13. **CA-13 :** Le classement des joueurs (ordre dans `buzzOrder`) n'est figé qu'à la décision finale : pendant la fenêtre d'attente, l'ordre provisoire peut changer si de nouveaux buzz arrivent avec des heures estimées plus tôt.
+
+**Surlignage et avance automatique :**
+
+14. **CA-14 :** Un événement Socket.IO explicite (ex. `buzz_decision` ou métadonnée dans `party:patch`) est émis à la décision finale, permettant aux clients de déclencher le surlignage du gagnant de manière testable.
+15. **CA-15 :** Sur QCM avec `autoAdvanceQuizWhenAllBuzzed` activé : tous les joueurs buzzent, la décision est prise immédiatement (fin de fenêtre anticipée), puis l'avance à la question suivante se déclenche après cette décision, jamais avant.
+
+**Affichage de l'écart de temps :**
+
+16. **CA-16 :** L'écart de temps entre le 1er et le 2e joueur est affiché sur le grand écran seulement si cet écart est strictement inférieur à 1 seconde.
+17. **CA-17 :** Si l'écart de temps entre le 1er et le 2e est supérieur ou égal à 1 seconde, aucun écart n'est affiché.
+18. **CA-18 :** S'il n'y a qu'un seul joueur qui a buzzé (aucun 2e), aucun écart n'est affiché.
+
+**Sons de buzz (mode à 3 états) :**
+
+19. **CA-19 :** Le son du buzz côté joueur part immédiatement à l'appui (si le mode l'autorise), sans attendre la réponse du serveur.
+20. **CA-20 :** Le son du buzz côté animation part à chaque buzz reçu par le serveur pendant la fenêtre d'attente (événement `buzz_fx`), sans attendre la décision finale.
+21. **CA-21 :** Le bouton de mode de son fait le cycle des 3 modes à chaque clic : `Sons de buzz : joueurs` → `Sons de buzz : animation` → `Sons de buzz : joueurs + animation` → (retour). Le libellé du bouton affiche toujours le mode actif.
+22. **CA-22 :** Chaque mode coupe bien le bon côté : mode « joueurs » coupe l'animation, mode « animation » coupe les joueurs, mode « joueurs + animation » active les deux.
+23. **CA-23 :** Le mode de son persiste à un rechargement de l'interface animation et est appliqué aux joueurs connectés et aux nouveaux arrivants (reçu via `party:patch`).
+24. **CA-24 :** Un changement de mode en pleine fenêtre d'attente est pris en compte au buzz suivant (les sons déjà joués ne sont pas annulés).
+25. **CA-25 :** Changer le mode de son des buzz ne modifie pas la case `playVerdictSounds` (sons de verdict bon/mauvais), et vice-versa.
+
+**Son joueur avant réponse serveur :**
+
+26. **CA-26 :** Quand l'écran du joueur montre le buzzer fermé (pas encore ouvert, joueur déjà buzzé, ou bloqué d'après le dernier `party:patch`), l'appui sur le bouton buzz est désactivé : aucun son local ni requête HTTP envoyée.
+27. **CA-27 :** Quand le buzz est refusé par le serveur après que le son local soit déjà parti (race condition avec fermeture, heure estimée avant ouverture, etc.), le joueur voit le message de refus et aucun son côté animation n'est joué (pas d'événement `buzz_fx` car le joueur n'est pas ajouté à `buzzOrder`).
+
+**Cas limites :**
+
+- **Horloge téléphone qui saute :** Si l'heure système du téléphone change brusquement (changement manuel, passage heure d'été/hiver), l'horloge monotone (`performance.now()`) n'est pas affectée. Seule une fermeture/réouverture de l'onglet ou un rechargement provoque une nouvelle synchro.
+- **Mise en veille de l'onglet :** Si le navigateur suspend l'onglet (mobile en arrière-plan), `performance.now()` peut se décaler. À la reprise, si plus de 60 s se sont écoulés depuis la dernière synchro, le joueur est considéré sans synchro valide et traité en mode « ordre d'arrivée » jusqu'à la prochaine synchro périodique.
+- **Double buzz du même joueur :** Seul le premier buzz compte (règle existante : `playerId` déjà dans `buzzOrder` refuse le second buzz). L'heure du premier buzz est celle qui est prise en compte. Double appui rapide côté client : un seul son local est joué (le client désactive le bouton après le premier appui jusqu'à réception de la réponse ou timeout).
+- **Buzz refusé par le serveur alors que le son joueur est déjà parti :** Le joueur entend le son puis voit le message de refus (race condition acceptée). Le son côté animation n'est pas joué car le serveur n'ajoute pas le joueur à `buzzOrder` et n'émet pas d'événement `buzz_fx`.
+- **Joueur seul :** Si un seul joueur buzze (aucun autre joueur actif), la fenêtre se termine immédiatement et il est déclaré gagnant sans attente.
+
+---
+
+**Comportement :**
+
+- L'application héberge une bibliothèque de jeux accessible depuis l'interface admin et publique (lecture seule pour les visiteurs).
+- La bibliothèque contient une petite version intégrée de chaque type de jeu (quiz, blind test, révélation progressive, etc.) pour un essai rapide.
+- Les utilisateurs peuvent uploader des packs au format ZIP dans la bibliothèque communautaire ; ces packs sont stockés côté serveur et téléchargeables par tous.
+- Lors de la création d'une partie, l'animateur peut choisir un pack depuis la bibliothèque communautaire (téléchargement automatique et import dans la partie).
+
+**Acteurs :**
+
+- Animateur : upload et télécharge des packs depuis la bibliothèque.
+- Visiteurs : consultent la bibliothèque (lecture seule).
+
+**Règles métier :**
+
+- Les packs uploadés sont validés (structure JSON, taille, contenus appropriés) avant publication dans la bibliothèque.
+- Chaque pack de la bibliothèque a une fiche : titre, description, auteur, nombre de questions, nombre de téléchargements, note moyenne (si système de notation implémenté).
+- Les packs intégrés (essais rapides) sont marqués « Officiel » et ne peuvent être modifiés par la communauté.
+- Limite de taille par upload : configurable (ex. 50 Mo).
+- Les packs de la bibliothèque sont indexés et recherchables par titre, auteur, type de jeu, tags.
+
+**Critères d'acceptation :**
+
+- Une page « Bibliothèque de jeux » est accessible depuis l'interface admin et en navigation publique.
+- Les packs intégrés (un par type de jeu) sont listés en premier, marqués « Officiel ».
+- Un bouton « Uploader un pack » permet de soumettre un ZIP ; le serveur valide et publie le pack.
+- Lors de la création d'une partie, l'animateur peut choisir « Charger depuis la bibliothèque » et sélectionner un pack.
+- Le pack est téléchargé et importé dans la partie en un clic.
+- Les packs communautaires sont listés avec titre, auteur, description, et un bouton « Télécharger ».
+
+**Cas limites :**
+
+- Si un pack contient du contenu inapproprié, un système de signalement permet de le retirer (modération manuelle ou automatique).
+- Si le serveur de la bibliothèque est indisponible, l'animateur peut toujours importer des packs en local (section 4.1).
+- Les packs uploadés sont associés à un auteur (pseudo ou compte si authentification implémentée) pour traçabilité.
+
+**Impact sur les questions ouvertes :**
+
+- **Question 5.4 (Validation des packs par la communauté) :** Cette évolution répond à la question. Les packs peuvent être uploadés via l'UI admin dans la bibliothèque communautaire. La validation est faite côté serveur (schéma Zod, limite de taille). Un système de modération (signalement, revue manuelle) est recommandé pour filtrer les contenus inappropriés. La question 5.4 n'est plus ouverte : l'upload communautaire est décidé et spécifié ici.
+
+---
+
 ## 5. À venir
 
 ### 5.1 Restant pour atteindre le MVP complet
