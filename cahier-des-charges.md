@@ -654,6 +654,8 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 - Si un joueur se déconnecte pendant le compte à rebours, il n'est pas compté dans le « tous prêts ».
 - Le visuel de victoire peut être skipé manuellement par l'animateur (bouton « Suivant »).
 
+**Statut :** Livré et testé — compte à rebours grand écran, écran du gagnant automatique, sons du verdict et réglage de durée (PR 18 et 19) ; suite Vitest rejouée sur main à `06e2689` : 288/288 tests verts.
+
 ---
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
