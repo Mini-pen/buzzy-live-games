@@ -738,7 +738,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.8 Régulation des buzz par horodatage
 
-**Statut :** Spec à valider par Minipen — rien d'implémenté (provisoire §4.8).
+**Statut :** Spec validée par Minipen (6 oct. 2026) — à implémenter.
 
 **Comportement :**
 
@@ -748,23 +748,21 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 - **Garde-fous :**
   - (a) Un buzz dont l'heure estimée est antérieure à l'heure d'ouverture des buzzers (heure serveur) est refusé comme hors fenêtre (traitement aligné sur les buzz trop tôt s'ils existent déjà).
   - (b) L'heure estimée ne peut jamais être postérieure à l'heure d'arrivée : si c'est le cas, on prend l'heure d'arrivée.
-  - (c) La compensation (heure arrivée − heure estimée) est plafonnée à RTT minimal/2 + 50 ms de marge ; au-delà, on ramène à cette valeur plafond.
+  - (c) La compensation (heure arrivée − heure estimée) est plafonnée à RTT minimal/2 + 50 ms de marge ; au-delà, on ramène à cette valeur plafond. **Valeur de la marge confirmée : 50 ms.**
   - (d) Un joueur sans synchro valide (aucune synchro, ou dernière synchro plus vieille que 60 s, ou RTT mesuré > 1000 ms) : pas de compensation, on utilise l'heure d'arrivée.
 - **Fenêtre d'attente :** Au premier buzz reçu, le serveur attend 500 ms avant de désigner le gagnant. Il prend ensuite la plus petite heure estimée parmi tous les buzz reçus pendant la fenêtre. Réglable dans l'admin (à côté des réglages existants tels que `autoOpenBuzzOnCueAdvance` et `autoAdvanceQuizWhenAllBuzzed`), de 0 à 1000 ms par pas de 50, défaut 500 ms. Si la fenêtre est à 0, comportement actuel inchangé : premier arrivé sans compensation. Si tous les joueurs actifs ont buzzé avant la fin de la fenêtre, la décision est prise immédiatement. Un buzz reçu après la fin de la fenêtre ne peut plus gagner.
 - **Sons de buzz (nouveau mode de configuration, distinct des sons de verdict) :** Un bouton unique côté animation permet de faire tourner 3 modes dans cet ordre : `Sons de buzz : joueurs` → `Sons de buzz : animation` → `Sons de buzz : joueurs + animation` → (retour au début). Le libellé du bouton affiche toujours le mode actif ; une aide sous le bouton indique « Cliquez pour changer ». Le bouton est placé juste sous la case « Jouer les sons bon/mauvais » (`playVerdictSounds`), dans le même bloc de réglages. **Remarque importante :** ce mode de son à 3 états ne concerne que les sons de buzz ; la case existante des sons de verdict (`playVerdictSounds`) reste séparée et inchangée. Le mode est enregistré pour la partie (persiste à un rechargement) et diffusé aux joueurs via `party:patch` (champ reçu par tous les publics, comme `countdownDurationSec`) : il active ou coupe leur son de buzz local. Valeur par défaut : « joueurs + animation » (comportement actuel du code : `playPlayerBuzzTone: true`, `echoPlayerBuzzOnHost: true`). **Son côté joueur :** part sur le téléphone dès l'appui, sans attendre le serveur (lecture locale immédiate si le mode l'autorise), mais seulement si l'écran du joueur montre le buzzer ouvert (voir règle ci-dessous). **Son côté animation :** part à chaque buzz reçu par le serveur (événement `buzz_fx` émis via Socket.IO à la room admin), sans attendre la fin de la fenêtre. Les noms réels dans le code : `playPlayerBuzzTone` (joueur), `echoPlayerBuzzOnHost` (animation), événement `party:buzz_fx` avec `{ playerId, url }`.
-- **Son joueur avant réponse serveur (règle proposée, à valider par Minipen) :** Quand l'écran du joueur montre le buzzer fermé (buzzer pas encore ouvert, joueur déjà buzzé, ou bloqué d'après le dernier état reçu via `party:patch`), l'appui sur le bouton buzz est désactivé : ni requête HTTP ni son local. Quand l'écran montre le buzzer ouvert mais que le serveur refuse ensuite le buzz (course avec la fermeture du buzzer, buzz estimé avant l'ouverture réelle, etc.), le son local est déjà parti : c'est accepté, et le joueur voit simplement le message de refus sans que le son côté animation ne soit joué (le serveur n'a pas ajouté le joueur à `buzzOrder` donc pas d'événement `buzz_fx`).
+- **Son joueur avant réponse serveur :** Quand l'écran du joueur montre le buzzer fermé (buzzer pas encore ouvert, joueur déjà buzzé, ou bloqué d'après le dernier état reçu via `party:patch`), l'appui sur le bouton buzz est désactivé : ni requête HTTP ni son local. Quand l'écran montre le buzzer ouvert mais que le serveur refuse ensuite le buzz (course avec la fermeture du buzzer, buzz estimé avant l'ouverture réelle, etc.), le son local est déjà parti : c'est accepté, et le joueur voit simplement le message de refus sans que le son côté animation ne soit joué (le serveur n'a pas ajouté le joueur à `buzzOrder` donc pas d'événement `buzz_fx`).
 - **Comportement pendant la fenêtre d'attente (changement par rapport à aujourd'hui) :** Le joueur qui vient de buzzer voit immédiatement « Buzz reçu », sans rang ni indication de classement. Les autres joueurs gardent leur buzzer actif jusqu'à la fin de la fenêtre (un second joueur peut buzzer pendant la fenêtre). Le son du buzz part immédiatement (côté joueur dès l'appui si l'écran montre le buzzer ouvert, côté animation dès réception par le serveur), mais seuls le surlignage du gagnant et l'avance automatique attendent la décision finale. Aucun classement provisoire n'est affiché pendant la fenêtre. Aujourd'hui, tous les retours (son, surlignage, ajout à `buzzOrder` visible) sont immédiats ; avec cette évolution, le son reste immédiat, seuls le surlignage et l'avance sont différés.
 - **Égalité d'heure estimée (à la ms) :** En cas d'égalité, l'arrivée la plus tôt gagne.
-- **Retours visuels :** Sur le téléphone, affichage « Buzz reçu » immédiatement après l'appui ; le résultat (gagnant/perdant) est affiché après la décision serveur. Le grand écran (`/party/:partyId/broadcast`) n'affiche le surlignage du gagnant qu'après la décision finale (pas de gagnant provisoire qui change).
+- **Retours visuels :** Sur le téléphone, affichage « Buzz reçu » immédiatement après l'appui ; le résultat (gagnant/perdant) est affiché après la décision serveur. Le grand écran (`/party/:partyId/broadcast`) n'affiche le surlignage du gagnant qu'après la décision finale (pas de gagnant provisoire qui change). **Affichage de l'écart de temps entre 1er et 2e :** l'écart est affiché sur le grand écran seulement s'il est inférieur à 1 seconde ; si l'écart est ≥ 1 s ou s'il n'y a qu'un seul buzz, aucun écart n'est affiché.
 - **Mode automatique (§4.3) et avance automatique :** Un buzz dont l'heure estimée se situe avant la fin du minuteur de question compte, même si son paquet arrive au serveur juste après ; la fenêtre d'attente peut donc dépasser le minuteur d'au plus sa durée configurée. L'avance automatique (question suivante) sur QCM lorsque tous les joueurs ont buzzé (`autoAdvanceQuizWhenAllBuzzed`) se déclenche après la décision finale, jamais avant : la règle « tous ont buzzé = décision immédiate » reste vraie (fin de la fenêtre si tous ont buzzé), mais l'avance à la question suivante attend que cette décision soit prise et notifiée.
 - **Journal de debug :** Pour chaque décision de gagnant, le serveur journalise (logs internes, pas affichés aux joueurs) : heure client, décalage appliqué, heure estimée, heure d'arrivée, et si un plafond a été appliqué. Utile pour debug et détection de comportements anormaux.
 - **Hors périmètre :** Compensation de la latence d'affichage de la question sur le téléphone ; détection de triche au-delà des plafonds (signalement automatique, ban).
-- **Points ouverts :**
-  - Numérotation §4.8 : provisoire, à confirmer par Minipen (4.6 = affichage projeté, 4.7 = bibliothèque).
-  - Valeur de la marge de 50 ms : à ajuster selon les tests terrain.
-  - Affichage de l'écart de temps entre 1er et 2e sur le grand écran : proposition de l'afficher seulement s'il est inférieur à 1 s (proposé, à trancher par Minipen).
-  - Son joueur avant réponse serveur : règle proposée (désactivation si écran montre buzzer fermé ; son déjà parti si refus serveur) à valider par Minipen.
-  - Conflits potentiels avec le code existant : le système de reconnexion actuel (socket.ts, handshake JWT) ne prévoit pas de synchro temps ; à intégrer lors de `io.use()` middleware. Le tick serveur pour synchro périodique (toutes les 30 s) nécessite un intervalle dans `store.ts` ou `app.ts`. Le mode automatique actuel ne gère qu'un seul minuteur par manche ; l'intégration de la fenêtre d'attente peut nécessiter un timer supplémentaire.
+- **Points ouverts (remarques techniques d'intégration) :**
+  - Le système de reconnexion actuel (socket.ts, handshake JWT) ne prévoit pas de synchro temps ; à intégrer lors de `io.use()` middleware.
+  - Le tick serveur pour synchro périodique (toutes les 30 s) nécessite un intervalle dans `store.ts` ou `app.ts`.
+  - Le mode automatique actuel ne gère qu'un seul minuteur par manche ; l'intégration de la fenêtre d'attente peut nécessiter un timer supplémentaire.
 
 **Acteurs :**
 
@@ -802,20 +800,26 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 14. **CA-14 :** Un événement Socket.IO explicite (ex. `buzz_decision` ou métadonnée dans `party:patch`) est émis à la décision finale, permettant aux clients de déclencher le surlignage du gagnant de manière testable.
 15. **CA-15 :** Sur QCM avec `autoAdvanceQuizWhenAllBuzzed` activé : tous les joueurs buzzent, la décision est prise immédiatement (fin de fenêtre anticipée), puis l'avance à la question suivante se déclenche après cette décision, jamais avant.
 
+**Affichage de l'écart de temps :**
+
+16. **CA-16 :** L'écart de temps entre le 1er et le 2e joueur est affiché sur le grand écran seulement si cet écart est strictement inférieur à 1 seconde.
+17. **CA-17 :** Si l'écart de temps entre le 1er et le 2e est supérieur ou égal à 1 seconde, aucun écart n'est affiché.
+18. **CA-18 :** S'il n'y a qu'un seul joueur qui a buzzé (aucun 2e), aucun écart n'est affiché.
+
 **Sons de buzz (mode à 3 états) :**
 
-16. **CA-16 :** Le son du buzz côté joueur part immédiatement à l'appui (si le mode l'autorise), sans attendre la réponse du serveur.
-17. **CA-17 :** Le son du buzz côté animation part à chaque buzz reçu par le serveur pendant la fenêtre d'attente (événement `buzz_fx`), sans attendre la décision finale.
-18. **CA-18 :** Le bouton de mode de son fait le cycle des 3 modes à chaque clic : `Sons de buzz : joueurs` → `Sons de buzz : animation` → `Sons de buzz : joueurs + animation` → (retour). Le libellé du bouton affiche toujours le mode actif.
-19. **CA-19 :** Chaque mode coupe bien le bon côté : mode « joueurs » coupe l'animation, mode « animation » coupe les joueurs, mode « joueurs + animation » active les deux.
-20. **CA-20 :** Le mode de son persiste à un rechargement de l'interface animation et est appliqué aux joueurs connectés et aux nouveaux arrivants (reçu via `party:patch`).
-21. **CA-21 :** Un changement de mode en pleine fenêtre d'attente est pris en compte au buzz suivant (les sons déjà joués ne sont pas annulés).
-22. **CA-22 :** Changer le mode de son des buzz ne modifie pas la case `playVerdictSounds` (sons de verdict bon/mauvais), et vice-versa.
+19. **CA-19 :** Le son du buzz côté joueur part immédiatement à l'appui (si le mode l'autorise), sans attendre la réponse du serveur.
+20. **CA-20 :** Le son du buzz côté animation part à chaque buzz reçu par le serveur pendant la fenêtre d'attente (événement `buzz_fx`), sans attendre la décision finale.
+21. **CA-21 :** Le bouton de mode de son fait le cycle des 3 modes à chaque clic : `Sons de buzz : joueurs` → `Sons de buzz : animation` → `Sons de buzz : joueurs + animation` → (retour). Le libellé du bouton affiche toujours le mode actif.
+22. **CA-22 :** Chaque mode coupe bien le bon côté : mode « joueurs » coupe l'animation, mode « animation » coupe les joueurs, mode « joueurs + animation » active les deux.
+23. **CA-23 :** Le mode de son persiste à un rechargement de l'interface animation et est appliqué aux joueurs connectés et aux nouveaux arrivants (reçu via `party:patch`).
+24. **CA-24 :** Un changement de mode en pleine fenêtre d'attente est pris en compte au buzz suivant (les sons déjà joués ne sont pas annulés).
+25. **CA-25 :** Changer le mode de son des buzz ne modifie pas la case `playVerdictSounds` (sons de verdict bon/mauvais), et vice-versa.
 
 **Son joueur avant réponse serveur :**
 
-23. **CA-23 :** Quand l'écran du joueur montre le buzzer fermé (pas encore ouvert, joueur déjà buzzé, ou bloqué d'après le dernier `party:patch`), l'appui sur le bouton buzz est désactivé : aucun son local ni requête HTTP envoyée.
-24. **CA-24 :** Quand le buzz est refusé par le serveur après que le son local soit déjà parti (race condition avec fermeture, heure estimée avant ouverture, etc.), le joueur voit le message de refus et aucun son côté animation n'est joué (pas d'événement `buzz_fx` car le joueur n'est pas ajouté à `buzzOrder`).
+26. **CA-26 :** Quand l'écran du joueur montre le buzzer fermé (pas encore ouvert, joueur déjà buzzé, ou bloqué d'après le dernier `party:patch`), l'appui sur le bouton buzz est désactivé : aucun son local ni requête HTTP envoyée.
+27. **CA-27 :** Quand le buzz est refusé par le serveur après que le son local soit déjà parti (race condition avec fermeture, heure estimée avant ouverture, etc.), le joueur voit le message de refus et aucun son côté animation n'est joué (pas d'événement `buzz_fx` car le joueur n'est pas ajouté à `buzzOrder`).
 
 **Cas limites :**
 
