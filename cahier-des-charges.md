@@ -740,7 +740,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.8 Régulation des buzz par horodatage
 
-**Statut :** Livré (backend + client implémentés, 302/302 tests verts, build passe).
+**Statut :** Livré et testé (logique serveur) — PR 25 (`ee13238`), 329/329 Vitest verts. Couverture store : fenêtre, plafond RTT/2+50 ms, reject-before-open, modes son, `buzz_fx` / `buzz_decision`, auto-advance. CA UI restants hors Vitest store (latence live, reconnect, affichage écart broadcast, course de boutons).
 
 **Comportement :**
 
