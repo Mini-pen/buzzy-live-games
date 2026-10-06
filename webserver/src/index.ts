@@ -61,7 +61,8 @@ async function main(): Promise<void> {
     const extras = partyNotifyExtras(meta);
     for (const m of extras) {
       if (m.kind === "buzz_fx") {
-        if (!party.buzzSound.echoPlayerBuzzOnHost) continue;
+        const shouldEcho = party.buzzSound.buzzSoundMode === "animation" || party.buzzSound.buzzSoundMode === "both";
+        if (!shouldEcho) continue;
         const pl = party.players.get(m.playerId);
         if (!pl) continue;
         const sfx = buzzCatalog.byKey.get(pl.buzzSoundKey);

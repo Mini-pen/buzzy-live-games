@@ -1,9 +1,10 @@
 import type { JSX } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
 import { BASE_PATH, SOCKET_PATH, withBase } from "./paths";
+import { performClockSyncBurst, convertToServerTime, type ClientClockSync } from "./clientClockSync";
 
 /** * Quiz surface from `PartyPublicSnapshot.gameBoard`. */
 interface PartyGameBoardQuiz {
@@ -165,12 +166,15 @@ interface PartySnapshot {
   soundBuzzerPublic?: {
     playOnPlayerDevice: boolean;
     echoOnHostDevice: boolean;
+    buzzSoundMode?: "players" | "animation" | "both";
   };
   soundBuzzerHostConfig?: {
     allowedGoodKeys: string[];
     allowedBadKeys: string[];
   };
   playVerdictSounds?: boolean;
+  buzzGraceWindowMs?: number;
+  buzzTimeGapMs?: number;
   buzzQuizQueueDetail?: Array<{
     playerId: string;
     choiceIndex: number;
@@ -2073,6 +2077,9 @@ function Play(): JSX.Element {
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
   const [readyLoading, setReadyLoading] = useState(false);
   const [countdownCompleted, setCountdownCompleted] = useState(false);
+  const [clockSync, setClockSync] = useState<ClientClockSync | null>(null);
+  const [buzzPending, setBuzzPending] = useState(false);
+  const periodicSyncInterval = useRef<number | null>(null);
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
@@ -2170,6 +2177,40 @@ function Play(): JSX.Element {
     rememberPlayerParty(pid, snap.joinCode);
   }, [pid, jwt, snap]);
 
+  useEffect(() => {
+    if (!pid || jwt === null || jwt === "") return undefined;
+    
+    void performClockSyncBurst(pid, jwt).then((sync) => {
+      if (sync) setClockSync(sync);
+    });
+
+    if (periodicSyncInterval.current !== null) {
+      window.clearInterval(periodicSyncInterval.current);
+    }
+    
+    periodicSyncInterval.current = window.setInterval(() => {
+      void performClockSyncBurst(pid, jwt).then((sync) => {
+        if (sync) setClockSync(sync);
+      });
+    }, 30_000);
+
+    return () => {
+      if (periodicSyncInterval.current !== null) {
+        window.clearInterval(periodicSyncInterval.current);
+        periodicSyncInterval.current = null;
+      }
+    };
+  }, [pid, jwt]);
+
+  useEffect(() => {
+    if (!pid || jwt === null || jwt === "" || snap?.state !== "round_active") return;
+    if (snap.activeMancheId === null) return;
+    
+    void performClockSyncBurst(pid, jwt).then((sync) => {
+      if (sync) setClockSync(sync);
+    });
+  }, [pid, jwt, snap?.activeMancheId, snap?.state]);
+
   const quizSurfaceKey =
     snap?.gameBoard?.kind === "quiz"
       ? `${snap.gameBoard.roundIndex}-${snap.gameBoard.questionIndexInRound}`
@@ -2195,6 +2236,7 @@ function Play(): JSX.Element {
 
   async function buzz(): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
+    if (!canBuzz || buzzPending) return;
     if (
       snap?.gameBoard?.kind === "quiz" &&
       typeof quizSelected !== "number"
@@ -2203,7 +2245,24 @@ function Play(): JSX.Element {
       return;
     }
     setErr(null);
+    setBuzzPending(true);
+
+    if (snap?.soundBuzzerPublic.playOnPlayerDevice === true && rowMe?.buzzSoundKey) {
+      const buzzUrl = `/games/sounds/${rowMe.buzzSoundKey}.mp3`;
+      playSfxUrl(buzzUrl);
+    }
+
+    const clientMonotonicMs = performance.now();
+    const clientTimestamp = convertToServerTime(clientMonotonicMs, clockSync);
+
     try {
+      const body: { quizChoiceIndex?: number; clientTimestamp: number } = {
+        clientTimestamp,
+      };
+      if (snap?.gameBoard?.kind === "quiz" && typeof quizSelected === "number") {
+        body.quizChoiceIndex = quizSelected;
+      }
+
       const res = await fetchJson<{
         snapshot: PartySnapshot;
         buzzToneUrl?: string;
@@ -2214,10 +2273,7 @@ function Play(): JSX.Element {
           Authorization: `Bearer ${jwt}`,
           "Content-Type": "application/json",
         },
-        body:
-          snap?.gameBoard?.kind === "quiz"
-            ? JSON.stringify({ quizChoiceIndex: quizSelected })
-            : JSON.stringify({}),
+        body: JSON.stringify(body),
       });
       setSnap(res.snapshot);
       if (typeof res.quizPickFeedback?.choiceIndex === "number") {
@@ -2225,15 +2281,10 @@ function Play(): JSX.Element {
           choiceIndex: res.quizPickFeedback.choiceIndex,
         });
       }
-      if (
-        typeof res.buzzToneUrl === "string" &&
-        res.buzzToneUrl.length > 0 &&
-        res.snapshot.soundBuzzerPublic?.playOnPlayerDevice === true
-      ) {
-        playSfxUrl(res.buzzToneUrl);
-      }
     } catch (e3) {
       setErr(e3 instanceof Error ? e3.message : "Buzz refusé");
+    } finally {
+      setBuzzPending(false);
     }
   }
 
@@ -2398,16 +2449,23 @@ function Play(): JSX.Element {
             countdownDurationSec={snap.countdownDurationSec ?? 5}
             onCountdownComplete={() => {}}
           />
-        ) : canBuzz ? (
+        ) : canBuzz && !queuedBuzz ? (
           <button
             type="button"
             onClick={() => void buzz()}
-            disabled={snap.gameBoard?.kind === "quiz" && quizSelected === null}
+            disabled={(snap.gameBoard?.kind === "quiz" && quizSelected === null) || buzzPending}
             className="bz-buzz-btn bz-buzz-armed"
             aria-label="Buzz"
           >
             BUZZ
           </button>
+        ) : queuedBuzz ? (
+          <div className="bz-buzz-closed">
+            <span className="bz-pill bz-good">Buzz reçu</span>
+            <p>
+              Ton buzz a été enregistré. Attends la décision de l'animateur.
+            </p>
+          </div>
         ) : (
           <div className="bz-buzz-closed">
             <span className="bz-pill">buzzer fermé</span>
@@ -3138,6 +3196,31 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
+  const onHostBuzzGraceWindowChange = useCallback(
+    async (durationMs: number): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/buzz-grace-window`, "POST", {
+          durationMs,
+        });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onCycleBuzzSoundMode = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const n = await callHostSnapshot(`${hostBasePath}/host/buzz-sound-mode`, "POST", {});
+      setSnap(n);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
   const onHostWinnerScreenModeChange = useCallback(
     async (mode: "question" | "round"): Promise<void> => {
       setErr(null);
@@ -3594,6 +3677,37 @@ function Admin(): JSX.Element {
                     onChange={(e) => void onHostVerdictSoundsToggle(e.target.checked)}
                   />
                   <span>Jouer les sons bon/mauvais après jugement de buzz</span>
+                </label>
+                <div style={{ marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => void onCycleBuzzSoundMode()}
+                    style={{ padding: "8px 12px", cursor: "pointer" }}
+                  >
+                    {(() => {
+                      const mode = snap.soundBuzzerPublic?.buzzSoundMode ?? "both";
+                      if (mode === "players") return "Sons de buzz : joueurs";
+                      if (mode === "animation") return "Sons de buzz : animation";
+                      return "Sons de buzz : joueurs + animation";
+                    })()}
+                  </button>
+                  <div style={{ fontSize: 12, color: "var(--bz-text-dim)", marginTop: 4 }}>
+                    Cliquez pour changer
+                  </div>
+                </div>
+                <label className="bz-settings-label">
+                  Fenêtre d'attente buzz (0–1000 ms)
+                  <input
+                    type="number"
+                    min={0}
+                    max={1000}
+                    step={50}
+                    value={snap.buzzGraceWindowMs ?? 500}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (val >= 0 && val <= 1000) void onHostBuzzGraceWindowChange(val);
+                    }}
+                  />
                 </label>
                 <label className="bz-settings-label">
                   Durée du compte à rebours (3–10 secondes)
@@ -4407,19 +4521,26 @@ function Broadcast(): JSX.Element {
                   : "Buzzer fermé"}
             </h3>
             {snap.buzzOrder.length > 0 ? (
-              <ol className="bz-bc-queue-list">
-                {snap.buzzOrder.slice(0, 3).map((idBuzz, idx) => {
-                  const pl = snap.players.find((p) => p.id === idBuzz);
-                  return (
-                    <li key={`${idBuzz}-${idx}`}>
-                      <span className="bz-bc-queue-rank">{idx + 1}</span>
-                      <span className="bz-bc-queue-name">
-                        {pl?.displayName ?? idBuzz}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ol>
+              <>
+                <ol className="bz-bc-queue-list">
+                  {snap.buzzOrder.slice(0, 3).map((idBuzz, idx) => {
+                    const pl = snap.players.find((p) => p.id === idBuzz);
+                    return (
+                      <li key={`${idBuzz}-${idx}`}>
+                        <span className="bz-bc-queue-rank">{idx + 1}</span>
+                        <span className="bz-bc-queue-name">
+                          {pl?.displayName ?? idBuzz}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+                {typeof snap.buzzTimeGapMs === "number" && snap.buzzTimeGapMs < 1000 ? (
+                  <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--bz-text-dim)" }}>
+                    Écart 1er/2e : {snap.buzzTimeGapMs} ms
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </div>
 

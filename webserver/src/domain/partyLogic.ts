@@ -130,8 +130,9 @@ export function publicSnapshotForParty(part: {
     activeMancheId: part.activeMancheId,
     allowPlayerAudioControl: part.allowPlayerAudioControl,
     soundBuzzerPublic: {
-      playOnPlayerDevice: part.buzzSound.playPlayerBuzzTone,
-      echoOnHostDevice: part.buzzSound.echoPlayerBuzzOnHost,
+      playOnPlayerDevice: part.buzzSound.buzzSoundMode === "players" || part.buzzSound.buzzSoundMode === "both",
+      echoOnHostDevice: part.buzzSound.buzzSoundMode === "animation" || part.buzzSound.buzzSoundMode === "both",
+      buzzSoundMode: part.buzzSound.buzzSoundMode,
     },
     autoPlay: {
       enabled: part.autoPlay.enabled,

@@ -67,14 +67,40 @@ export interface Player {
   joinedAt: number;
 }
 
+/** * Buzz sound mode: where buzz sounds are played. */
+export type BuzzSoundMode = "players" | "animation" | "both";
+
 /** * Buzzer SFX routing for a party (good/bad palettes + playback toggles). */
 export interface PartyBuzzSoundPolicy {
   allowedGoodKeys: string[];
   allowedBadKeys: string[];
-  playPlayerBuzzTone: boolean;
-  echoPlayerBuzzOnHost: boolean;
+  /** * Buzz sound mode: "players" (joueurs only), "animation" (animation only), "both" (joueurs + animation). */
+  buzzSoundMode: BuzzSoundMode;
   /** * Master toggle for good/bad sounds when judging buzz answers. */
   playVerdictSounds: boolean;
+}
+
+/** * Clock sync state for a single player (NTP-like). */
+export interface ClockSyncState {
+  /** * Estimated clock offset (ms): serverTime - clientTime. */
+  offsetMs: number;
+  /** * Minimal RTT measured during the last sync burst (ms). */
+  minRttMs: number;
+  /** * Timestamp (server time) of the last successful sync. */
+  lastSyncAt: number;
+}
+
+/** * Buzz entry during the grace window, before final decision. */
+export interface PendingBuzz {
+  playerId: string;
+  /** * Client timestamp (monotonic, ms). */
+  clientTimestamp: number;
+  /** * Server timestamp when the buzz was received (ms). */
+  arrivedAt: number;
+  /** * Estimated server timestamp (corrected by offset, capped). */
+  estimatedAt: number;
+  /** * For quiz rounds: choice index. */
+  quizChoiceIndex?: number;
 }
 
 export interface Party {
@@ -143,6 +169,18 @@ export interface Party {
   countdownStartedAt: number | null;
   /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
   winnerDisplay: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
+  /** * Grace window duration (ms) after first buzz before final decision (0–1000 ms, default 500). */
+  buzzGraceWindowMs: number;
+  /** * Clock sync state per player (for latency compensation). */
+  clockSync: Map<string, ClockSyncState>;
+  /** * Pending buzz entries during grace window (cleared at decision or window close). */
+  pendingBuzzQueue: PendingBuzz[];
+  /** * Timestamp when the first buzz of the current window arrived (null when no pending decision). */
+  buzzWindowFirstBuzzAt: number | null;
+  /** * Timestamp when the buzz window opened (server time). */
+  buzzWindowOpenedAt: number | null;
+  /** * Time gap (ms) between 1st and 2nd buzz after finalization (< 1000 ms), for broadcast display. */
+  lastBuzzGapMs: number | null;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -316,6 +354,8 @@ export interface PartyPublicSnapshot {
   soundBuzzerPublic: {
     playOnPlayerDevice: boolean;
     echoOnHostDevice: boolean;
+    /** * Buzz sound mode visible to all: "players", "animation", or "both". */
+    buzzSoundMode: BuzzSoundMode;
   };
   /** * Present only when the snapshot targets the authenticated animateur (`audience === "host"`). */
   soundBuzzerHostConfig?: {
@@ -334,6 +374,10 @@ export interface PartyPublicSnapshot {
   autoOpenBuzzOnCueAdvance?: boolean;
   /** * Authenticated host only : QCM — score + question suivante dès que chaque joueur a buzzé. */
   autoAdvanceQuizWhenAllBuzzed?: boolean;
+  /** * Grace window duration (ms) after first buzz before final decision (0–1000 ms), host only. */
+  buzzGraceWindowMs?: number;
+  /** * Time gap in milliseconds between 1st and 2nd buzz (if both exist and gap < 1000 ms), broadcast only. */
+  buzzTimeGapMs?: number;
   /** * Automatic play mode state (visible to all). */
   autoPlay?: {
     enabled: boolean;

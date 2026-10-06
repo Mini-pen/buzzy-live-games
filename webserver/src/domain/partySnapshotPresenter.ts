@@ -297,6 +297,7 @@ export function partySnapshotWithGame(
           playVerdictSounds: party.buzzSound.playVerdictSounds,
           autoOpenBuzzOnCueAdvance: party.autoOpenBuzzOnCueAdvance === true,
           autoAdvanceQuizWhenAllBuzzed: party.autoAdvanceQuizWhenAllBuzzed === true,
+          buzzGraceWindowMs: party.buzzGraceWindowMs,
         }
       : {};
   const buzzQuizQueueDetail =
@@ -314,11 +315,18 @@ export function partySnapshotWithGame(
           winnerScreenMode: party.winnerScreenMode,
         }
       : {};
+
+  const broadcastGap =
+    audience === "player" && party.lastBuzzGapMs !== null
+      ? { buzzTimeGapMs: party.lastBuzzGapMs }
+      : {};
+
   return {
     ...base,
     ...hostSound,
     ...readyFields,
     ...hostExtraFields,
+    ...broadcastGap,
     gameBoard,
     ...(buzzQuizQueueDetail !== undefined ? { buzzQuizQueueDetail } : {}),
   };

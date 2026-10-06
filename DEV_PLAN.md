@@ -303,6 +303,8 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 **Statut :** À implémenter.
 
+**Note de correspondance :** Section 4.7 du cahier-des-charges.
+
 **Description :** L'application héberge une bibliothèque de jeux accessible depuis l'interface admin et publique (lecture seule pour visiteurs). La bibliothèque contient une petite version intégrée de chaque type de jeu pour essai rapide. Les utilisateurs peuvent uploader des packs au format ZIP dans la bibliothèque ; ces packs sont stockés côté serveur et téléchargeables par tous. Lors de la création, l'animateur peut choisir un pack depuis la bibliothèque (téléchargement automatique et import).
 
 **Règles :**
@@ -312,6 +314,43 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 - Limite de taille par upload : configurable (ex. 50 Mo).
 - Indexation et recherche par titre, auteur, type de jeu, tags.
 - Système de signalement recommandé pour modération.
+
+---
+
+### 4.8 Régulation des buzz par horodatage (compensation latence)
+
+**Statut :** Livré (backend + client complets, 302/302 tests verts, build passe).
+
+**Note de correspondance :** Section 4.8 du cahier-des-charges.
+
+**Description :** Synchronisation d'horloge de type NTP pour compenser la latence réseau lors des buzz. Le joueur qui a buzzé en premier gagne, même si son paquet arrive plus tard au serveur. Fenêtre d'attente configurable (0–1000 ms) après le premier buzz avant décision finale. Mode de son de buzz à 3 états (joueurs, animation, les deux).
+
+**Implémentation (livrée) :**
+- **Backend :**
+  - Types : `ClockSyncState`, `BuzzSoundMode`, `PendingBuzz`
+  - Module `clockSync.ts` avec estimation offset, validation sync, classement buzz
+  - Fenêtre d'attente avec décision différée dans `store.ts`
+  - Compensation latence plafonnée (RTT/2 + 50 ms)
+  - Refus des buzz estimés avant ouverture fenêtre
+  - Routes API : `POST /api/parties/:partyId/me/time-sync`, `POST /api/parties/:partyId/host/buzz-grace-window`, `POST /api/parties/:partyId/host/buzz-sound-mode`
+  - Tests unitaires : 14 tests ajoutés pour `clockSync`, total 302/302 tests verts
+  - Champ `clientTimestamp` dans buzz, `buzzGraceWindowMs` dans snapshot host
+  - Mode son `buzzSoundMode` dans snapshot public
+- **Client :**
+  - Module `clientClockSync.ts` avec burst de 5 pings (garde min-RTT)
+  - Synchro automatique : connexion, reconnexion, début de manche, périodique 30s
+  - Envoi `clientTimestamp` dans POST buzz avec conversion offset
+  - Son local immédiat sur appui (si mode autorise + buzzer ouvert côté écran)
+  - Affichage « Buzz reçu » sans rang pendant fenêtre d'attente
+  - Bouton buzz désactivé quand buzzer fermé sur écran joueur
+  - Admin : bouton cyclique pour mode son 3 états + slider fenêtre d'attente (0-1000 ms)
+  - Broadcast : affichage écart 1er/2e buzz si < 1000 ms
+
+**Règles implémentées :**
+- Grace window de 0 à 1000 ms (défaut 500 ms)
+- Si window = 0, comportement actuel inchangé (premier arrivé)
+- Tous les joueurs buzzés → décision immédiate (fin anticipée de la window)
+- Son côté joueur immédiat (si autorisé), son côté animation à la réception serveur
 
 ---
 
