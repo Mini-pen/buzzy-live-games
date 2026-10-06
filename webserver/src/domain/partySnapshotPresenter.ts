@@ -297,6 +297,7 @@ export function partySnapshotWithGame(
           playVerdictSounds: party.buzzSound.playVerdictSounds,
           autoOpenBuzzOnCueAdvance: party.autoOpenBuzzOnCueAdvance === true,
           autoAdvanceQuizWhenAllBuzzed: party.autoAdvanceQuizWhenAllBuzzed === true,
+          buzzGraceWindowMs: party.buzzGraceWindowMs,
         }
       : {};
   const buzzQuizQueueDetail =

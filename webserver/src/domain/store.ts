@@ -23,11 +23,14 @@ import { resolveJoinAvatarKey, requireParsedAvatarKey } from "../avatars/catalog
 import { randomJoinCode, randomSecretHex } from "./codes.js";
 import { evaluateJoin, normalizeTeamChoice, publicSnapshotForParty } from "./partyLogic.js";
 import { quizPackFromLoadedId } from "./partySnapshotPresenter.js";
-import type { ChatEntry, MancheCatalogItem, Party, PartyPublicSnapshot, Player } from "./types.js";
+import type { ChatEntry, MancheCatalogItem, Party, PartyPublicSnapshot, Player, PendingBuzz } from "./types.js";
+import { computeEstimatedTimestamp, rankBuzzByEstimatedTime } from "./clockSync.js";
 
 function clearBuzzQueue(party: Party): void {
   party.buzzOrder = [];
   party.buzzQuizGuess.clear();
+  party.pendingBuzzQueue = [];
+  party.buzzWindowFirstBuzzAt = null;
 }
 export interface CreatePartyOpts {
   maxPlayers: number | null;
@@ -50,7 +53,8 @@ export type PartyNotifyMeta =
   | { kind: "player_kicked"; playerId: string }
   | { kind: "buzz_verdict"; playerId: string; verdict: "good" | "bad" }
   | { kind: "quiz_auto_toast"; playerId: string; correct: boolean }
-  | { kind: "tutorial"; gameKind: string; canSkip: boolean };
+  | { kind: "tutorial"; gameKind: string; canSkip: boolean }
+  | { kind: "buzz_decision" };
 
 export type PartyNotifier = (
   partyId: string,
@@ -119,8 +123,8 @@ export class PartyStore {
     next: {
       allowedGoodKeys: string[];
       allowedBadKeys: string[];
-      playPlayerBuzzTone: boolean;
-      echoPlayerBuzzOnHost: boolean;
+      playPlayerBuzzTone?: boolean;
+      echoPlayerBuzzOnHost?: boolean;
     },
   ): void {
     if (next.allowedGoodKeys.length < 1 || next.allowedBadKeys.length < 1) {
@@ -135,11 +139,21 @@ export class PartyStore {
         throw Object.assign(new Error("Buzz sound inconnu."), { code: "BUZZ_SOUND_INVALID" });
       }
     }
+    
+    let buzzSoundMode = party.buzzSound.buzzSoundMode;
+    if (next.playPlayerBuzzTone !== undefined || next.echoPlayerBuzzOnHost !== undefined) {
+      const players = next.playPlayerBuzzTone ?? (party.buzzSound.buzzSoundMode === "players" || party.buzzSound.buzzSoundMode === "both");
+      const animation = next.echoPlayerBuzzOnHost ?? (party.buzzSound.buzzSoundMode === "animation" || party.buzzSound.buzzSoundMode === "both");
+      if (players && animation) buzzSoundMode = "both";
+      else if (players) buzzSoundMode = "players";
+      else if (animation) buzzSoundMode = "animation";
+      else buzzSoundMode = "players";
+    }
+    
     party.buzzSound = {
       allowedGoodKeys: g,
       allowedBadKeys: b,
-      playPlayerBuzzTone: next.playPlayerBuzzTone,
-      echoPlayerBuzzOnHost: next.echoPlayerBuzzOnHost,
+      buzzSoundMode,
       playVerdictSounds: party.buzzSound.playVerdictSounds,
     };
     this.touch(party);
@@ -208,8 +222,7 @@ export class PartyStore {
       buzzSound: {
         allowedGoodKeys: pol.allowedGoodKeys,
         allowedBadKeys: pol.allowedBadKeys,
-        playPlayerBuzzTone: true,
-        echoPlayerBuzzOnHost: true,
+        buzzSoundMode: "both",
         playVerdictSounds: true,
       },
       mancheScript: [],
@@ -230,6 +243,11 @@ export class PartyStore {
       readyPhaseStartedAt: null,
       countdownStartedAt: null,
       winnerDisplay: null,
+      buzzGraceWindowMs: 500,
+      clockSync: new Map(),
+      pendingBuzzQueue: [],
+      buzzWindowFirstBuzzAt: null,
+      buzzWindowOpenedAt: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -448,36 +466,131 @@ export class PartyStore {
     this.broadcast(party);
   }
 
-  buzz(party: Party, playerId: string, quizChoice?: QuizBuzzChoiceOpts): void {
+  buzz(party: Party, playerId: string, clientTimestamp: number | undefined, quizChoice?: QuizBuzzChoiceOpts): void {
     if (!(party.state === "round_active" && party.buzzWindowOpen)) {
       throw Object.assign(new Error("NO_BUZZ"), { code: "NO_BUZZ" });
     }
     const player = party.players.get(playerId);
     if (!player)
       throw Object.assign(new Error("PLAYER_GONE"), { code: "PLAYER_GONE" });
-    const alreadyBuzzedFirst = party.buzzOrder.some((pid) => pid === playerId);
-    if (!alreadyBuzzedFirst) {
-      const len = quizChoice?.choicesLen;
-      if (typeof len === "number" && len >= 1) {
-        const ix = quizChoice?.choiceIndex;
-        if (
-          typeof ix !== "number" ||
-          !Number.isInteger(ix) ||
-          ix < 0 ||
-          ix >= len
-        ) {
-          throw Object.assign(
-            new Error("Choix de réponse requis pour buzzer sur ce QCM."),
-            { code: "QUIZ_CHOICE_REQUIRED" },
-          );
-        }
+    
+    const alreadyInQueue = party.buzzOrder.some((pid) => pid === playerId);
+    const alreadyPending = party.pendingBuzzQueue.some((b) => b.playerId === playerId);
+    if (alreadyInQueue || alreadyPending) {
+      return;
+    }
+
+    const len = quizChoice?.choicesLen;
+    if (typeof len === "number" && len >= 1) {
+      const ix = quizChoice?.choiceIndex;
+      if (
+        typeof ix !== "number" ||
+        !Number.isInteger(ix) ||
+        ix < 0 ||
+        ix >= len
+      ) {
+        throw Object.assign(
+          new Error("Choix de réponse requis pour buzzer sur ce QCM."),
+          { code: "QUIZ_CHOICE_REQUIRED" },
+        );
+      }
+    }
+
+    const nowMs = Date.now();
+    const arrivedAt = nowMs;
+    const sync = party.clockSync.get(playerId);
+    const estimatedAt = clientTimestamp !== undefined
+      ? computeEstimatedTimestamp(clientTimestamp, arrivedAt, sync, nowMs)
+      : arrivedAt;
+
+    if (party.buzzWindowOpenedAt !== null && estimatedAt < party.buzzWindowOpenedAt) {
+      throw Object.assign(
+        new Error("Buzz estimé avant l'ouverture de la fenêtre."),
+        { code: "BUZZ_TOO_EARLY" },
+      );
+    }
+
+    if (party.buzzGraceWindowMs === 0) {
+      const ix = quizChoice?.choiceIndex;
+      if (typeof ix === "number" && typeof len === "number" && len >= 1) {
         party.buzzQuizGuess.set(playerId, ix);
       }
       party.buzzOrder.push(playerId);
       this.touch(party);
       this.broadcast(party);
       this.notify(party.id, party, { kind: "buzz_fx", playerId });
+      return;
     }
+
+    const pendingBuzz: PendingBuzz = {
+      playerId,
+      clientTimestamp: clientTimestamp ?? arrivedAt,
+      arrivedAt,
+      estimatedAt,
+      quizChoiceIndex: quizChoice?.choiceIndex,
+    };
+    party.pendingBuzzQueue.push(pendingBuzz);
+
+    if (party.buzzWindowFirstBuzzAt === null) {
+      party.buzzWindowFirstBuzzAt = arrivedAt;
+    }
+
+    this.touch(party);
+    this.broadcast(party);
+    this.notify(party.id, party, { kind: "buzz_fx", playerId });
+
+    console.log(`[buzz-sync] Player ${playerId} buzzed: clientTs=${clientTimestamp}, arrivedAt=${arrivedAt}, estimatedAt=${estimatedAt}, offset=${sync?.offsetMs ?? 'N/A'}, RTT=${sync?.minRttMs ?? 'N/A'}, compensation=${arrivedAt - estimatedAt}ms`);
+  }
+
+  finalizeBuzzDecision(party: Party): void {
+    if (party.pendingBuzzQueue.length === 0) return;
+
+    const ranked = rankBuzzByEstimatedTime(party.pendingBuzzQueue);
+    
+    console.log(`[buzz-sync] Decision for ${ranked.length} buzz(es):`);
+    ranked.forEach((b, i) => {
+      const timeDiff = i > 0 ? b.estimatedAt - ranked[0].estimatedAt : 0;
+      console.log(`  ${i + 1}. Player ${b.playerId}: estimatedAt=${b.estimatedAt}, arrivedAt=${b.arrivedAt}, diff=${timeDiff}ms`);
+    });
+
+    for (const buzz of ranked) {
+      party.buzzOrder.push(buzz.playerId);
+      if (buzz.quizChoiceIndex !== undefined) {
+        party.buzzQuizGuess.set(buzz.playerId, buzz.quizChoiceIndex);
+      }
+    }
+
+    party.pendingBuzzQueue = [];
+    party.buzzWindowFirstBuzzAt = null;
+
+    this.touch(party);
+    this.broadcast(party);
+    this.notify(party.id, party, { kind: "buzz_decision" } as PartyNotifyMeta);
+
+    if (ranked.length >= 2) {
+      const gap = ranked[1].estimatedAt - ranked[0].estimatedAt;
+      if (gap < 1000) {
+        console.log(`[buzz-sync] Gap between 1st and 2nd: ${gap}ms (< 1s, will be displayed)`);
+      }
+    }
+  }
+
+  maybeFinalizeBuzzDecision(party: Party): boolean {
+    if (party.buzzWindowFirstBuzzAt === null || party.pendingBuzzQueue.length === 0) {
+      return false;
+    }
+
+    const nowMs = Date.now();
+    const elapsedSinceFirstBuzz = nowMs - party.buzzWindowFirstBuzzAt;
+    
+    const allBuzzed = party.pendingBuzzQueue.length + party.buzzOrder.length >= party.players.size;
+    
+    if (allBuzzed || elapsedSinceFirstBuzz >= party.buzzGraceWindowMs) {
+      this.finalizeBuzzDecision(party);
+      return true;
+    }
+
+    return false;
   }
 
   resetBuzzBoard(party: Party): void {
@@ -491,8 +604,11 @@ export class PartyStore {
       throw Object.assign(new Error("BAD_PHASE"), { code: "BAD_PHASE" });
     }
     party.buzzWindowOpen = open;
-    if (!open) {
+    if (open) {
+      party.buzzWindowOpenedAt = Date.now();
+    } else {
       clearBuzzQueue(party);
+      party.buzzWindowOpenedAt = null;
     }
     this.touch(party);
     this.broadcast(party);
@@ -510,6 +626,40 @@ export class PartyStore {
     this.broadcast(party);
   }
 
+  adminSetBuzzGraceWindow(party: Party, durationMs: number): void {
+    if (durationMs < 0 || durationMs > 1000) {
+      throw Object.assign(
+        new Error("Grace window must be between 0 and 1000 ms."),
+        { code: "VALIDATION" },
+      );
+    }
+    party.buzzGraceWindowMs = durationMs;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  adminCycleBuzzSoundMode(party: Party): void {
+    const current = party.buzzSound.buzzSoundMode;
+    const next = current === "players" ? "animation" : current === "animation" ? "both" : "players";
+    party.buzzSound.buzzSoundMode = next;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  updatePlayerClockSync(party: Party, playerId: string, offsetMs: number, rttMs: number): void {
+    const existing = party.clockSync.get(playerId);
+    const nowMs = Date.now();
+    const updated = { offsetMs, minRttMs: rttMs, lastSyncAt: nowMs };
+    
+    if (!existing || rttMs < existing.minRttMs) {
+      party.clockSync.set(playerId, updated);
+    } else {
+      party.clockSync.set(playerId, { ...existing, lastSyncAt: nowMs });
+    }
+    
+    this.touch(party);
+  }
+
   /**
    * * When `autoAdvanceQuizWhenAllBuzzed` is on and the current cue is a quiz (QCM), resolves every buzz with an
    *   automatic good/bad vs `correctIndex`, awards points, notifies verdict + toast, then advances the cue — if
@@ -518,6 +668,12 @@ export class PartyStore {
   maybeAutoResolveQuizWhenEveryPlayerBuzzed(party: Party, pack: QuizPack | null): void {
     if (!party.autoAdvanceQuizWhenAllBuzzed || pack === null) return;
     if (party.state !== "round_active" || !party.buzzWindowOpen) return;
+    
+    const totalBuzzed = party.buzzOrder.length + party.pendingBuzzQueue.length;
+    if (totalBuzzed >= party.players.size && party.players.size > 0 && party.pendingBuzzQueue.length > 0) {
+      this.finalizeBuzzDecision(party);
+    }
+
     const ri = party.currentRoundIndex;
     const qi = party.currentQuestionIndex;
     if (ri === null || qi === null || ri < 0 || qi < 0 || ri >= pack.rounds.length) return;
@@ -1151,6 +1307,7 @@ export class PartyStore {
     
     if (elapsed >= countdownMs) {
       party.buzzWindowOpen = true;
+      party.buzzWindowOpenedAt = Date.now();
       party.winnerDisplay = null;
       this.clearReadyPhase(party);
       this.touch(party);
@@ -1173,6 +1330,7 @@ export class PartyStore {
     this.clearReadyPhase(party);
     party.winnerDisplay = null;
     party.buzzWindowOpen = true;
+    party.buzzWindowOpenedAt = Date.now();
     this.touch(party);
     this.broadcast(party);
   }

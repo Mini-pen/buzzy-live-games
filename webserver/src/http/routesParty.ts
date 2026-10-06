@@ -104,11 +104,20 @@ const buzzAutoCueAdvanceSchema = z.object({
 
 const buzzBodySchema = z.object({
   quizChoiceIndex: z.number().int().min(0).max(255).optional(),
+  clientTimestamp: z.number().optional(),
 });
 
 const buzzResolveSchema = z.object({
   playerId: z.string().uuid(),
   verdict: z.enum(["good", "bad"]),
+});
+
+const buzzGraceWindowSchema = z.object({
+  durationMs: z.number().int().min(0).max(1000),
+});
+
+const timeSyncPingSchema = z.object({
+  clientTimestamp: z.number(),
 });
 
 const playerAudioAllowSchema = z.object({
@@ -118,8 +127,8 @@ const playerAudioAllowSchema = z.object({
 const buzzSoundPolicySchema = z.object({
   allowedGoodKeys: z.array(z.string().min(1).max(64)).min(1),
   allowedBadKeys: z.array(z.string().min(1).max(64)).min(1),
-  playPlayerBuzzTone: z.boolean(),
-  echoPlayerBuzzOnHost: z.boolean(),
+  playPlayerBuzzTone: z.boolean().optional(),
+  echoPlayerBuzzOnHost: z.boolean().optional(),
 });
 
 const verdictSoundsSchema = z.object({
@@ -519,17 +528,20 @@ export async function registerPartyRoutes(
         }
         const party = requireParty(store, partyId);
         const alreadyInQueue = party.buzzOrder.some((idBuzz) => idBuzz === playerId);
+        const alreadyPending = party.pendingBuzzQueue.some((b) => b.playerId === playerId);
         const quizBuzz = quizBuzzOptsForRequest(
           party,
           allPacks(),
           parsedBody.data.quizChoiceIndex,
         );
-        store.buzz(party, playerId, quizBuzz);
+        store.buzz(party, playerId, parsedBody.data.clientTimestamp, quizBuzz);
+        store.maybeFinalizeBuzzDecision(party);
         const loadedAfterBuzz = quizPackFromLoadedId(allPacks(), party.loadedPackId);
         store.maybeAutoResolveQuizWhenEveryPlayerBuzzed(party, loadedAfterBuzz);
         const snapshot = snapPlayer(party);
         let buzzToneUrl: string | undefined;
-        if (!alreadyInQueue && party.buzzSound.playPlayerBuzzTone) {
+        const shouldPlayPlayerSound = party.buzzSound.buzzSoundMode === "players" || party.buzzSound.buzzSoundMode === "both";
+        if (!alreadyInQueue && !alreadyPending && shouldPlayPlayerSound) {
           const plNow = party.players.get(playerId);
           const sfx = plNow ? buzzCatalog.byKey.get(plNow.buzzSoundKey) : undefined;
           if (sfx) buzzToneUrl = resolveBuzzSoundPublicUrl(sfx) || undefined;
@@ -725,6 +737,77 @@ export async function registerPartyRoutes(
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
         }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/buzz-grace-window",
+    async (req, reply) => {
+      try {
+        const body = buzzGraceWindowSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetBuzzGraceWindow(party, body.durationMs);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/buzz-sound-mode",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminCycleBuzzSoundMode(party);
+        return snapHost(party);
+      } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/me/time-sync",
+    {
+      preHandler: [gatePlayerJwt],
+    },
+    async (req, reply) => {
+      try {
+        const principal = req.user instanceof Object ? req.user : null;
+        const u = principal as { pid?: string; sub?: string };
+        const partyId = u.pid;
+        const playerId = u.sub;
+        if (typeof partyId !== "string" || typeof playerId !== "string") {
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        }
+        if (partyId !== req.params.partyId)
+          return reply.status(403).send({ error: "FORBIDDEN" });
+        
+        const parsedBody = timeSyncPingSchema.safeParse(req.body ?? {});
+        if (!parsedBody.success) {
+          return reply.status(400).send({ error: "VALIDATION", issues: parsedBody.error.issues });
+        }
+
+        requireParty(store, partyId);
+        const serverTimestamp = Date.now();
+        
+        return {
+          clientTimestamp: parsedBody.data.clientTimestamp,
+          serverTimestamp,
+        };
+      } catch (err) {
         return replyDomain(reply, err);
       }
     },
