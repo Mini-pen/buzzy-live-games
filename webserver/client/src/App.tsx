@@ -2228,7 +2228,7 @@ function Play(): JSX.Element {
     if (!pid || jwt === null || jwt === "") return undefined;
     
     void performClockSyncBurst(pid, jwt).then((sync) => {
-      if (sync) setClockSync(sync);
+      setClockSync(sync);
     });
 
     if (periodicSyncInterval.current !== null) {
@@ -2237,7 +2237,7 @@ function Play(): JSX.Element {
     
     periodicSyncInterval.current = window.setInterval(() => {
       void performClockSyncBurst(pid, jwt).then((sync) => {
-        if (sync) setClockSync(sync);
+        setClockSync(sync);
       });
     }, 30_000);
 
@@ -2254,7 +2254,7 @@ function Play(): JSX.Element {
     if (snap.activeMancheId === null) return;
     
     void performClockSyncBurst(pid, jwt).then((sync) => {
-      if (sync) setClockSync(sync);
+      setClockSync(sync);
     });
   }, [pid, jwt, snap?.activeMancheId, snap?.state]);
 
@@ -3915,7 +3915,7 @@ function Admin(): JSX.Element {
                 </span>
               </label>
               <div className="bz-settings" style={{ marginTop: 16, padding: 16, background: "var(--bz-surface)", borderRadius: "var(--bz-r-md)" }}>
-                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Réglages évolution 4.5</h3>
+                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Sons et compte à rebours</h3>
                 <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                   <input
                     type="checkbox"

@@ -79,3 +79,17 @@ Session 2026-05-14 (soir) — journal latest archivé
 ## Références
 
 - Commit `4c248fa` ; fichiers `webserver/src/games/pack.ts`, `partySnapshotPresenter.ts`, `store.ts`, `client/App.tsx`, pack JSON.
+
+================================================================================
+Session 2026-10-07 — Évolution 4.6 affichage projeté
+================================================================================
+- Miniature admin muette, cinq réglages de diffusion, scores grand écran et téléphone séparés.
+- Highlight du gagnant après la décision §4.8. Routes broadcast-display et manche/broadcast-view.
+- Statut cahier §4.6 livré. Vitest 341/341. Spec `a0bb578`.
+
+================================================================================
+Session 2026-10-07 — Vitest §4.6 (PR 29, main c09796d)
+================================================================================
+- Couverture helpers d'affichage projeté, snapshots hôte/joueur, somme `teamScores`, Zod des routes admin.
+- `broadcastDisplay.test.ts`, `partyLogic.test.ts`, `broadcastDisplayRoutes.test.ts`.
+- Suite 351/351 (24 fichiers). Pas de tests React, pas de changement de comportement produit.
