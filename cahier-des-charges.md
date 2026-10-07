@@ -660,38 +660,157 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
+**Statut :** Décisions Minipen (7 oct. 2026) et complément Design UI intégrés — rien d'implémenté. Les quatre anciens points ouverts sont fermés.
+
 **Comportement :**
 
-- L'interface admin affiche une fenêtre miniature simulant l'écran projeté (`/party/:partyId/broadcast`).
-- L'animateur peut configurer l'affichage : afficher uniquement la question et les réponses, ou inclure aussi le classement en temps réel.
-- Option de masquage des scores numériques : seul l'ordre de classement est visible (1er, 2ème, 3ème…) pour maintenir le suspense.
-- Mise en évidence automatique du premier joueur ayant buzzé (highlight visuel).
-- Choix d'affichage des joueurs : groupés par équipe (vue consolidée par équipe) ou vue individuelle, configurable par manche.
+- L'interface admin (`/party/:partyId/admin`) affiche une fenêtre miniature en lecture seule du vrai rendu de l'écran projeté (`/party/:partyId/broadcast`), avec la même logique de rendu que le composant React `Broadcast` (pas une maquette). Elle se construit depuis le snapshot admin déjà reçu. Elle ne rejoint pas la room Socket.IO `broadcast` et n'ouvre pas de connexion de diffusion en plus.
+- La miniature est redimensionnable et muette (les sons ne doivent pas jouer deux fois sur la machine de l'animateur).
+- L'animateur configure l'affichage depuis le panneau « Affichage projeté ». Cinq réglages sont enregistrés dans l'état de la partie et diffusés via `party:patch`. Les deux réglages de scores sont **indépendants** (l'ancien réglage unique « Masquer les scores numériques » est remplacé) :
+  1. **Afficher le classement** (oui/non) : visibilité du footer (file de buzz et classement) sur le grand écran.
+  2. **Scores sur le grand écran** (On/Off, défaut **On**) : réglage A. Off = rangs seuls (1er, 2ème, 3ème…) sur le grand écran, l'écran du gagnant automatique du §4.5 côté diffusion, et le classement final côté diffusion. On = scores numériques sur ces surfaces.
+  3. **Scores côté joueurs** (On/Off, défaut **On**) : réglage B, distinct de A. Source de vérité : le champ de partie `playerShowScores`, écrit seulement par l'animateur, lu par tous les téléphones. Ce n'est pas une préférence par joueur et ce n'est pas le même booléen que A.
+  4. **Mettre en avant le gagnant du buzz** (oui/non) : highlight visuel du gagnant désigné à la décision du §4.8 (jamais pendant la fenêtre d'attente, pas de gagnant provisoire). Si ce réglage est Off, l'écart de temps 1er/2e du §4.8 est masqué aussi.
+  5. **Vue par équipe / Vue individuelle** : réglage global de partie, et valeur optionnelle par manche dans `mancheScript` (`broadcastViewMode` : `"team"`, `"individual"`, ou `null` pour suivre le global). La valeur de la manche l'emporte pendant cette manche. Changer le global en cours de manche n'écrase pas la valeur de la manche.
 
 **Acteurs :**
 
-- Animateur : configure l'affichage projeté depuis l'interface admin.
+- Animateur : configure l'affichage projeté et les scores côté joueurs depuis l'interface admin.
+- Joueur : voit ou non ses scores selon le réglage B ; déplie la table, choisit le tri, et peut masquer le bloc sur son téléphone (préférence locale).
 
 **Règles métier :**
 
-- Les modifications de configuration s'appliquent en temps réel sur `/party/:partyId/broadcast`.
-- La fenêtre miniature dans l'admin reflète l'affichage projeté (preview live).
-- Le masquage des scores numériques n'affecte que l'affichage projeté ; l'interface animateur conserve les scores numériques.
-- Le highlight du premier joueur buzzé (bordure, couleur, animation) est visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé.
-- Le mode d'affichage (équipe vs individuel) peut être défini globalement ou par manche dans le `mancheScript`.
+- Les réglages de partie sont des champs nouveaux de `Party` (rien de tout cela n'existe dans le code aujourd'hui) :
+
+  | Réglage UI | Champ | Défaut |
+  |---|---|---|
+  | Afficher le classement | `broadcastShowRanking` | `true` |
+  | Scores sur le grand écran | `broadcastShowScores` | `true` |
+  | Scores côté joueurs | `playerShowScores` | `true` |
+  | Mettre en avant le gagnant du buzz | `highlightBuzzWinner` | `true` |
+  | Vue globale | `broadcastViewModeGlobal` | `"team"` si `maxTeams !== null`, sinon `"individual"` |
+  | Vue de manche | `MancheCatalogItem.broadcastViewMode` | `null` (suivre le global) |
+
+- `broadcastShowScores` et `playerShowScores` sont deux booléens distincts. Changer l'un ne modifie pas l'autre. La source de vérité des scores téléphone est `playerShowScores` pour toute la partie, pas une copie du réglage grand écran.
+- Chaque modification animateur déclenche un `party:patch`. Le grand écran (room `broadcast`) et les téléphones (room `player`) appliquent le champ qui les concerne en moins d'une seconde, sans recharger. L'admin relit les mêmes champs dans son snapshot.
+- Au rechargement du grand écran ou à sa reconnexion, les réglages de diffusion sont réappliqués depuis le snapshot. Au rechargement de l'admin, les cases reflètent le snapshot. Au rechargement d'un téléphone, `playerShowScores` est relu depuis le snapshot ; la préférence locale Masquer/Afficher n'est pas dans ce snapshot.
+- **Cohérence avec le §4.8 (décision Minipen, point fermé) :**
+  - Le highlight (`highlightBuzzWinner`) ne s'affiche qu'après la décision finale du §4.8, jamais pendant la fenêtre d'attente, sans gagnant provisoire.
+  - Aujourd'hui le grand écran affiche la file `buzzOrder` dès qu'un joueur buzze. Cette règle est remplacée : le surlignage n'apparaît qu'après la décision, et reste visible jusqu'à la question suivante ou la réouverture du buzzer. L'ancienne formulation « visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé » contredit le §4.8 ; elle est abandonnée.
+  - L'écart de temps 1er/2e du §4.8 (affiché seulement s'il est strictement inférieur à 1 s, jamais s'il n'y a qu'un buzz) **n'est affiché que si `highlightBuzzWinner` est `true`**. S'il est `false`, l'écart est masqué. Point fermé.
+- **Scores sur le grand écran (`broadcastShowScores`, réglage A) :**
+  - `false` : rangs seuls sur le grand écran (footer, écran du gagnant §4.5 côté diffusion, classement final `between_rounds` ou `ended`). Pas de score numérique sur ces surfaces.
+  - `true` : scores numériques, comme le rendu actuel du footer (`teamScores`).
+  - L'admin (`/party/:partyId/admin`) affiche toujours les scores numériques (aside, panneau Scores, file de buzz). A et B ne changent pas l'admin.
+  - Si `broadcastShowRanking` est `false`, la case « Scores sur le grand écran » est grisée. Sa valeur (`broadcastShowScores`) est conservée et reprend effet quand le classement réapparaît. La case « Scores côté joueurs » n'est pas grisée : elle ne dépend pas du classement diffusé.
+- **Scores côté joueurs (`playerShowScores`, réglage B) — décision Minipen + Design UI :**
+  - `true` (défaut) : bas de l'écran `/party/:partyId/play`, un bloc épinglé, toujours visible tant que le joueur ne l'a pas masqué localement.
+    - Ligne compacte : `Moi · {score} pts`. Si `teamId` n'est pas `null`, on ajoute `Éq. {teamId} · {teamScores[teamId]} pts`. Les équipes n'ont pas de nom dans le modèle (`Player.teamId` seulement) : le « Nom » du croquis Design UI est ce numéro. Chevron `▾` à droite.
+    - Le score perso n'est pas répété dans la bande d'identité (`bz-identity-score`) : il vit dans ce bloc.
+    - Clic sur la ligne compacte : la table se déplie. Reclic : elle se replie. L'état déplié/replié repart replié à chaque chargement de la page (non persisté).
+    - Table dépliée, deux onglets : `Par score` (score total croissant, le plus petit en premier ; à score égal, `displayName` en locale `fr`) et `Par équipe` (équipes par `teamId` croissant, puis score croissant dans l'équipe ; les `teamId === null` sont groupés sous le titre **Sans équipe**). Onglet initial : `Par score`. Si `maxTeams === null`, l'onglet `Par équipe` n'est pas proposé.
+    - Bouton `Masquer` : cache tout le bloc (ligne compacte et table). Il ne reste qu'un bouton `Afficher` en bas d'écran, sans aucun score. Préférence **locale au navigateur**, non envoyée au serveur, non partagée, non présente dans `party:patch`. Elle survit au rechargement de cette page sur ce navigateur et ne suit pas le joueur sur un autre appareil.
+  - `false` : aucun bloc de scores, aucun score dans la bande d'identité, aucun score sur l'écran du gagnant du téléphone. Pas de rang de remplacement sur le téléphone (les rangs sont réservés au grand écran quand A est Off). Les autres joueurs et le grand écran ne changent pas.
+  - L'écran du gagnant §4.5 suit la surface : grand écran selon A (score ou rang), téléphone selon B (score si On, ligne de score absente si Off).
+- **Vue équipe / individuelle :**
+  - Pendant une manche active, `mancheScript[i].broadcastViewMode !== null` l'emporte ; sinon `broadcastViewModeGlobal`.
+  - Si `maxTeams === null`, le bouton « Vue par équipe » n'est pas proposé et la vue individuelle est forcée.
+  - **Rendu actuel du grand écran (défaut à reproduire quand les scores sont On et la vue est équipe) :** le footer de `Broadcast` affiche les scores d'équipe (`teamScores`) quand `teamEntries.length > 0`. Le lobby affiche le nombre de joueurs, pas la liste. En `between_rounds` ou `ended`, seuls les totaux d'équipe sont affichés. La vue individuelle n'existe pas encore dans le code.
+  - **Vue individuelle (à implémenter) :** liste de tous les joueurs, score décroissant, pseudo, avatar, et score numérique si A est On, rang seul si A est Off.
+  - **Joueur sans équipe (décision Minipen, point fermé) :** en vue équipe, les joueurs `teamId === null` ne sont pas dans `teamScores`. Ils apparaissent dans une section titrée **Sans équipe** (pseudo, et score ou rang selon A). La section est absente s'il n'y a aucun joueur sans équipe.
+  - **Équipes activées en cours de partie (décision Minipen, point fermé) :** pas de bascule automatique de `broadcastViewModeGlobal`. Aujourd'hui `maxTeams` est fixé à la création (pas de PATCH, §2.1) : cette règle s'applique au moment où une partie passe de `maxTeams === null` à des équipes activées, sans inventer ici l'API qui ferait ce passage. L'admin affiche un toast `Passer en vue par équipe ?` avec `Oui` et `Plus tard`. `Oui` met `broadcastViewModeGlobal` à `"team"` sans écraser un `broadcastViewMode` de manche. `Plus tard` ferme le toast sans changer la vue. Le toast n'est pas montré si la vue globale est déjà `"team"`, ni sur le grand écran, ni sur les téléphones. Un seul toast par passage « équipes activées ».
+- **Miniature et panneau (Design UI) :**
+  - Carte « Aperçu diffusion » dans la colonne principale, sous le hero (le lien « Ouvrir la diffusion » reste dans le hero), avant le plateau. 16:9, largeur 320 à 640 px, redimensionnable par le coin. L'aside (file de buzz, scores admin) ne change pas.
+  - Construit depuis le snapshot/patch admin déjà reçu. Pas de socket vers la room `broadcast`. Le serveur (`webserver/src/index.ts`) ne compte ni n'affiche le nombre de clients de cette room.
+  - Muette : pas de son de buzz (`party:buzz_fx`), de verdict (`party:answer_fx`, `playVerdictSounds`), de compte à rebours, ni de lecteur audio. Pictogramme « son coupé » dans un coin.
+  - Lecture seule : pas de bouton « retour tableau », pas de lien cliquable.
+  - Panneau « Affichage projeté » collé sous la miniature :
+    - case `Afficher le classement` ;
+    - case `Scores sur le grand écran` (défaut On), grisée si le classement est masqué, valeur conservée ;
+    - case `Scores côté joueurs` (défaut On), jamais grisée par le classement ;
+    - boutons `Vue individuelle` / `Vue par équipe` (le bouton équipe disparaît si `maxTeams === null`) ;
+    - case `Mettre en avant le gagnant du buzz`.
 
 **Critères d'acceptation :**
 
-- L'interface admin affiche une fenêtre miniature redimensionnable montrant le rendu de `/party/:partyId/broadcast`.
-- Les réglages d'affichage sont accessibles via un panneau : « Afficher classement », « Masquer scores numériques », « Vue par équipe / Vue individuelle », « Highlight premier buzz ».
-- Les changements sont appliqués en temps réel sur le grand écran.
-- Le premier joueur ayant buzzé est mis en évidence visuellement (bordure dorée, animation, etc.).
-- En vue par équipe, les joueurs sont regroupés ; en vue individuelle, tous les joueurs sont listés séparément.
+**Réglages et persistance :**
+
+1. **CA-1 :** Passer `broadcastShowRanking`, `broadcastShowScores`, `highlightBuzzWinner` ou `broadcastViewModeGlobal` change le grand écran en moins d'1 s sans recharger (`party:patch`). Passer `playerShowScores` change les téléphones ouverts en moins d'1 s sans recharger, et ne change pas le grand écran.
+2. **CA-2 :** Les champs du tableau ci-dessus sont persistés dans `Party`. Après redémarrage du process ils ne survivent pas (la partie reste en mémoire, comme le reste de l'état), mais ils survivent à un rechargement de page tant que la partie existe.
+3. **CA-3 :** Recharger `/party/:partyId/broadcast` ou reconnecter son socket réapplique le classement, les scores diffusion, le highlight et la vue.
+4. **CA-4 :** Recharger l'admin réaffiche les cases et les boutons de vue dans l'état du snapshot, y compris les deux cases de scores distinctes.
+
+**Scores sur le grand écran (réglage A) :**
+
+5. **CA-5 :** `broadcastShowScores === false` et classement affiché : le grand écran montre des rangs seuls (1er, 2ème, 3ème…) dans le footer, l'écran du gagnant §4.5 et le classement final. Aucun score numérique sur ces surfaces.
+6. **CA-6 :** `broadcastShowScores === true` : ces mêmes surfaces montrent les scores numériques.
+7. **CA-7 :** L'admin affiche toujours les scores numériques (panneau Scores, file de buzz), que A ou B soit On ou Off.
+8. **CA-8 :** Couper A ne change pas `playerShowScores`. Couper B ne change pas `broadcastShowScores` ni le rendu du grand écran.
+9. **CA-9 :** Classement masqué : la case `Scores sur le grand écran` est grisée et garde sa valeur. Réafficher le classement réapplique cette valeur sans que l'animateur ait à la recocher. La case `Scores côté joueurs` reste active pendant ce temps.
+10. **CA-10 :** Égalité : deux joueurs ou deux équipes au même score affichent le même rang deux fois (ex. deux « 2ème ») quand A est Off.
+
+**Scores côté joueurs (réglage B) :**
+
+11. **CA-11 :** Défaut : les deux cases de scores sont On. Sur `/party/:partyId/play`, un bloc épinglé en bas montre `Moi · {score} pts` et un chevron `▾`. La bande d'identité ne répète pas ce score.
+12. **CA-12 :** Joueur avec `teamId` non null : la ligne compacte ajoute `Éq. {teamId} · {Y} pts`, où Y est `teamScores` de cette équipe (somme des scores des joueurs de l'équipe, pas une copie du score perso).
+13. **CA-13 :** Joueur avec `teamId === null` : la ligne compacte n'a pas de segment équipe.
+14. **CA-14 :** Clic sur la ligne compacte déplie la table. Un second clic la replie. Recharger la page la remet repliée.
+15. **CA-15 :** Onglet `Par score` : ordre de score croissant (le plus petit en premier). À score égal, `displayName` en locale `fr`.
+16. **CA-16 :** Onglet `Par équipe` : groupes par `teamId` croissant, score croissant dans chaque groupe. Les joueurs `teamId === null` sont sous le titre **Sans équipe**.
+17. **CA-17 :** `maxTeams === null` : l'onglet `Par équipe` n'est pas affiché. `Par score` reste disponible.
+18. **CA-18 :** `Masquer` retire tout le bloc (plus aucun score visible, seul `Afficher` reste en bas). `Afficher` le rétablit. La préférence survit au rechargement sur ce navigateur, n'est pas dans le snapshot, et un autre joueur (ou le même joueur sur un autre navigateur) n'est pas affecté.
+19. **CA-19 :** `playerShowScores === false` : pas de bloc, pas de score dans la bande d'identité, pas de score sur l'écran du gagnant du téléphone, pas de rang affiché à la place. Un `Masquer` local préalable ne réaffiche rien tant que B reste Off.
+20. **CA-20 :** Écran du gagnant §4.5 : le grand écran suit A (score si On, rang si Off) ; le téléphone suit B (score si On, pas de ligne de score si Off). Changer A pendant que l'écran du gagnant est ouvert met à jour le grand écran sans le fermer. Changer B met à jour le téléphone sans le fermer.
+
+**Mise en évidence du gagnant du buzz :**
+
+21. **CA-21 :** `highlightBuzzWinner === true` : highlight visuel sur le grand écran seulement après la décision finale du §4.8.
+22. **CA-22 :** Aucun surlignage provisoire pendant la fenêtre d'attente du §4.8 (aujourd'hui `buzzOrder` est affiché dès le premier buzz).
+23. **CA-23 :** Le surlignage reste visible jusqu'à la question suivante ou la réouverture du buzzer, même si le buzzer est fermé entre-temps.
+24. **CA-24 :** `highlightBuzzWinner === false` : aucun surlignage, et l'écart de temps 1er/2e n'est pas affiché, y compris quand cet écart est strictement inférieur à 1 s.
+25. **CA-25 :** `highlightBuzzWinner === true` et écart 1er/2e strictement inférieur à 1 s : l'écart est affiché sur le grand écran. Écart ≥ 1 s, ou un seul buzz : pas d'écart (règles §4.8 inchangées).
+
+**Vue équipe / individuelle :**
+
+26. **CA-26 :** `maxTeams === null` : pas de bouton « Vue par équipe », vue individuelle forcée sur le grand écran.
+27. **CA-27 :** Une manche dont `broadcastViewMode !== null` applique cette valeur. Changer `broadcastViewModeGlobal` pendant cette manche ne modifie pas le champ de la manche, et le grand écran reste sur la valeur de la manche jusqu'à la fin de celle-ci.
+28. **CA-28 :** Vue équipe : totaux `teamScores` sans liste de joueurs par équipe. Les joueurs `teamId === null` sont listés dans une section **Sans équipe** (score si A est On, rang si A est Off). Section absente si personne n'est sans équipe.
+29. **CA-29 :** Vue individuelle : tous les joueurs, score décroissant, pseudo, avatar, score si A est On, rang si A est Off.
+
+**Miniature :**
+
+30. **CA-30 :** La miniature est la carte « Aperçu diffusion » sous le hero et avant le plateau, 16:9, largeur 320 à 640 px, redimensionnable par le coin. Le lien « Ouvrir la diffusion » reste dans le hero. L'aside ne change pas.
+31. **CA-31 :** Miniature muette (buzz, verdict, compte à rebours, lecteur audio) avec un pictogramme « son coupé ». Admin et vrai grand écran ouverts sur le même poste : chaque son ne part qu'une fois.
+32. **CA-32 :** La miniature est alimentée par le snapshot admin déjà reçu. Elle n'ouvre pas de socket `broadcast`. Ouvrir l'admin ne crée pas de client dans la room `broadcast` (le serveur ne compte pas ces clients : `webserver/src/index.ts` émet vers la room sans en exposer l'effectif).
+33. **CA-33 :** La miniature est en lecture seule et montre le même rendu que `/party/:partyId/broadcast` (classement, scores A, highlight, vue).
+34. **CA-34 :** Le panneau collé sous la miniature contient, dans cet ordre : `Afficher le classement`, `Scores sur le grand écran`, `Scores côté joueurs`, `Vue individuelle` / `Vue par équipe`, `Mettre en avant le gagnant du buzz`. Il n'y a plus de case « Masquer les scores numériques ».
+
+**Cas limites testables :**
+
+35. **CA-35 :** Plusieurs grands écrans ouverts reçoivent les mêmes réglages et le même rendu.
+36. **CA-36 :** Masquer puis réafficher le classement ne provoque pas de flash d'erreur. La valeur de `broadcastShowScores` réapparaît telle qu'elle était (CA-9).
+37. **CA-37 :** Passage d'une partie sans équipes à une partie avec équipes, vue globale encore `"individual"` : `broadcastViewModeGlobal` ne change pas tout seul. L'admin montre le toast `Passer en vue par équipe ?`. `Plus tard` le ferme et laisse `"individual"`. `Oui` passe le global à `"team"` sans modifier le `broadcastViewMode` d'une manche en cours. Pas de second toast pour le même passage. Pas de toast si la vue globale est déjà `"team"`.
+38. **CA-38 :** `playerShowScores` repasse à `true` après un Off : le bloc revient. Si ce navigateur avait `Masquer` enregistré, le bloc reste masqué (seul `Afficher` est visible) jusqu'au clic `Afficher`.
 
 **Cas limites :**
 
-- Si les équipes sont désactivées (`maxTeams === null`), la vue par équipe n'est pas proposée.
-- Si le classement est masqué, l'animateur peut toujours le réafficher instantanément.
+- L'ancienne règle « highlight visible uniquement si le buzzer est ouvert et qu'un joueur a buzzé » est abandonnée (CA-21 à CA-23).
+- Le classement peut être réaffiché instantanément depuis le panneau.
+- `maxTeams === null` retire la vue équipe (CA-26) et l'onglet `Par équipe` (CA-17).
+- La case `Scores sur le grand écran` grisée conserve sa valeur (CA-9). `Scores côté joueurs` non.
+- Activer les équipes ne bascule pas la vue (CA-37). Le code actuel ne permet pas ce passage (`maxTeams` à la création seulement) : le CA s'applique quand ce passage existera.
+- Un joueur sans équipe en vue équipe est sous **Sans équipe** (CA-28), y compris dans l'onglet `Par équipe` du téléphone (CA-16).
+
+**Écarts avec le code actuel :**
+
+- Aucun des champs du tableau n'existe. Le footer de `Broadcast` montre `teamScores` numériques, sans vue individuelle, sans section **Sans équipe**, sans highlight après décision §4.8.
+- `/party/:partyId/play` montre `rowMe.score` dans `bz-identity-score` et ne montre pas `teamScores` ni de table. L'écran du gagnant téléphone affiche `winnerDisplay.score`.
+- L'admin a une aside Scores avec les valeurs numériques ; elle reste la référence « scores toujours visibles côté animateur ».
+- `webserver/src/index.ts` émet vers `party:{id}:broadcast` sans compter les sockets de la room.
+
+**Points ouverts :**
+
+Aucun.
 
 ---
 
