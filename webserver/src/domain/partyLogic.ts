@@ -1,5 +1,7 @@
 import { avatarPublicRelativePath } from "../avatars/catalog.js";
+import { defaultBroadcastViewMode } from "./broadcastDisplay.js";
 import type {
+  BroadcastViewMode,
   ChatEntry,
   MancheCatalogItem,
   PartyBuzzSoundPolicy,
@@ -91,6 +93,12 @@ export function publicSnapshotForParty(part: {
   allowPlayerAudioControl: boolean;
   buzzSound: PartyBuzzSoundPolicy;
   autoPlay: import("./types.js").AutoPlayState;
+  broadcastShowRanking?: boolean;
+  broadcastShowScores?: boolean;
+  playerShowScores?: boolean;
+  highlightBuzzWinner?: boolean;
+  broadcastViewModeGlobal?: BroadcastViewMode;
+  decidedBuzzWinnerId?: string | null;
 }): PartyPublicSnapshot {
   const playersArr = [...part.players.values()].map((p) => ({
     id: p.id,
@@ -126,7 +134,10 @@ export function publicSnapshotForParty(part: {
     currentRoundIndex: part.currentRoundIndex,
     currentQuestionIndex: part.currentQuestionIndex,
     gameBoard: null,
-    mancheScript: [...part.mancheScript],
+    mancheScript: part.mancheScript.map((item) => ({
+      ...item,
+      broadcastViewMode: item.broadcastViewMode ?? null,
+    })),
     activeMancheId: part.activeMancheId,
     allowPlayerAudioControl: part.allowPlayerAudioControl,
     soundBuzzerPublic: {
@@ -140,5 +151,12 @@ export function publicSnapshotForParty(part: {
       currentScriptIndex: part.autoPlay.currentScriptIndex,
       waitingForManualAction: part.autoPlay.waitingForManualAction,
     },
+    broadcastShowRanking: part.broadcastShowRanking !== false,
+    broadcastShowScores: part.broadcastShowScores !== false,
+    playerShowScores: part.playerShowScores !== false,
+    highlightBuzzWinner: part.highlightBuzzWinner !== false,
+    broadcastViewModeGlobal:
+      part.broadcastViewModeGlobal ?? defaultBroadcastViewMode(part.maxTeams),
+    decidedBuzzWinnerId: part.decidedBuzzWinnerId ?? null,
   };
 }

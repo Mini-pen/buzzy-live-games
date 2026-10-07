@@ -1,6 +1,9 @@
 /** * Lifecycle of a party from the server's perspective. */
 export type PartyState = "lobby" | "round_active" | "between_rounds" | "ended";
 
+/** * Big-screen grouping: team totals or one row per player. */
+export type BroadcastViewMode = "team" | "individual";
+
 /** * Item in the host's ordered script (manches). */
 export type MancheKind = "pack_quiz" | "iframe" | "youtube" | "direct_video" | "transition";
 
@@ -25,6 +28,11 @@ export interface MancheCatalogItem {
   transitionDurationMs: number | null;
   /** * Launch mode for this manche: null (not yet launched), 'normal' (with intro), or 'autonomous' (skip intro + auto-chain). */
   launchMode: "normal" | "autonomous" | null;
+  /**
+   * * Big-screen grouping for this manche. `null` follows `Party.broadcastViewModeGlobal`.
+   *   While the manche is active, a non-null value wins over the global setting.
+   */
+  broadcastViewMode: BroadcastViewMode | null;
 }
 
 /** * Automatic play mode state. */
@@ -181,6 +189,21 @@ export interface Party {
   buzzWindowOpenedAt: number | null;
   /** * Time gap (ms) between 1st and 2nd buzz after finalization (< 1000 ms), for broadcast display. */
   lastBuzzGapMs: number | null;
+  /** * Footer (buzz queue + standings) on the projector. */
+  broadcastShowRanking: boolean;
+  /** * Numeric scores on the projector (ranks only when false). Independent of `playerShowScores`. */
+  broadcastShowScores: boolean;
+  /** * Score block on player phones. Independent of `broadcastShowScores`. */
+  playerShowScores: boolean;
+  /** * Gold highlight of the decided buzz winner on the projector. Also gates the 1st/2nd time gap. */
+  highlightBuzzWinner: boolean;
+  /** * Default projector grouping when the active manche does not override it. */
+  broadcastViewModeGlobal: BroadcastViewMode;
+  /**
+   * * Player id of the buzz winner after the §4.8 decision.
+   *   Stays set while the buzzer is closed, until the next question or the buzzer reopens.
+   */
+  decidedBuzzWinnerId: string | null;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -376,8 +399,20 @@ export interface PartyPublicSnapshot {
   autoAdvanceQuizWhenAllBuzzed?: boolean;
   /** * Grace window duration (ms) after first buzz before final decision (0–1000 ms), host only. */
   buzzGraceWindowMs?: number;
-  /** * Time gap in milliseconds between 1st and 2nd buzz (if both exist and gap < 1000 ms), broadcast only. */
+  /** * Time gap in milliseconds between 1st and 2nd buzz (if both exist and gap < 1000 ms). Omitted when highlight is off. */
   buzzTimeGapMs?: number;
+  /** * Projector footer visibility (buzz queue + standings). */
+  broadcastShowRanking: boolean;
+  /** * Numeric scores on projector surfaces. */
+  broadcastShowScores: boolean;
+  /** * Score block on player phones. */
+  playerShowScores: boolean;
+  /** * Highlight the decided buzz winner on the projector. */
+  highlightBuzzWinner: boolean;
+  /** * Party-wide projector grouping. */
+  broadcastViewModeGlobal: BroadcastViewMode;
+  /** * Decided buzz winner, null before the decision and after the next question or a buzzer reopen. */
+  decidedBuzzWinnerId: string | null;
   /** * Automatic play mode state (visible to all). */
   autoPlay?: {
     enabled: boolean;

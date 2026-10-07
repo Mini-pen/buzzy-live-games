@@ -55,6 +55,7 @@ async function main(): Promise<void> {
     socketRef
       .to(`party:${partyId}:admin`)
       .emit("party:patch", partySnapshotWithGame(party, allPacks, "host"));
+    // * Projector clients only. The admin miniature reuses the host snapshot and does not join this room.
     socketRef
       .to(`party:${partyId}:broadcast`)
       .emit("party:patch", partySnapshotWithGame(party, allPacks, "player"));

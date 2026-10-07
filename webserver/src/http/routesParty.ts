@@ -143,6 +143,23 @@ const winnerScreenModeSchema = z.object({
   mode: z.enum(["question", "round"]),
 });
 
+const broadcastDisplaySchema = z
+  .object({
+    broadcastShowRanking: z.boolean().optional(),
+    broadcastShowScores: z.boolean().optional(),
+    playerShowScores: z.boolean().optional(),
+    highlightBuzzWinner: z.boolean().optional(),
+    broadcastViewModeGlobal: z.enum(["team", "individual"]).optional(),
+  })
+  .refine((body) => Object.values(body).some((value) => value !== undefined), {
+    message: "Au moins un réglage d'affichage est requis.",
+  });
+
+const mancheBroadcastViewSchema = z.object({
+  id: z.string().min(1).max(40),
+  broadcastViewMode: z.enum(["team", "individual"]).nullable(),
+});
+
 const mancheIdSchema = z.object({
   id: z.string().min(1).max(40),
 });
@@ -882,6 +899,46 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminSetCountdownDuration(party, body.seconds);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/broadcast-display",
+    async (req, reply) => {
+      try {
+        const body = broadcastDisplaySchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetBroadcastDisplay(party, body);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/manche/broadcast-view",
+    async (req, reply) => {
+      try {
+        const body = mancheBroadcastViewSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetMancheBroadcastView(party, body.id, body.broadcastViewMode);
         return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {

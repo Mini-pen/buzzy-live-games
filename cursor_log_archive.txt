@@ -44,3 +44,11 @@ Session 2026-05-14 — Pack « guess by color » : image + oral (sans QCM)
   flux identique aux questions libres : buzz puis réponse orale, pas de choix multiples.
 - `games/guess_by_color/quiz_with_images.json` migré (titre neutre, série d’images).
 - Commit `4c248fa` sur `main`.
+
+================================================================================
+Session 2026-05-14 (soir) — image_buzz / guess by color
+================================================================================
+- Type de manche pack `image_buzz` : une image à la fois, buzz + réponse orale.
+- Snapshot `gameBoard.kind === "image_buzz"` ; bouton « Image suivante → ».
+- Pack `games/guess_by_color/quiz_with_images.json` réécrit.
+- Commit `4c248fa`.
