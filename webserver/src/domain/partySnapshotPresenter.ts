@@ -10,6 +10,7 @@ import {
 } from "../games/pack.js";
 import { withBasePath } from "../basePath.js";
 import { canonicalYoutubeEmbedIframeSrc } from "./youtubeEmbed.js";
+import { visibleBuzzGapMs } from "./broadcastDisplay.js";
 import { publicSnapshotForParty } from "./partyLogic.js";
 import type {
   Party,
@@ -316,10 +317,8 @@ export function partySnapshotWithGame(
         }
       : {};
 
-  const broadcastGap =
-    audience === "player" && party.lastBuzzGapMs !== null
-      ? { buzzTimeGapMs: party.lastBuzzGapMs }
-      : {};
+  const gapMs = visibleBuzzGapMs(party.highlightBuzzWinner, party.lastBuzzGapMs);
+  const broadcastGap = gapMs !== null ? { buzzTimeGapMs: gapMs } : {};
 
   return {
     ...base,

@@ -21,17 +21,28 @@ import {
 } from "../games/pack.js";
 import { resolveJoinAvatarKey, requireParsedAvatarKey } from "../avatars/catalog.js";
 import { randomJoinCode, randomSecretHex } from "./codes.js";
+import { defaultBroadcastViewMode } from "./broadcastDisplay.js";
 import { evaluateJoin, normalizeTeamChoice, publicSnapshotForParty } from "./partyLogic.js";
 import { quizPackFromLoadedId } from "./partySnapshotPresenter.js";
-import type { ChatEntry, MancheCatalogItem, Party, PartyPublicSnapshot, Player, PendingBuzz } from "./types.js";
+import type {
+  BroadcastViewMode,
+  ChatEntry,
+  MancheCatalogItem,
+  Party,
+  PartyPublicSnapshot,
+  Player,
+  PendingBuzz,
+} from "./types.js";
 import { computeEstimatedTimestamp, rankBuzzByEstimatedTime } from "./clockSync.js";
 
-function clearBuzzQueue(party: Party): void {
+function clearBuzzQueue(party: Party, opts?: { keepWinnerHighlight?: boolean }): void {
   party.buzzOrder = [];
   party.buzzQuizGuess.clear();
   party.pendingBuzzQueue = [];
   party.buzzWindowFirstBuzzAt = null;
+  if (opts?.keepWinnerHighlight === true) return;
   party.lastBuzzGapMs = null;
+  party.decidedBuzzWinnerId = null;
 }
 export interface CreatePartyOpts {
   maxPlayers: number | null;
@@ -250,6 +261,12 @@ export class PartyStore {
       buzzWindowFirstBuzzAt: null,
       buzzWindowOpenedAt: null,
       lastBuzzGapMs: null,
+      broadcastShowRanking: true,
+      broadcastShowScores: true,
+      playerShowScores: true,
+      highlightBuzzWinner: true,
+      broadcastViewModeGlobal: defaultBroadcastViewMode(opts.maxTeams),
+      decidedBuzzWinnerId: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -517,6 +534,9 @@ export class PartyStore {
       if (typeof ix === "number" && typeof len === "number" && len >= 1) {
         party.buzzQuizGuess.set(playerId, ix);
       }
+      if (party.decidedBuzzWinnerId === null) {
+        party.decidedBuzzWinnerId = playerId;
+      }
       party.buzzOrder.push(playerId);
       this.touch(party);
       this.broadcast(party);
@@ -561,6 +581,7 @@ export class PartyStore {
         party.buzzQuizGuess.set(buzz.playerId, buzz.quizChoiceIndex);
       }
     }
+    party.decidedBuzzWinnerId = ranked[0].playerId;
 
     if (ranked.length >= 2) {
       const gap = ranked[1].estimatedAt - ranked[0].estimatedAt;
@@ -612,11 +633,17 @@ export class PartyStore {
     if (party.state !== "round_active") {
       throw Object.assign(new Error("BAD_PHASE"), { code: "BAD_PHASE" });
     }
+    const wasOpen = party.buzzWindowOpen;
     party.buzzWindowOpen = open;
     if (open) {
       party.buzzWindowOpenedAt = Date.now();
+      // * Reopening the buzzer ends the previous winner highlight. Closing keeps it.
+      if (!wasOpen) {
+        party.decidedBuzzWinnerId = null;
+        party.lastBuzzGapMs = null;
+      }
     } else {
-      clearBuzzQueue(party);
+      clearBuzzQueue(party, { keepWinnerHighlight: true });
       party.buzzWindowOpenedAt = null;
     }
     this.touch(party);
@@ -631,6 +658,63 @@ export class PartyStore {
 
   adminSetAutoAdvanceQuizWhenAllBuzzed(party: Party, enabled: boolean): void {
     party.autoAdvanceQuizWhenAllBuzzed = enabled;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  adminSetBroadcastDisplay(
+    party: Party,
+    patch: {
+      broadcastShowRanking?: boolean;
+      broadcastShowScores?: boolean;
+      playerShowScores?: boolean;
+      highlightBuzzWinner?: boolean;
+      broadcastViewModeGlobal?: BroadcastViewMode;
+    },
+  ): void {
+    if (
+      patch.broadcastViewModeGlobal === "team" &&
+      (party.maxTeams === null || party.maxTeams < 2)
+    ) {
+      throw Object.assign(new Error("Vue par équipe indisponible sans équipes."), {
+        code: "TEAMS_DISABLED",
+      });
+    }
+    if (patch.broadcastShowRanking !== undefined) {
+      party.broadcastShowRanking = patch.broadcastShowRanking;
+    }
+    if (patch.broadcastShowScores !== undefined) {
+      party.broadcastShowScores = patch.broadcastShowScores;
+    }
+    if (patch.playerShowScores !== undefined) {
+      party.playerShowScores = patch.playerShowScores;
+    }
+    if (patch.highlightBuzzWinner !== undefined) {
+      party.highlightBuzzWinner = patch.highlightBuzzWinner;
+    }
+    if (patch.broadcastViewModeGlobal !== undefined) {
+      party.broadcastViewModeGlobal = patch.broadcastViewModeGlobal;
+    }
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Sets one manche's projector grouping. Does not change `broadcastViewModeGlobal`. */
+  adminSetMancheBroadcastView(
+    party: Party,
+    mancheId: string,
+    mode: BroadcastViewMode | null,
+  ): void {
+    if (mode === "team" && (party.maxTeams === null || party.maxTeams < 2)) {
+      throw Object.assign(new Error("Vue par équipe indisponible sans équipes."), {
+        code: "TEAMS_DISABLED",
+      });
+    }
+    const item = party.mancheScript.find((manche) => manche.id === mancheId);
+    if (item === undefined) {
+      throw Object.assign(new Error("NOT_FOUND"), { code: "NOT_FOUND" });
+    }
+    item.broadcastViewMode = mode;
     this.touch(party);
     this.broadcast(party);
   }
@@ -856,8 +940,18 @@ export class PartyStore {
     party.currentQuestionIndex = null;
   }
 
-  hostAppendManche(party: Party, draft: Omit<MancheCatalogItem, "id" | "launchMode">): void {
-    const item: MancheCatalogItem = { ...draft, id: nanoid(12), launchMode: null };
+  hostAppendManche(
+    party: Party,
+    draft: Omit<MancheCatalogItem, "id" | "launchMode" | "broadcastViewMode"> & {
+      broadcastViewMode?: BroadcastViewMode | null;
+    },
+  ): void {
+    const item: MancheCatalogItem = {
+      ...draft,
+      broadcastViewMode: draft.broadcastViewMode ?? null,
+      id: nanoid(12),
+      launchMode: null,
+    };
     
     if (party.autoPlay.enabled && !party.autoPlay.paused) {
       // Defer the update until after the current item

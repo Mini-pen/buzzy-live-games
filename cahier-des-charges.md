@@ -660,7 +660,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
-**Statut :** Décisions Minipen (7 oct. 2026) et complément Design UI intégrés — rien d'implémenté. Les quatre anciens points ouverts sont fermés.
+**Statut :** Livré — miniature admin muette, cinq réglages (classement, scores grand écran, scores joueurs, vue, highlight après décision §4.8). Vitest ciblés sur les champs serveur et le classement ; couverture UI étendue laissée au Test Writer si besoin.
 
 **Comportement :**
 

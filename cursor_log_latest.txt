@@ -1,23 +1,25 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
-**Date** : 2026-05-14 (soir)  
-**Contexte** : Correction du scénario « guess by color » : ce n’était pas une devinette de couleur ni un QCM.
+**Date** : 2026-10-07  
+**Contexte** : Évolution 4.6 — affichage projeté / configuration diffusion.
 
 ## Objectifs
 
-- Afficher **une image à la fois** et attendre un **buzz + réponse orale** (comme les manches à questions libres).
+- Implémenter le §4.6 du cahier (CA-1 à CA-38) : miniature admin muette, cinq réglages, scores grand écran et téléphone séparés, highlight après la décision §4.8.
 
 ## Réalisations
 
-- Type de manche pack **`image_buzz`** : tableau `slides` (`imageUrl`, `prompt` optionnel pour une consigne courte).
-- Snapshot `gameBoard.kind === "image_buzz"` ; bouton animateur **« Image suivante → »** (même logique d’enchaînement que le blind audio).
-- Pack `games/guess_by_color/quiz_with_images.json` réécrit (titre « Série d’images (réponse orale) », pastilles + exemple HTTPS).
-- UI : `GameBoardPanel` + joueur + texte d’aide scénario (packs JSON / séries d’images sans QCM).
+- Champs de partie `broadcastShowRanking`, `broadcastShowScores`, `playerShowScores`, `highlightBuzzWinner`, `broadcastViewModeGlobal`, `MancheCatalogItem.broadcastViewMode`, `decidedBuzzWinnerId`.
+- Routes `POST /host/broadcast-display` et `POST /host/manche/broadcast-view`. L'écart 1er/2e n'est dans le snapshot que si le highlight est actif.
+- Miniature « Aperçu diffusion » sous le hero (même rendu que le grand écran, sans socket `broadcast`, médias muets).
+- Bloc scores joueur en bas (`Moi · X pts`, table Par score / Par équipe, Masquer local).
+- Toast `Passer en vue par équipe ?` si les équipes s'activent en cours de partie.
+- Statut cahier §4.6 et DEV_PLAN 7.6 : livré. Vitest 341/341.
 
 ## Prochain focus suggéré
 
-- Si besoin : enrichir la diffusion / grand écran pour mettre encore plus en avant l’image (même rendu que le QCM mais sans liste A/B/C/D).
+- Étendre les tests UI (Test Writer) sur la miniature, le dock joueur et le toast.
 
 ## Références
 
-- Commit `4c248fa` ; fichiers `webserver/src/games/pack.ts`, `partySnapshotPresenter.ts`, `store.ts`, `client/App.tsx`, pack JSON.
+- Spec `a0bb578`. Module `webserver/src/domain/broadcastDisplay.ts`.

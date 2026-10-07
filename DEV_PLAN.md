@@ -286,16 +286,18 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 ### 7.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
-**Statut :** À implémenter.
+**Statut :** Livré (serveur + UI). Tests Vitest ciblés sur les réglages et le snapshot ; extension UI à compléter si besoin.
 
-**Description :** L'interface admin affiche une fenêtre miniature simulant l'écran projeté (`/party/:partyId/broadcast`). L'animateur peut configurer l'affichage : afficher uniquement la question/réponses, ou inclure aussi le classement en temps réel. Options de masquage des scores numériques (seul l'ordre de classement visible) et mise en évidence automatique du premier joueur ayant buzzé. Choix d'affichage des joueurs : groupés par équipe ou vue individuelle.
+**Note de correspondance :** Section 4.6 du cahier-des-charges (source de vérité, CA-1 à CA-38).
+
+**Description :** Carte « Aperçu diffusion » dans l'admin, sous le hero, avant le plateau. La miniature réutilise le snapshot animateur (pas de second socket `broadcast`), en 16:9, muette. Panneau « Affichage projeté » : afficher le classement, scores sur le grand écran, scores côté joueurs (réglages indépendants, défaut On), vue individuelle / vue par équipe, mettre en avant le gagnant du buzz après la décision §4.8.
 
 **Règles :**
-- Les modifications s'appliquent en temps réel sur `/party/:partyId/broadcast`.
-- La fenêtre miniature reflète l'affichage projeté (preview live).
-- Le masquage des scores numériques n'affecte que l'affichage projeté.
-- Le highlight du premier joueur buzzé est visible uniquement si le buzzer est ouvert.
-- Le mode d'affichage (équipe vs individuel) peut être défini globalement ou par manche.
+- Les modifications partent en `party:patch` et s'appliquent au grand écran et aux téléphones concernés.
+- Le masquage des scores du grand écran n'affecte pas l'admin ni le téléphone. Le téléphone a son propre booléen `playerShowScores`.
+- Le highlight et l'écart 1er/2e n'apparaissent qu'après la décision §4.8, et l'écart est masqué si le highlight est coupé.
+- La vue d'une manche (`broadcastViewMode`) l'emporte sur la vue globale pendant cette manche.
+- Activer les équipes en cours de partie ne bascule pas la vue : toast « Passer en vue par équipe ? ».
 
 ---
 

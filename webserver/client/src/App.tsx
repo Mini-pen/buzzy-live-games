@@ -5,6 +5,17 @@ import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
 import { BASE_PATH, SOCKET_PATH, withBase } from "./paths";
 import { performClockSyncBurst, convertToServerTime, type ClientClockSync } from "./clientClockSync";
+import {
+  buildBroadcastStanding,
+  competitionRankForScore,
+  frenchOrdinal,
+  groupPlayersByTeam,
+  resolveBroadcastViewMode,
+  shouldPromptTeamViewSwitch,
+  sortPlayersByTotalScoreAsc,
+  visibleBuzzGapMs,
+  type BroadcastViewMode,
+} from "../../src/domain/broadcastDisplay";
 
 /** * Quiz surface from `PartyPublicSnapshot.gameBoard`. */
 interface PartyGameBoardQuiz {
@@ -133,6 +144,7 @@ interface MancheCatalogItemView {
   transitionKind: "pause" | "fade" | "countdown" | null;
   transitionDurationMs: number | null;
   launchMode: "normal" | "autonomous" | null;
+  broadcastViewMode?: BroadcastViewMode | null;
 }
 
 interface PartySnapshot {
@@ -190,6 +202,12 @@ interface PartySnapshot {
   readyPhaseStartedAt?: number | null;
   countdownStartedAt?: number | null;
   winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
+  broadcastShowRanking?: boolean;
+  broadcastShowScores?: boolean;
+  playerShowScores?: boolean;
+  highlightBuzzWinner?: boolean;
+  broadcastViewModeGlobal?: BroadcastViewMode;
+  decidedBuzzWinnerId?: string | null;
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -269,7 +287,7 @@ function CountdownDisplay(props: {
 function WinnerScreen(props: {
   playerName: string;
   avatarKey: string;
-  score: number;
+  scoreLine: string | null;
   onDismiss?: () => void;
 }): JSX.Element {
   const avatarUrl = withBase(`/avatars/${props.avatarKey}`);
@@ -278,7 +296,9 @@ function WinnerScreen(props: {
       <h2 className="bz-winner-title">🏆 Gagnant</h2>
       <AvatarFigure src={avatarUrl} sizePx={120} />
       <p className="bz-winner-name">{props.playerName}</p>
-      <p className="bz-winner-score">{props.score} pts</p>
+      {props.scoreLine !== null && props.scoreLine !== "" ? (
+        <p className="bz-winner-score">{props.scoreLine}</p>
+      ) : null}
       {props.onDismiss && (
         <button type="button" className="bz-winner-skip" onClick={props.onDismiss}>
           Suivant
@@ -1537,6 +1557,8 @@ function GameBoardPanel(props: {
   allowBlindPlaybackOnClients?: boolean;
   /** * Animateur quiz : surbrillance des options choisies dans la file buzz (un « bad » domine sur une même ligne). */
   hostQuizBuzzHighlights?: Array<{ choiceIndex: number; tone: "good" | "bad" }>;
+  /** * Admin miniature: no audio element, muted video, no embedded player that can make sound. */
+  silentPreview?: boolean;
   /** * Joueur QCM : clic pour choisir avant buzz ; après buzz réponse figée jusqu'au clic animateur puis bon/mauvais visible. */
   quizPlayerPickUi?: {
     selectedIndex: number | null;
@@ -1553,10 +1575,12 @@ function GameBoardPanel(props: {
     allowBlindPlaybackOnClients,
     hostQuizBuzzHighlights,
     quizPlayerPickUi,
+    silentPreview,
   } = props;
 
+  const silent = silentPreview === true;
   const blindClientsMayPlay =
-    blindHostPresenter === true || (allowBlindPlaybackOnClients ?? false) === true;
+    !silent && (blindHostPresenter === true || (allowBlindPlaybackOnClients ?? false) === true);
 
   if (board !== null && board.kind === "video") {
     return (
@@ -1569,7 +1593,8 @@ function GameBoardPanel(props: {
         </div>
         <video
           key={board.replaySerial}
-          controls
+          controls={!silent}
+          muted={silent}
           playsInline
           preload="metadata"
           className="bz-board-video"
@@ -1848,6 +1873,17 @@ function GameBoardPanel(props: {
   }
 
   if (board !== null && board.kind === "youtube") {
+    if (silent) {
+      return (
+        <section className="bz-board">
+          <div className="bz-board-meta">
+            <span className="bz-pill bz-accent">YouTube</span>
+            <span>{board.title}</span>
+          </div>
+          <p className="bz-muted">Aperçu muet — la vidéo n&apos;est pas lancée ici.</p>
+        </section>
+      );
+    }
     return (
       <section className="bz-board">
         <div className="bz-board-meta">
@@ -1881,6 +1917,17 @@ function GameBoardPanel(props: {
   }
 
   if (board !== null && board.kind === "iframe") {
+    if (silent) {
+      return (
+        <section className="bz-board">
+          <div className="bz-board-meta">
+            <span className="bz-pill">Page</span>
+            <span>{board.title}</span>
+          </div>
+          <p className="bz-muted">Aperçu muet — le contenu intégré n&apos;est pas chargé ici.</p>
+        </section>
+      );
+    }
     return (
       <section className="bz-board bz-board--external-site">
         <div className="bz-board-meta">
@@ -2397,10 +2444,6 @@ function Play(): JSX.Element {
             </span>
           </div>
         </div>
-        <div className="bz-identity-score">
-          <span className="bz-score-label">points</span>
-          <span className="bz-score-value">{rowMe?.score ?? 0}</span>
-        </div>
       </section>
 
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
@@ -2428,7 +2471,7 @@ function Play(): JSX.Element {
         <WinnerScreen
           playerName={snap.winnerDisplay.playerName}
           avatarKey={snap.winnerDisplay.avatarKey}
-          score={snap.winnerDisplay.score}
+          scoreLine={snap.playerShowScores === false ? null : `${snap.winnerDisplay.score} pts`}
         />
       )}
 
@@ -2588,7 +2631,160 @@ function Play(): JSX.Element {
           onClose={() => setTutorialGameKind(null)}
         />
       ) : null}
+      <PlayerScoreDock snap={snap} partyId={pid} me={rowMe} />
     </Shell>
+  );
+}
+
+const PLAYER_SCORE_DOCK_KEY = "buzzy:playerScoreDockHidden:";
+
+function readPlayerScoreDockHidden(partyId: string): boolean {
+  try {
+    return window.localStorage.getItem(`${PLAYER_SCORE_DOCK_KEY}${partyId}`) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writePlayerScoreDockHidden(partyId: string, hidden: boolean): void {
+  try {
+    const key = `${PLAYER_SCORE_DOCK_KEY}${partyId}`;
+    if (hidden) window.localStorage.setItem(key, "1");
+    else window.localStorage.removeItem(key);
+  } catch {
+    /* * Private mode can reject storage; the choice still applies for this view. */
+  }
+}
+
+/** * Pinned phone score block. The hide preference stays in this browser only. */
+function PlayerScoreDock(props: {
+  snap: PartySnapshot;
+  partyId: string;
+  me:
+    | {
+        id: string;
+        displayName: string;
+        teamId: number | null;
+        score: number;
+      }
+    | undefined;
+}): JSX.Element | null {
+  const { snap, partyId, me } = props;
+  const [hidden, setHidden] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [tab, setTab] = useState<"score" | "team">("score");
+
+  useEffect(() => {
+    setHidden(readPlayerScoreDockHidden(partyId));
+    setExpanded(false);
+    setTab("score");
+  }, [partyId]);
+
+  if (snap.playerShowScores === false) return null;
+
+  if (hidden) {
+    return (
+      <div className="bz-player-scores bz-player-scores--collapsed">
+        <button
+          type="button"
+          className="bz-player-scores-show"
+          onClick={() => {
+            writePlayerScoreDockHidden(partyId, false);
+            setHidden(false);
+          }}
+        >
+          Afficher
+        </button>
+      </div>
+    );
+  }
+
+  const myScore = me?.score ?? 0;
+  const teamId = me?.teamId ?? null;
+  const teamsEnabled = snap.maxTeams !== null && snap.maxTeams >= 2;
+  const teamPoints =
+    teamId !== null ? (snap.teamScores[String(teamId)] ?? 0) : null;
+  const byScore = sortPlayersByTotalScoreAsc(snap.players);
+  const byTeam = teamsEnabled ? groupPlayersByTeam(snap.players) : [];
+
+  return (
+    <section className="bz-player-scores" aria-label="Scores">
+      <div className="bz-player-scores-bar">
+        <button
+          type="button"
+          className="bz-player-scores-compact"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((open) => !open)}
+        >
+          <span>
+            Moi · {myScore} pts
+            {teamPoints !== null && teamId !== null ? ` · Éq. ${teamId} · ${teamPoints} pts` : ""}
+          </span>
+          <span aria-hidden="true">▾</span>
+        </button>
+        <button
+          type="button"
+          className="bz-player-scores-hide"
+          onClick={() => {
+            writePlayerScoreDockHidden(partyId, true);
+            setHidden(true);
+            setExpanded(false);
+          }}
+        >
+          Masquer
+        </button>
+      </div>
+      {expanded ? (
+        <div className="bz-player-scores-table">
+          {teamsEnabled ? (
+            <div className="bz-player-scores-tabs" role="tablist">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "score"}
+                onClick={() => setTab("score")}
+              >
+                Par score
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "team"}
+                onClick={() => setTab("team")}
+              >
+                Par équipe
+              </button>
+            </div>
+          ) : null}
+          {tab === "score" || !teamsEnabled ? (
+            <ol className="bz-player-scores-list">
+              {byScore.map((player) => (
+                <li key={player.id} className={player.id === me?.id ? "is-me" : undefined}>
+                  <span>{player.displayName}</span>
+                  <span>{player.score} pts</span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="bz-player-scores-groups">
+              {byTeam.map((group) => (
+                <section key={group.title}>
+                  <h3>{group.title}</h3>
+                  <ol className="bz-player-scores-list">
+                    {group.players.map((player) => (
+                      <li key={player.id} className={player.id === me?.id ? "is-me" : undefined}>
+                        <span>{player.displayName}</span>
+                        <span>{player.score} pts</span>
+                      </li>
+                    ))}
+                  </ol>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -2636,6 +2832,9 @@ function Admin(): JSX.Element {
   const [launchDialogMancheId, setLaunchDialogMancheId] = useState<string | null>(null);
   const [importZipUploading, setImportZipUploading] = useState(false);
   const [importZipError, setImportZipError] = useState<string | null>(null);
+  const [teamViewToast, setTeamViewToast] = useState(false);
+  const prevMaxTeamsRef = useRef<number | null | undefined>(undefined);
+  const teamPromptKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     void fetchJson<{
@@ -3166,6 +3365,25 @@ function Admin(): JSX.Element {
     }
   }, [callHostSnapshot, hostBasePath, hostChat]);
 
+  const onHostBroadcastDisplay = useCallback(
+    async (patch: {
+      broadcastShowRanking?: boolean;
+      broadcastShowScores?: boolean;
+      playerShowScores?: boolean;
+      highlightBuzzWinner?: boolean;
+      broadcastViewModeGlobal?: BroadcastViewMode;
+    }): Promise<void> => {
+      setErr(null);
+      try {
+        const next = await callHostSnapshot(`${hostBasePath}/host/broadcast-display`, "POST", patch);
+        setSnap(next);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
   const onHostVerdictSoundsToggle = useCallback(
     async (enabled: boolean): Promise<void> => {
       setErr(null);
@@ -3286,6 +3504,28 @@ function Admin(): JSX.Element {
       (a, b) =>
         b.score - a.score || a.displayName.localeCompare(b.displayName, "fr", { sensitivity: "base" }),
     );
+  }, [snap]);
+
+  useEffect(() => {
+    if (snap === null) return;
+    const previous = prevMaxTeamsRef.current;
+    prevMaxTeamsRef.current = snap.maxTeams;
+    const transitionKey = `${String(previous)}->${String(snap.maxTeams)}`;
+    const globalView = snap.broadcastViewModeGlobal === "team" ? "team" : "individual";
+    if (
+      shouldPromptTeamViewSwitch({
+        previousMaxTeams: previous,
+        nextMaxTeams: snap.maxTeams,
+        broadcastViewModeGlobal: globalView,
+        alreadyPrompted: teamPromptKeyRef.current === transitionKey,
+      })
+    ) {
+      teamPromptKeyRef.current = transitionKey;
+      setTeamViewToast(true);
+    }
+    if (snap.maxTeams === null || snap.maxTeams < 2) {
+      teamPromptKeyRef.current = null;
+    }
   }, [snap]);
 
   const hostQuizBuzzHighlights = useMemo(() => {
@@ -3482,6 +3722,12 @@ function Admin(): JSX.Element {
               <span className="bz-host-qr-cap">scanne pour rejoindre</span>
             </div>
           </section>
+
+          <BroadcastPreviewCard
+            snap={snap}
+            partyId={pid}
+            onChange={(patch) => void onHostBroadcastDisplay(patch)}
+          />
 
           {err ? <pre className="bz-err">{err}</pre> : null}
 
@@ -4281,7 +4527,210 @@ function Admin(): JSX.Element {
           </div>
         ) : null}
       </div>
+      {teamViewToast ? (
+        <div className="bz-team-view-toast" role="status">
+          <p>Passer en vue par équipe ?</p>
+          <div className="bz-team-view-toast-actions">
+            <button
+              type="button"
+              className="bz-primary"
+              onClick={() => {
+                setTeamViewToast(false);
+                void onHostBroadcastDisplay({ broadcastViewModeGlobal: "team" });
+              }}
+            >
+              Oui
+            </button>
+            <button type="button" onClick={() => setTeamViewToast(false)}>
+              Plus tard
+            </button>
+          </div>
+        </div>
+      ) : null}
     </Shell>
+  );
+}
+
+function snapshotForBroadcastPreview(snap: PartySnapshot): PartySnapshot {
+  const board = snap.gameBoard;
+  if (board === undefined || board === null) return snap;
+  if (board.kind === "quiz") {
+    const { correctChoiceIndex: _correct, ...rest } = board;
+    return { ...snap, gameBoard: rest };
+  }
+  if (board.kind === "audio_blind") {
+    const { revealTitle: _title, revealArtist: _artist, ...rest } = board;
+    return { ...snap, gameBoard: rest };
+  }
+  return snap;
+}
+
+function BroadcastStandingBlock(props: {
+  snap: PartySnapshot;
+  showScores: boolean;
+}): JSX.Element | null {
+  const view = resolveBroadcastViewMode({
+    maxTeams: props.snap.maxTeams,
+    state: props.snap.state,
+    activeMancheId: props.snap.activeMancheId,
+    broadcastViewModeGlobal:
+      props.snap.broadcastViewModeGlobal ??
+      (props.snap.maxTeams !== null && props.snap.maxTeams >= 2 ? "team" : "individual"),
+    mancheScript: props.snap.mancheScript,
+  });
+  const standing = buildBroadcastStanding({
+    view,
+    players: props.snap.players,
+    teamScores: props.snap.teamScores ?? {},
+  });
+  if (standing.rows.length === 0 && standing.unteamed.length === 0) return null;
+  return (
+    <div className="bz-bc-standings">
+      {standing.view === "individual" ? (
+        <ol className="bz-bc-player-list">
+          {standing.rows.map((row) => (
+            <li key={row.key}>
+              {row.avatarUrl !== null && row.avatarUrl !== "" ? (
+                <AvatarFigure src={row.avatarUrl} sizePx={36} />
+              ) : null}
+              <span className="bz-bc-player-name">{row.label}</span>
+              <span className="bz-bc-player-value">
+                {props.showScores ? row.score : frenchOrdinal(row.rank)}
+              </span>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="bz-bc-teams">
+          {standing.rows.map((row) => (
+            <div key={row.key} className="bz-bc-team">
+              <div className="bz-bc-team-label">{row.label}</div>
+              <div className="bz-bc-team-value">
+                {props.showScores ? row.score : frenchOrdinal(row.rank)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {standing.unteamed.length > 0 ? (
+        <section className="bz-bc-unteamed">
+          <h3>Sans équipe</h3>
+          <ol className="bz-bc-player-list">
+            {standing.unteamed.map((row) => (
+              <li key={row.key}>
+                {row.avatarUrl !== null && row.avatarUrl !== "" ? (
+                  <AvatarFigure src={row.avatarUrl} sizePx={36} />
+                ) : null}
+                <span className="bz-bc-player-name">{row.label}</span>
+                <span className="bz-bc-player-value">
+                  {props.showScores ? row.score : frenchOrdinal(row.rank)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+function BroadcastPreviewCard(props: {
+  snap: PartySnapshot;
+  partyId: string;
+  onChange: (patch: {
+    broadcastShowRanking?: boolean;
+    broadcastShowScores?: boolean;
+    playerShowScores?: boolean;
+    highlightBuzzWinner?: boolean;
+    broadcastViewModeGlobal?: BroadcastViewMode;
+  }) => void;
+}): JSX.Element {
+  const rankingOn = props.snap.broadcastShowRanking !== false;
+  const scoresOn = props.snap.broadcastShowScores !== false;
+  const playerScoresOn = props.snap.playerShowScores !== false;
+  const highlightOn = props.snap.highlightBuzzWinner !== false;
+  const teamsEnabled = props.snap.maxTeams !== null && props.snap.maxTeams >= 2;
+  const globalView: BroadcastViewMode =
+    props.snap.broadcastViewModeGlobal === "team" && teamsEnabled ? "team" : "individual";
+  return (
+    <section className="bz-projected-card" aria-label="Aperçu diffusion">
+      <h2 className="bz-projected-title">Aperçu diffusion</h2>
+      <div className="bz-bc-preview-frame">
+        <BroadcastSurface
+          snap={snapshotForBroadcastPreview(props.snap)}
+          partyId={props.partyId}
+          mode="preview"
+        />
+        <span className="bz-bc-preview-mute" role="img" aria-label="Son coupé" title="Son coupé">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M3 9v6h4l5 4V5L7 9H3zm13.5 3 2.2-2.2 1.3 1.3L17.8 13.3l2.2 2.2-1.3 1.3-2.2-2.2-2.2 2.2-1.3-1.3 2.2-2.2-2.2-2.2 1.3-1.3 2.2 2.2z"
+            />
+          </svg>
+        </span>
+      </div>
+      <div className="bz-projected-panel" aria-label="Affichage projeté">
+        <h3>Affichage projeté</h3>
+        <label>
+          <input
+            type="checkbox"
+            checked={rankingOn}
+            onChange={(event) =>
+              props.onChange({ broadcastShowRanking: event.target.checked })
+            }
+          />
+          Afficher le classement
+        </label>
+        <label className={rankingOn ? undefined : "is-disabled"}>
+          <input
+            type="checkbox"
+            checked={scoresOn}
+            disabled={!rankingOn}
+            onChange={(event) =>
+              props.onChange({ broadcastShowScores: event.target.checked })
+            }
+          />
+          Scores sur le grand écran
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={playerScoresOn}
+            onChange={(event) => props.onChange({ playerShowScores: event.target.checked })}
+          />
+          Scores côté joueurs
+        </label>
+        <div className="bz-projected-views">
+          <button
+            type="button"
+            aria-pressed={globalView === "individual"}
+            onClick={() => props.onChange({ broadcastViewModeGlobal: "individual" })}
+          >
+            Vue individuelle
+          </button>
+          {teamsEnabled ? (
+            <button
+              type="button"
+              aria-pressed={globalView === "team"}
+              onClick={() => props.onChange({ broadcastViewModeGlobal: "team" })}
+            >
+              Vue par équipe
+            </button>
+          ) : null}
+        </div>
+        <label>
+          <input
+            type="checkbox"
+            checked={highlightOn}
+            onChange={(event) =>
+              props.onChange({ highlightBuzzWinner: event.target.checked })
+            }
+          />
+          Mettre en avant le gagnant du buzz
+        </label>
+      </div>
+    </section>
   );
 }
 
@@ -4355,19 +4804,64 @@ function Broadcast(): JSX.Element {
     );
   }
 
+  return (
+    <BroadcastSurface
+      snap={snap}
+      partyId={pid}
+      mode="live"
+      tutorial={
+        tutorialGameKind === null
+          ? null
+          : {
+              gameKind: tutorialGameKind,
+              canSkip: tutorialCanSkip,
+              onClose: () => setTutorialGameKind(null),
+            }
+      }
+    />
+  );
+}
+
+function BroadcastSurface(props: {
+  snap: PartySnapshot;
+  partyId: string;
+  mode: "live" | "preview";
+  tutorial?: { gameKind: string; canSkip: boolean; onClose: () => void } | null;
+}): JSX.Element {
+  const { snap, partyId, mode } = props;
+  const preview = mode === "preview";
   const joinUrl = `${window.location.origin}${BASE_PATH}/join?code=${encodeURIComponent(snap.joinCode)}`;
-  const board = snap.gameBoard;
+  const board = snap.gameBoard ?? null;
   const quizBoard = board !== null && board.kind === "quiz" ? board : null;
   const videoBoard = board !== null && board.kind === "video" ? board : null;
-  const teamEntries = Object.entries(snap.teamScores ?? {})
-    .map(([id, score]) => ({ id: Number(id), score }))
-    .sort((a, b) => a.id - b.id);
+  const showRanking = snap.broadcastShowRanking !== false;
+  const showScores = snap.broadcastShowScores !== false;
+  const highlightOn = snap.highlightBuzzWinner !== false;
+  const winnerPlayer =
+    typeof snap.decidedBuzzWinnerId === "string"
+      ? snap.players.find((player) => player.id === snap.decidedBuzzWinnerId)
+      : undefined;
+  const showBuzzWinner = highlightOn && winnerPlayer !== undefined;
+  const gapMs = visibleBuzzGapMs(highlightOn, snap.buzzTimeGapMs);
+  const winnerScoreLine =
+    snap.winnerDisplay === undefined || snap.winnerDisplay === null
+      ? null
+      : showScores
+        ? `${snap.winnerDisplay.score} pts`
+        : frenchOrdinal(
+            competitionRankForScore(
+              snap.players.map((player) => player.score),
+              snap.winnerDisplay.score,
+            ),
+          );
 
   return (
-    <div className="bz-broadcast">
-      <Link to={`/party/${encodeURIComponent(pid)}/admin`} className="bz-bc-exit">
-        ← retour tableau
-      </Link>
+    <div className={preview ? "bz-broadcast bz-broadcast--preview" : "bz-broadcast"}>
+      {preview ? null : (
+        <Link to={`/party/${encodeURIComponent(partyId)}/admin`} className="bz-bc-exit">
+          ← retour tableau
+        </Link>
+      )}
 
       <header className="bz-bc-header">
         <span className="bz-logo" style={{ fontSize: 36 }}>
@@ -4383,17 +4877,25 @@ function Broadcast(): JSX.Element {
           </span>
           <span className="bz-bc-code-chip">{snap.joinCode}</span>
           <div className="bz-bc-qr">
-            <QRCodeSVG value={joinUrl} size={96} level="M" />
+            <QRCodeSVG value={joinUrl} size={preview ? 48 : 96} level="M" />
           </div>
         </div>
       </header>
 
       <main className="bz-bc-stage">
+        {showBuzzWinner && winnerPlayer !== undefined ? (
+          <div className="bz-bc-buzz-winner">
+            <span className="bz-bc-buzz-winner-kicker">Gagnant du buzz</span>
+            <strong>{winnerPlayer.displayName}</strong>
+            {gapMs !== null ? <span>Écart 1er/2e : {gapMs} ms</span> : null}
+          </div>
+        ) : null}
+
         {snap.winnerDisplay && (
           <WinnerScreen
             playerName={snap.winnerDisplay.playerName}
             avatarKey={snap.winnerDisplay.avatarKey}
-            score={snap.winnerDisplay.score}
+            scoreLine={winnerScoreLine}
           />
         )}
 
@@ -4424,7 +4926,7 @@ function Broadcast(): JSX.Element {
               <div className="bz-bc-lobby-code">{snap.joinCode}</div>
             </div>
             <div className="bz-bc-lobby-qr">
-              <QRCodeSVG value={joinUrl} size={320} level="M" includeMargin />
+              <QRCodeSVG value={joinUrl} size={preview ? 96 : 320} level="M" includeMargin />
             </div>
           </div>
         ) : null}
@@ -4463,8 +4965,9 @@ function Broadcast(): JSX.Element {
             </div>
             <video
               key={videoBoard.replaySerial}
-              autoPlay
-              controls
+              autoPlay={!preview}
+              controls={!preview}
+              muted={preview}
               playsInline
               preload="auto"
               className="bz-bc-video"
@@ -4483,7 +4986,8 @@ function Broadcast(): JSX.Element {
             board={board}
             partyState={snap.state}
             revealCorrect={false}
-            allowBlindPlaybackOnClients={snap.allowPlayerAudioControl === true}
+            allowBlindPlaybackOnClients={!preview && snap.allowPlayerAudioControl === true}
+            silentPreview={preview}
           />
         ) : null}
 
@@ -4496,21 +5000,12 @@ function Broadcast(): JSX.Element {
         {snap.state === "between_rounds" || snap.state === "ended" ? (
           <div className="bz-bc-end">
             <h1>{snap.state === "ended" ? "Bravo." : "Pause."}</h1>
-            {teamEntries.length > 0 ? (
-              <div style={{ display: "flex", gap: 48 }}>
-                {teamEntries.map((t) => (
-                  <div key={t.id} className="bz-bc-team">
-                    <div className="bz-bc-team-label">Équipe {t.id}</div>
-                    <div className="bz-bc-team-value">{t.score}</div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
+            {showRanking ? <BroadcastStandingBlock snap={snap} showScores={showScores} /> : null}
           </div>
         ) : null}
       </main>
 
-      {snap.state === "round_active" ? (
+      {snap.state === "round_active" && showRanking ? (
         <footer className="bz-bc-footer">
           <div className="bz-bc-queue">
             <h3>
@@ -4521,46 +5016,30 @@ function Broadcast(): JSX.Element {
                   : "Buzzer fermé"}
             </h3>
             {snap.buzzOrder.length > 0 ? (
-              <>
-                <ol className="bz-bc-queue-list">
-                  {snap.buzzOrder.slice(0, 3).map((idBuzz, idx) => {
-                    const pl = snap.players.find((p) => p.id === idBuzz);
-                    return (
-                      <li key={`${idBuzz}-${idx}`}>
-                        <span className="bz-bc-queue-rank">{idx + 1}</span>
-                        <span className="bz-bc-queue-name">
-                          {pl?.displayName ?? idBuzz}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ol>
-                {typeof snap.buzzTimeGapMs === "number" && snap.buzzTimeGapMs < 1000 ? (
-                  <p style={{ margin: "8px 0 0", fontSize: 14, color: "var(--bz-text-dim)" }}>
-                    Écart 1er/2e : {snap.buzzTimeGapMs} ms
-                  </p>
-                ) : null}
-              </>
+              <ol className={highlightOn ? "bz-bc-queue-list" : "bz-bc-queue-list bz-bc-queue-list--plain"}>
+                {snap.buzzOrder.slice(0, 3).map((idBuzz, idx) => {
+                  const pl = snap.players.find((p) => p.id === idBuzz);
+                  const isWinner = showBuzzWinner && idBuzz === snap.decidedBuzzWinnerId;
+                  return (
+                    <li key={`${idBuzz}-${idx}`} className={isWinner ? "bz-bc-queue-winner" : undefined}>
+                      <span className="bz-bc-queue-rank">{idx + 1}</span>
+                      <span className="bz-bc-queue-name">
+                        {pl?.displayName ?? idBuzz}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
             ) : null}
           </div>
-
-          {teamEntries.length > 0 ? (
-            <div className="bz-bc-teams">
-              {teamEntries.map((t) => (
-                <div key={t.id} className="bz-bc-team">
-                  <div className="bz-bc-team-label">Équipe {t.id}</div>
-                  <div className="bz-bc-team-value">{t.score}</div>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <BroadcastStandingBlock snap={snap} showScores={showScores} />
         </footer>
       ) : null}
-      {tutorialGameKind !== null ? (
+      {!preview && props.tutorial ? (
         <TutorialOverlay
-          gameKind={tutorialGameKind}
-          canSkip={tutorialCanSkip}
-          onClose={() => setTutorialGameKind(null)}
+          gameKind={props.tutorial.gameKind}
+          canSkip={props.tutorial.canSkip}
+          onClose={props.tutorial.onClose}
         />
       ) : null}
     </div>
