@@ -187,6 +187,54 @@ describe("teamScoresFromPlayers", () => {
     ];
     expect(teamScoresFromPlayers(players, 2)).toEqual({ "1": 10, "2": 0 });
   });
+
+  it("sums every teamed score, keeps empty teams at zero, and still counts an out-of-range team id", () => {
+    const players: Player[] = [
+      {
+        id: "p1",
+        displayName: "Alice",
+        avatarKey: "base/1.png",
+        buzzSoundKey: "bz1",
+        teamId: 1,
+        score: 5,
+        joinedAt: 0,
+      },
+      {
+        id: "p2",
+        displayName: "Bob",
+        avatarKey: "base/2.png",
+        buzzSoundKey: "bz2",
+        teamId: 1,
+        score: -2,
+        joinedAt: 0,
+      },
+      {
+        id: "p3",
+        displayName: "Chloé",
+        avatarKey: "base/3.png",
+        buzzSoundKey: "bz3",
+        teamId: null,
+        score: 40,
+        joinedAt: 0,
+      },
+      {
+        id: "p4",
+        displayName: "Diego",
+        avatarKey: "base/4.png",
+        buzzSoundKey: "bz4",
+        teamId: 9,
+        score: 4,
+        joinedAt: 0,
+      },
+    ];
+    const scores = teamScoresFromPlayers(players, 2);
+    expect(scores).toEqual({ "1": 3, "2": 0, "9": 4 });
+    const teamedSum = players
+      .filter((player) => player.teamId !== null)
+      .reduce((total, player) => total + player.score, 0);
+    expect(Object.values(scores).reduce((total, score) => total + score, 0)).toBe(teamedSum);
+    expect(teamScoresFromPlayers([], 4)).toEqual({ "1": 0, "2": 0, "3": 0, "4": 0 });
+  });
 });
 
 describe("publicSnapshotForParty", () => {
