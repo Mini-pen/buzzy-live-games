@@ -1,24 +1,26 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-07  
-**Contexte** : Extension de la couverture Vitest §4.6 (affichage projeté), domaine et serveur seulement.
+**Contexte** : 404 production sur la synchro d'horloge joueur (`/me/time-sync`) et libellé admin. Rebasé sur `main` `c09796d` (PR 29).
 
 ## Objectifs
 
-- Couvrir les helpers d'affichage projeté, les snapshots hôte/joueur, la somme `teamScores` et la validation Zod des routes admin.
-- Garder la suite colocated `webserver/src` verte, sans tests React et sans modifier le comportement produit.
+- Faire aboutir `POST /api/parties/:partyId/me/time-sync` en local et sous `/buzzy-live-games`.
+- En cas d'échec, offset 0 sans rafale de 5 requêtes.
+- Renommer le panneau admin « Réglages évolution 4.5 » en « Sons et compte à rebours ».
 
 ## Réalisations
 
-- `webserver/src/domain/broadcastDisplay.test.ts` : `frenchOrdinal`, rangs de compétition, classement individuel, écart 1er/2e si le highlight est actif, champs de diffusion sur les snapshots hôte et joueur.
-- `webserver/src/domain/partyLogic.test.ts` : somme des scores d'équipe (équipes vides, hors équipe, id hors plage).
-- `webserver/src/http/broadcastDisplayRoutes.test.ts` : schémas Zod des routes `broadcast-display` et `manche/broadcast-view` via Fastify inject.
-- Suite Vitest : 351/351 tests verts (24 fichiers), base `46f90d3`.
+- Cause : le client appelait `/api/parties/…/me/time-sync` en chemin absolu, sans le préfixe Vite (`withBase` / `BASE_PATH`). Les autres appels joueur passent par `fetchJson` → `withBase`. Traefik ne route que `/buzzy-live-games`, d'où 5× 404 (une salve de 5 pings). La route Fastify `POST /api/parties/:partyId/me/time-sync` était déjà la bonne ; le préfixe ne doit pas y figurer (StripPrefix).
+- URL partagée `playerTimeSyncUrl` utilisée par le client. Premier ping en échec : la salve s'arrête, offset 0.
+- Vitest `webserver/src/http/playerTimeSyncUrl.test.ts` : route enregistrée, URL racine et `/buzzy-live-games`, 404 sur le chemin encore préfixé côté serveur, GET 404, source client branchée sur le helper.
+- Titre du panneau admin mis à jour. Favicon non touché.
+- Conflit de rebase limité aux journaux (`cursor_log_latest.txt`, `cursor_log_archive.txt`). La session Vitest §4.6 de la PR 29 est archivée.
 
 ## Prochain focus suggéré
 
-- UI hors Vitest : miniature admin, masquage visuel des scores, bordure du gagnant de buzz, vue équipe vs individuelle dans React.
+- La route time-sync ne mémorise pas le décalage dans `party.clockSync` (`updatePlayerClockSync` n'est jamais appelée). Le serveur ignore alors `clientTimestamp` et classe à l'heure d'arrivée. À trancher sans double compensation (le client ajoute déjà l'offset avant le buzz).
 
 ## Références
 
-- Branche `cursor/broadcast-display-coverage-484a`, base `main` à `46f90d3`.
+- `webserver/client/src/clientClockSync.ts`, `webserver/src/http/playerTimeSyncUrl.ts`, `webserver/client/src/paths.ts`.
