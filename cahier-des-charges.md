@@ -660,7 +660,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
-**Statut :** Livré — miniature admin muette, cinq réglages (classement, scores grand écran, scores joueurs, vue, highlight après décision §4.8). Vitest ciblés sur les champs serveur et le classement ; couverture UI étendue laissée au Test Writer si besoin.
+**Statut :** Livré et testé (logique serveur / helpers) — PR 27 (`bcd142c`), 341/341 Vitest verts (`broadcastDisplay.test.ts` et suite). CA UI restants hors Vitest pour l'instant (miniature admin, bloc téléphone joueur, localStorage).
 
 **Comportement :**
 
