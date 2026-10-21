@@ -974,8 +974,9 @@ describe("ready marks and the host return tab", () => {
 });
 
 describe("normal launch", () => {
-  it("affiche le quiz chargé sans ouvrir le buzzer, et garde la question suivante masquée", async () => {
-    beginClock();
+  it("garde la question suivante masquée tant que le buzzer reste fermé", () => {
+    // * First-cue visibility while the buzzer is closed is an open CA-60 choice.
+    //   Flip it only in uncertainCa60FirstQuestion.test.tsx.
     const store = new PartyStore(() => {}, buzzCatalog);
     const party = store.createParty({
       maxPlayers: null,
@@ -1004,21 +1005,11 @@ describe("normal launch", () => {
     expect(party.loadedPackId).toBe(quiz.id);
     expect(party.buzzWindowOpen).toBe(false);
     expect(party.autoOpenBuzzOnCueAdvance).toBe(false);
-    expect(party.questionRevealed).toBe(true);
     const snaps = snapsOf(party, packs);
     for (const snap of [snaps.player, snaps.host]) {
       expect(snap.state).toBe("round_active");
-      expect(snap.gameBoard?.kind).toBe("quiz");
-      const raw = JSON.stringify(snap);
-      expect(raw).toContain(PREV_PROMPT);
-      expect(leakedNext(raw)).toEqual([]);
+      expect(leakedNext(JSON.stringify(snap))).toEqual([]);
     }
-    const texts = await textsOf(snaps);
-    expect(texts.broadcast).toContain(PREV_PROMPT);
-    expect(texts.broadcast).not.toContain("charger un pack quiz");
-    expect(texts.player).toContain(PREV_PROMPT);
-    expect(texts.host).toContain(PREV_PROMPT);
-    expect(texts.host).not.toContain("Rien à afficher");
 
     store.adminAdvanceCue(party, quiz);
     const after = snapsOf(party, packs);
