@@ -93,3 +93,12 @@ Session 2026-10-07 — Vitest §4.6 (PR 29, main c09796d)
 - Couverture helpers d'affichage projeté, snapshots hôte/joueur, somme `teamScores`, Zod des routes admin.
 - `broadcastDisplay.test.ts`, `partyLogic.test.ts`, `broadcastDisplayRoutes.test.ts`.
 - Suite 351/351 (24 fichiers). Pas de tests React, pas de changement de comportement produit.
+
+================================================================================
+Session 2026-10-07 — 404 time-sync et libellé admin
+================================================================================
+- Cause : le client appelait `/api/parties/…/me/time-sync` en chemin absolu, sans le préfixe Vite (`withBase` / `BASE_PATH`). Traefik ne route que `/buzzy-live-games`, d'où 5× 404. La route Fastify était déjà la bonne.
+- URL partagée `playerTimeSyncUrl`. Premier ping en échec : la salve s'arrête, offset 0.
+- Vitest `webserver/src/http/playerTimeSyncUrl.test.ts`. Titre du panneau admin : « Sons et compte à rebours ».
+- Rebasé sur main `c09796d` (PR 29). Commit livré ensuite : `a860854` (#30).
+- Prochain focus noté alors : `updatePlayerClockSync` n'est jamais appelée, le serveur ignore `clientTimestamp`.

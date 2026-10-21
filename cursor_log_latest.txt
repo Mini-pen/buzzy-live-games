@@ -1,26 +1,30 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
-**Date** : 2026-10-07  
-**Contexte** : 404 production sur la synchro d'horloge joueur (`/me/time-sync`) et libellé admin. Rebasé sur `main` `c09796d` (PR 29).
+**Date** : 2026-10-21  
+**Contexte** : Recette Minipen de l'affichage projeté. Documentation seule, aucun code.
 
 ## Objectifs
 
-- Faire aboutir `POST /api/parties/:partyId/me/time-sync` en local et sous `/buzzy-live-games`.
-- En cas d'échec, offset 0 sans rafale de 5 requêtes.
-- Renommer le panneau admin « Réglages évolution 4.5 » en « Sons et compte à rebours ».
+- Ajouter dans le §4.6 du cahier des charges la sous-section « Recette Minipen du 21/10/2026 ».
+- Numéroter les critères à la suite de CA-38.
+- Y intégrer les maquettes Design UI, toujours en proposition, et noter les écarts avec le CDC sans les trancher.
 
 ## Réalisations
 
-- Cause : le client appelait `/api/parties/…/me/time-sync` en chemin absolu, sans le préfixe Vite (`withBase` / `BASE_PATH`). Les autres appels joueur passent par `fetchJson` → `withBase`. Traefik ne route que `/buzzy-live-games`, d'où 5× 404 (une salve de 5 pings). La route Fastify `POST /api/parties/:partyId/me/time-sync` était déjà la bonne ; le préfixe ne doit pas y figurer (StripPrefix).
-- URL partagée `playerTimeSyncUrl` utilisée par le client. Premier ping en échec : la salve s'arrête, offset 0.
-- Vitest `webserver/src/http/playerTimeSyncUrl.test.ts` : route enregistrée, URL racine et `/buzzy-live-games`, 404 sur le chemin encore préfixé côté serveur, GET 404, source client branchée sur le helper.
-- Titre du panneau admin mis à jour. Favicon non touché.
-- Conflit de rebase limité aux journaux (`cursor_log_latest.txt`, `cursor_log_archive.txt`). La session Vitest §4.6 de la PR 29 est archivée.
+- `cahier-des-charges.md`, §4.6, sous-section au statut « En cours de correction ». CA-39 à CA-51. Règle, critère vérifiable et cas limites pour chacun.
+- Maquettes citées, hors dépôt (`/workspace/ui/buzzy/`) : `modale_lancement_v1.png`, `gagnant_joueur_v1.png`, `decompte_question_joueur_v1.png`, `gagnant_diffusion_v1.png`.
+- Modale de lancement : cartes pleine largeur, hauteur automatique, `#FFCA28` / `#1E7A3C`, contrastes 11,4:1 et 5,4:1, anneau blanc au survol et au focus.
+- Gagnant joueur : avatar rond 120 px, anneau doré 4 px, « Point pour <nom> », « +1 point », « Prochaine question dans : N s », « Touchez pour fermer ». Après fermeture : libellé et cercle en haut à droite du bloc question.
+- Diffusion : même modale en 16:9, avatar 220 px, fermeture à 3 s.
+- Fermeture joueur laissée à Minipen (3 ou 4 s). Provisoire documenté : le code garde 4 s, marqué incertain.
+- Écarts non tranchés : emplacement de l'aperçu (CA-30 / CA-40), aside (CA-30 / CA-41), compte à rebours §4.5 vs CA-49, avance automatique §2.5 et CA-15 §4.8, jeton sessionStorage vs « Retour tableau », contenu de l'écran du gagnant (§4.5, CA-20) vs « +1 point ».
+- Note de correspondance mise à jour dans `DEV_PLAN.md`.
 
 ## Prochain focus suggéré
 
-- La route time-sync ne mémorise pas le décalage dans `party.clockSync` (`updatePlayerClockSync` n'est jamais appelée). Le serveur ignore alors `clientTimestamp` et classe à l'heure d'arrivée. À trancher sans double compensation (le client ajoute déjà l'offset avant le buzz).
+- Confirmation Minipen : localStorage, lien « Retour tableau », plage 3–30 s, fermeture joueur 3 ou 4 s, et les six écarts.
+- Correction produit du CA-44 (pages noires) par l'agent qui code. Hors de cette session.
 
 ## Références
 
-- `webserver/client/src/clientClockSync.ts`, `webserver/src/http/playerTimeSyncUrl.ts`, `webserver/client/src/paths.ts`.
+- `cahier-des-charges.md`, section 4.6, sous-section « Recette Minipen du 21/10/2026 », CA-39 à CA-51.

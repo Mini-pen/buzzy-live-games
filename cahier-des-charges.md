@@ -660,7 +660,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
-**Statut :** Livré et testé (logique serveur / helpers) — PR 27 (`bcd142c`), 341/341 Vitest verts (`broadcastDisplay.test.ts` et suite). CA UI restants hors Vitest pour l'instant (miniature admin, bloc téléphone joueur, localStorage).
+**Statut :** Livré et testé (logique serveur / helpers) — PR 27 (`bcd142c`), 341/341 Vitest verts (`broadcastDisplay.test.ts` et suite). CA UI restants hors Vitest pour l'instant (miniature admin, bloc téléphone joueur, localStorage). La sous-section « Recette Minipen du 21/10/2026 » (CA-39 à CA-51) a son propre statut, « En cours de correction ». Elle ne modifie pas le statut des CA-1 à CA-38.
 
 **Comportement :**
 
@@ -810,7 +810,152 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 **Points ouverts :**
 
-Aucun.
+Aucun sur les CA-1 à CA-38. Les points rouverts par la recette du 21/10/2026 sont dans la sous-section suivante. Ils ne sont pas tranchés ici.
+
+#### Recette Minipen du 21/10/2026
+
+**Statut :** En cours de correction
+
+**Périmètre :** retours de la recette de l'affichage projeté faite par Minipen le 21/10/2026. Les CA-39 à CA-51 s'ajoutent aux CA-1 à CA-38. Ils ne les retirent pas. Un écart avec une règle déjà écrite du CDC est noté en fin de sous-section et laissé à Minipen.
+
+**Références Design UI (hors dépôt) :** maquettes sur l'ordinateur partagé de l'équipe, dossier `/workspace/ui/buzzy/` (non versionné) :
+
+- `modale_lancement_v1.png` — modale « Choisir le mode de lancement »
+- `gagnant_joueur_v1.png` — modale du gagnant, page joueur
+- `decompte_question_joueur_v1.png` — décompte sur le bloc question, page joueur
+- `gagnant_diffusion_v1.png` — modale du gagnant, écran de diffusion
+
+Les mesures, couleurs et contrastes cités restent une **Proposition de Design UI**. Une phrase marquée « Décidé par Minipen » est une décision de recette. Une phrase marquée « choix incertain » ou « À décider par Minipen » attend une confirmation.
+
+##### Page animateur
+
+39. **CA-39 — Bloc d'infos de partie**
+
+   **Règle :** Le bloc d'infos de partie est réduit. Le code partie a la taille d'un titre de section, avec un bouton copier. Précision de Design UI. Aucune des quatre maquettes ne couvre ce bloc.
+
+   **Critère :** Sur `/party/:partyId/admin`, le code partie est rendu à la taille d'un titre de section du même écran, et un bouton copier est visible à côté. Activer le bouton place ce code dans le presse-papiers.
+
+   **Cas limites :** le bouton copie le code de partie affiché. Il ne copie pas le jeton animateur (§2.1 : le code join ne porte pas le token admin). Si le navigateur refuse le presse-papiers, le comportement de repli n'est pas décrit par la recette.
+
+40. **CA-40 — Aperçu diffusion**
+
+   **Règle :** Le bloc « Aperçu diffusion » est en tête de la colonne de droite, au-dessus du chat.
+
+   **Critère :** Sur la page animateur, le premier bloc de la colonne de droite est « Aperçu diffusion ». Le bloc de chat vient ensuite, plus bas dans cette colonne.
+
+   **Cas limites :** chat vide, ou chat désactivé en `round_active` (§2.7) : l'aperçu reste le premier bloc, au-dessus de la zone de chat. Bloc d'aperçu plié (CA-41) : son en-tête reste le premier de la colonne. L'écart avec CA-30 (aperçu sous le hero, dans la colonne principale) est noté en fin de sous-section.
+
+41. **CA-41 — Blocs pliables**
+
+   **Règle :** Chaque bloc de la colonne de droite se plie et se déplie par un en-tête cliquable avec une flèche. Son état est mémorisé. Proposition de Design UI. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : mémorisation en localStorage, par navigateur.
+
+   **Critère :** Chaque bloc de la colonne de droite expose un en-tête cliquable et une flèche. Un clic plie le corps du bloc. Un second clic le déplie. Recharger la page dans le même navigateur retrouve, pour chaque bloc, l'état plié ou déplié laissé au dernier clic. Un autre navigateur garde son propre état.
+
+   **Cas limites :** tous les blocs pliés : les en-têtes restent visibles et chacun se redéplie par son en-tête. L'état avant le premier clic n'est pas décrit. localStorage indisponible : non décrit. La table de scores du téléphone (CA-14) repart repliée à chaque chargement de `/party/:partyId/play` : c'est un autre bloc, sur une autre page. L'écart avec « L'aside ne change pas » (CA-30) est noté en fin de sous-section.
+
+42. **CA-42 — Modale de lancement**
+
+   **Règle :** La modale « Choisir le mode de lancement » est lisible. Deux cartes cliquables, titre en gras et description dans la carte, 12 px d'écart entre les cartes. Aucun texte ne déborde, même si la description passe sur deux lignes. Proposition de Design UI, référence `modale_lancement_v1.png` : cartes en pleine largeur, hauteur automatique, texte noir sur jaune `#FFCA28` (contraste 11,4:1), texte blanc sur vert `#1E7A3C` (contraste 5,4:1), anneau blanc au survol et au focus. La hauteur minimale de 72 px indiquée à la recette est retirée au profit de cette hauteur automatique.
+
+   **Critère :** Au lancement d'une manche, la modale « Choisir le mode de lancement » montre deux cartes cliquables, une par mode du §4.4 (normal, autonome). Chaque carte contient son titre en gras et sa description. Les cartes occupent toute la largeur utile de la modale. Leur hauteur suit le texte. L'écart vertical entre les deux cartes est de 12 px. Une description sur deux lignes reste à l'intérieur de sa carte. La carte jaune a le fond `#FFCA28` et un texte noir, au contraste 11,4:1. La carte verte a le fond `#1E7A3C` et un texte blanc, au contraste 5,4:1. Le survol et le focus clavier dessinent un anneau blanc sur la carte. Couleurs, contrastes et anneau sont une Proposition de Design UI.
+
+   **Cas limites :** description sur deux lignes, zoom de page, et fenêtre étroite : le texte reste dans la carte, la hauteur augmente, la largeur reste celle de la modale. Focus clavier visible par l'anneau blanc, y compris sans survol souris. Les deux destinations restent les modes du §4.4.
+
+43. **CA-43 — Pas de modale gagnant côté animateur**
+
+   **Règle :** La modale qui annonce le gagnant du point n'existe plus côté animateur. La liste des scores suffit.
+
+   **Critère :** Après l'annonce d'un gagnant de point, `/party/:partyId/admin` n'ouvre aucune modale de gagnant. La liste des scores de l'animateur reste affichée et montre le score mis à jour. La page joueur et l'écran de diffusion gardent leur modale (CA-46, CA-47).
+
+   **Cas limites :** plusieurs points d'affilée : aucune modale ne s'empile sur la page animateur. La liste des scores reste le seul rappel du point côté animateur. L'écart avec le bouton « Suivant » du §4.5 est noté en fin de sous-section.
+
+44. **CA-44 — Question suivante sans rafraîchir**
+
+   **Règle :** Après « tout le monde a répondu » et la fin du décompte, chaque page affiche la question suivante sans rafraîchissement. Le défaut vu en recette (les trois pages deviennent noires, il faut rafraîchir) est à corriger.
+
+   **Critère :** Quand tous ont répondu et que le décompte du CA-49 arrive à zéro, la page animateur, la page joueur et l'écran de diffusion affichent la question suivante. Aucun rechargement manuel n'est nécessaire. Aucune des trois pages ne reste noire.
+
+   **Cas limites :** une seule des trois pages est ouverte : elle affiche quand même la question suivante. Dernière question de la manche (pas de question suivante) : la recette ne décrit pas l'écran de remplacement. Une page qui se reconnecte pendant l'intervalle noir : non décrit.
+
+##### Page joueur
+
+45. **CA-45 — Surbrillance QCM au relâchement**
+
+   **Règle :** Une réponse de QCM est en surbrillance dès que le clic est relâché, sans attendre que le pointeur quitte le bouton.
+
+   **Critère :** Sur `/party/:partyId/play`, un appui sur un choix QCM suivi d'un relâchement alors que le pointeur est encore sur ce choix allume la surbrillance à l'instant du relâchement.
+
+   **Cas limites :** tactile : le doigt relevé sur le choix allume la surbrillance au relâchement, sans exiger que le doigt sorte du bouton. Clic relâché hors du bouton : pas de sélection, pas de surbrillance gardée pour ce geste.
+
+46. **CA-46 — Modale du gagnant, page joueur**
+
+   **Règle :** Un clic sur la modale du gagnant la ferme côté joueur. Sans clic, elle se ferme seule. La durée de la fermeture seule est à décider (CA-50). Proposition de Design UI, référence `gagnant_joueur_v1.png` : avatar rond de 120 px, anneau doré de 4 px avec une lueur, « Point pour <nom> », « +1 point », cercle du décompte avec « Prochaine question dans : N s », et « Touchez pour fermer ».
+
+   **Critère :** La modale joueur suit `gagnant_joueur_v1.png`. Elle montre un avatar rond de 120 px, un anneau doré de 4 px avec une lueur, le texte « Point pour » suivi du nom du gagnant, le texte « +1 point », un cercle de décompte accompagné de « Prochaine question dans : N s » (N = secondes entières restantes), et le texte « Touchez pour fermer ». Un clic sur la modale la ferme immédiatement. Sans clic, elle se ferme d'elle-même. La durée de cette fermeture automatique reste ouverte (CA-50). Tailles, anneau et libellés de maquette sont une Proposition de Design UI. Le libellé « Prochaine question dans : » est décidé par Minipen (CA-49).
+
+   **Cas limites :** un clic pendant le décompte ferme la modale et laisse le décompte continuer sur le bloc question (CA-49). Joueur sans image : CA-51. Un delta de points autre que +1, un score final, ou une équipe gagnante : écart avec le §4.5 et le CA-20, non tranché (fin de sous-section).
+
+##### Écran de diffusion
+
+47. **CA-47 — Modale du gagnant, diffusion**
+
+   **Règle :** La modale du gagnant se ferme seule au bout de 3 s. Proposition de Design UI, référence `gagnant_diffusion_v1.png` : même modale que la page joueur, en 16:9, avatar rond de 220 px.
+
+   **Critère :** Sur `/party/:partyId/broadcast`, la modale reprend la composition de `gagnant_joueur_v1.png`, au format 16:9, avec un avatar rond de 220 px, comme `gagnant_diffusion_v1.png`. Elle disparaît 3 s après son ouverture. La durée de 3 s est la règle de recette pour la diffusion. Le format et la taille d'avatar sont une Proposition de Design UI.
+
+   **Cas limites :** deux écrans de diffusion ouverts se ferment au même instant (horloge serveur, CA-49). Joueur sans image : CA-51. Le clic qui ferme la modale est spécifié pour la page joueur (CA-46). Un réglage de décompte plus court que 3 s : choix incertain du CA-49.
+
+48. **CA-48 — Lien « Retour tableau »**
+
+   **Règle :** Le lien « Retour tableau » ouvre la page animateur dans un nouvel onglet. Règle de sécurité : l'écran de diffusion, montré au public, ne contient jamais le jeton animateur. Le lien reprend le jeton déjà enregistré dans ce navigateur. S'il n'y en a pas, le lien est masqué. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen. L'erreur actuelle « Jeton animateur absent ou lien incomplet » n'est pas le comportement attendu.
+
+   **Critère :** Si ce navigateur a déjà un jeton animateur enregistré, « Retour tableau » est visible sur l'écran de diffusion. L'activer ouvre `/party/:partyId/admin` dans un nouvel onglet, et cet onglet affiche la page animateur. L'URL de la diffusion, le HTML servi et le texte visible de cet écran ne contiennent pas le jeton. Sans jeton enregistré dans ce navigateur, le lien n'est pas rendu. L'écran ne s'arrête pas sur « Jeton animateur absent ou lien incomplet ».
+
+   **Cas limites :** l'adresse de diffusion est ouverte sur un autre ordinateur : le lien est masqué. Le jeton n'apparaît ni dans le chemin, ni dans la query, ni dans le fragment, ni dans un attribut du lien. Écart avec le sessionStorage du §2.5 et avec « Pas de contrôles animateur » du §2.9 : fin de sous-section, non tranché.
+
+##### Décompte (trois pages)
+
+49. **CA-49 — Décompte avant la question suivante**
+
+   **Règle :** Après « tout le monde a répondu », un décompte précède la question suivante. 5 s par défaut, réglable dans les paramètres. Il est piloté par l'horloge du serveur et synchronisé sur les trois pages (animateur, joueur, diffusion). Il démarre quand la modale du gagnant s'ouvre et s'affiche déjà dans cette modale. Une fois la modale fermée, il continue par-dessus le bloc question, côté joueur et diffusion. Le texte « Prochaine question dans : » accompagne le décompte (Décidé par Minipen). Proposition de Design UI : cercle qui se vide, chiffre au centre ; dans la modale joueur, cercle avec « Prochaine question dans : N s » (`gagnant_joueur_v1.png`) ; après fermeture, le même libellé et le cercle, en haut à droite du bloc question (`decompte_question_joueur_v1.png`). Choix incertains (Specs Writer, 21/10/2026), à confirmer par Minipen : réglage par partie, dans les paramètres à la création, de 3 à 30 s ; fermeture de la modale à la fin du décompte si le réglage est plus court que le délai de fermeture.
+
+   **Critère :** Quand tous ont répondu, les trois pages suivent le même décompte, calé sur l'horloge du serveur. Sans changement de réglage, la durée est 5 s. À l'ouverture de la modale du gagnant, le décompte est déjà visible dans la modale, sous la forme « Prochaine question dans : N s ». Après la fermeture, sur la page joueur et sur la diffusion, ce libellé et le cercle sont en haut à droite du bloc question (`decompte_question_joueur_v1.png`) jusqu'à la question suivante (CA-44). Deux clients dont l'horloge locale diffère affichent la même seconde restante. L'emplacement, le cercle qui se vide et le chiffre au centre sont une Proposition de Design UI.
+
+   **Cas limites :** la page animateur n'a pas la modale (CA-43) : le décompte y est synchronisé, et la recette ne décrit pas son emplacement visuel sur cette page. Dernière question de la manche : non décrit. Réglage plus court que le délai de fermeture de la modale : choix incertain (la modale se fermerait alors à la fin du décompte). La plage 3 à 30 s et le lieu « paramètres à la création » sont des choix incertains. Écart avec le compte à rebours du §4.5 et avec l'avance automatique du §2.5 et du CA-15 du §4.8 : fin de sous-section, non tranché.
+
+50. **CA-50 — Durée de fermeture, à décider**
+
+   **Règle :** À décider par Minipen. Côté joueur, la modale se ferme à 4 s (point 9 de sa recette) ou à 3 s, alignée sur la diffusion (son point 11 parle des « 3 premières secondes » sur l'écran du gagnant). À décider aussi : ces délais suivent le réglage du décompte, ou ils restent fixes. Le code en cours garde provisoirement 4 s (joueur), 3 s (diffusion) et 3 à 30 s (plage du décompte), avec des commentaires « à confirmer ». La fermeture côté joueur reste donc ouverte entre 3 et 4 s. Le code garde 4 s pour l'instant, marqué incertain.
+
+   **Critère :** Tant que Minipen n'a pas tranché, la page joueur ferme la modale toute seule au bout de 4 s, et ce 4 s est marqué incertain dans le code (commentaire « à confirmer »). La diffusion reste à 3 s (CA-47). La plage 3 à 30 s du décompte reste marquée incertaine (CA-49). Ni 3 s ni 4 s ne sont écrits comme décision de Minipen pour la page joueur. Un clic (CA-46) ferme la modale joueur avant ce délai.
+
+   **Cas limites :** décompte réglé à 3 s avec fermeture joueur provisoire à 4 s : le choix incertain du CA-49 (fermeture de la modale à la fin du décompte) s'applique, sans réponse. Décompte réglé à 30 s : le provisoire ne garde pas la modale ouverte pendant 30 s ; le délai provisoire côté joueur est le fixe de 4 s, lui-même incertain. Une décision de Minipen remplace ces trois provisoires.
+
+##### Cadre du gagnant
+
+51. **CA-51 — Cadre rond**
+
+   **Règle :** Un cadre rond partout, page joueur et écran de diffusion. Anneau de 4 px aux couleurs du joueur, doré par défaut, avec une légère lueur. Proposition de Design UI : `gagnant_joueur_v1.png` montre l'avatar rond de 120 px et l'anneau doré de 4 px avec lueur (le doré de la maquette est le défaut) ; `gagnant_diffusion_v1.png` montre l'avatar rond de 220 px.
+
+   **Critère :** Sur les deux pages, le cadre du gagnant est rond et l'anneau mesure 4 px. L'anneau prend la couleur du joueur. Sans couleur de joueur, il est doré. Une lueur légère accompagne l'anneau. La taille d'avatar de la proposition est 120 px côté joueur et 220 px côté diffusion.
+
+   **Cas limites :** joueur sans image : le cadre reste rond, avec le même anneau de 4 px. Le dessin qui remplace l'image absente n'est pas décrit par la recette. Les deux pages partagent l'anneau ; la taille de l'avatar diffère (CA-46, CA-47).
+
+**Écarts avec le CDC existant (non tranchés) :**
+
+1. **Emplacement de l'aperçu.** Les règles miniature du §4.6 et le CA-30 placent la carte « Aperçu diffusion » dans la colonne principale, sous le hero, avant le plateau, et disent que l'aside ne change pas. Le CA-40 la place en tête de la colonne de droite, au-dessus du chat. Le CA-34 colle le panneau « Affichage projeté » sous la miniature : la recette ne dit pas si ce panneau suit la miniature dans la colonne de droite. Non tranché.
+2. **Aside.** Le CA-30 dit que l'aside ne change pas. Le CA-41 plie chaque bloc de la colonne de droite. Non tranché.
+3. **Compte à rebours.** Le §4.5 décrit un compte à rebours avant la question, de 3 à 10 s, démarré quand tous ont marqué « Prêt » (timeout 30 s sinon), en grands chiffres, buzzer fermé puis ouvert à 0, réglé dans les réglages animateur. Le DEV_PLAN §7.5 donne le défaut 5 s. Le §4.8 nomme le champ `countdownDurationSec`. Le CA-49 décrit un décompte après « tout le monde a répondu », défaut 5 s, horloge serveur, cercle dans la modale puis en haut à droite du bloc question. Le choix incertain porte la plage à 3–30 s et le lieu du réglage aux paramètres de création. Non tranché : s'agit-il du même réglage, ou de deux décomptes ? La plage 3–10 s et le déclencheur « Prêt » du §4.5 restent en l'état.
+4. **Avance automatique.** Le §2.5 et le §4.3 enchaînent la question suivante dès que tous ont buzzé, après le scoring. Le CA-15 du §4.8 fait partir cette avance après la décision, sans durée d'attente. Le CA-49 insère un décompte (défaut 5 s) avant la question suivante, démarré à l'ouverture de la modale. Non tranché : ce décompte retarde-t-il l'avance déjà écrite ?
+5. **Jeton et « Retour tableau ».** Le §2.5 enregistre l'`adminToken` en sessionStorage après lecture du fragment `#token=`. Le §2.9 décrit la diffusion en lecture seule (« Pas de contrôles animateur ») et un lien admin → diffusion en nouvel onglet. Le §2.1 et le §2.10 tiennent le jeton hors des liens publics. Le CA-48 ajoute un lien diffusion → admin, sans jamais mettre le jeton dans l'écran public, en réutilisant un jeton déjà enregistré dans le navigateur, lien masqué sinon. Choix incertain à confirmer par Minipen. Non tranché : le sessionStorage de l'onglet animateur n'est pas celui de l'onglet diffusion, et le lieu « déjà enregistré dans ce navigateur » n'est pas choisi. La présence du lien sur l'écran public reste en tension avec le §2.9.
+6. **Contenu de l'écran du gagnant.** Le §4.5 demande le pseudo, l'avatar et le score final (ou le score d'équipe), et un skip animateur par le bouton « Suivant ». Le CA-20 fait suivre le grand écran au réglage A (score ou rang) et le téléphone au réglage B (score, ou ligne de score absente). Les maquettes citées pour le CA-46 portent « Point pour <nom> » et « +1 point ». Le score final, le rang et le score d'équipe n'y sont pas nommés. Le CA-43 retire la modale de la page animateur. Non tranché : « +1 point » s'ajoute-t-il au score du §4.5, ou le remplace-t-il ? Le bouton « Suivant » ferme-t-il encore les modales joueur et diffusion ? Le libellé d'une équipe gagnante n'est pas dans la maquette.
+
+**Points ouverts de la recette :**
+
+- CA-41 : lieu de mémorisation de l'état plié (proposition localStorage par navigateur).
+- CA-48 : lien « Retour tableau » branché sur le jeton déjà enregistré, à confirmer par Minipen.
+- CA-49 : plage 3 à 30 s, réglage à la création, fermeture de la modale si le décompte est plus court que le délai de fermeture.
+- CA-50 : fermeture joueur à 3 s ou à 4 s, et délais fixes ou liés au réglage du décompte. Provisoire du code : 4 s côté joueur, marqué incertain ; 3 s côté diffusion ; plage 3 à 30 s marquée incertaine.
 
 ---
 
