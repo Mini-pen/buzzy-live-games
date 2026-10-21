@@ -1,32 +1,27 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Barre du bas de l'animateur et bloc « Paramètres de la partie ». Documentation seule, poussée sur `main`.
+**Contexte** : Podium codé, première question en mode normal, deux correctifs livrés. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Noter la décision de Minipen : quatre boutons dans la barre, le reste dans un bloc repliable.
-- Citer la maquette `animateur_parametres_v1.png` et les propositions de Design UI.
-- Rappeler deux écarts code/CDC de Test Writer (`3a710c6`), sans les trancher.
+- Noter les choix incertains de Coding Agent codés dans `8159db8`, sans écraser le CA-73.
+- Consigner l'écart `d5556f2` sur la première question, sans le trancher.
+- Noter dans les statuts que `f0d817c` et `b3efbf4` sont livrés.
 
 ## Réalisations
 
-- §2.5, « Barre du bas », et CA-74. Quatre boutons décidés : « Lancer la manche », « Ouvrir buzzer », « Pause », « Afficher gagnant ».
-- Le reste du CDC (décomptes, mode « Prêt ? », délai auto, toggles, fenêtre d'attente, sons, audio joueur) déménage dans « Paramètres de la partie », sous le bloc des questions.
-- Maquette hors dépôt, ordinateur partagé, 1600×1080. Trois groupes : Buzzer, Comptes à rebours, Sons et affichage.
-- Proposition de Design UI : ligne de résumé quand le bloc est replié. Mémoire de l'état d'une visite à l'autre. Cette variante et « gardé pendant la partie » (Specs Writer) restent à trancher.
-- Choix incertain de Design UI : boutons occasionnels sous la question en cours. Il remplace le lancement manuel laissé dans les paramètres. Le lancement manuel reste une action en direct.
-- Replié par défaut, et boutons désactivés qui gardent leur place : choix incertains de Specs Writer.
-- Écart `store.ts:411` : arrivée pendant le décompte du buzzer, À décider par Minipen. Pendant « Prêt ? », le téléphone n'affiche pas les coches et les sabliers. La règle sur les trois écrans reste.
+- CA-73 : marches vides masquées, ligne « Votre apport » et meilleur joueur en mode équipes, écran jusqu'à une action de l'animateur. Choix incertains de Coding Agent, à confirmer par Minipen. Les phrases déjà écrites restent.
+- Égalités 1, 1, 2, 3, passage à 1, 1, 3 par une option, et joueur déconnecté qui garde sa place : déjà incertains, indiqués comme codés dans `8159db8`.
+- CA-60 : en mode normal, la première question s'affiche buzzer fermé (`d5556f2`). Les suivantes restent masquées jusqu'à l'ouverture. À décider (Minipen). La règle décidée est conservée.
+- Statuts du §4.5 et du 2e passage : `f0d817c` (« Prêt ? » sur le téléphone) et `b3efbf4` (le décompte ne dépasse plus la durée réglée) sont livrés.
 
 ## Prochain focus suggéré
 
-- Trancher l'état du bloc : pendant la partie, ou d'une visite à l'autre.
-- Trancher le placement des boutons occasionnels, dont le lancement manuel pendant « Prêt ? ».
-- Trancher l'arrivée pendant le décompte du buzzer.
+- Trancher la première question en mode normal : exception, ou attente de l'ouverture du buzzer.
+- Confirmer les trois choix de podium codés dans `8159db8`.
 
 ## Références
 
-- `cahier-des-charges.md` §2.5, §4.5, §4.6 CA-74.
-- Maquette `animateur_parametres_v1.png`, ordinateur partagé, hors dépôt.
-- `DEV_PLAN.md` §7.6, correspondance CA-52 à CA-74.
+- `cahier-des-charges.md` §4.5, §4.6 CA-60 et CA-73.
+- Commits `8159db8`, `d5556f2`, `f0d817c`, `b3efbf4`.
