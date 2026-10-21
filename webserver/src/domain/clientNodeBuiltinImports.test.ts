@@ -278,7 +278,7 @@ function clientNodeBuiltinChains(): string[] {
 }
 
 describe("client bundle and Node builtins", () => {
-  it.fails("keeps Node builtins out of the files reached from webserver/client/src", () => {
+  it("keeps Node builtins out of the files reached from webserver/client/src", () => {
     const chains = clientNodeBuiltinChains();
     expect(chains, chains.join("\n\n")).toEqual([]);
   });
