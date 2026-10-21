@@ -14,7 +14,7 @@ import type { Party, PartyPublicSnapshot } from "./types.js";
 
 /**
  * * The next question stays off every screen until the countdowns that already have a rule are over.
- *   « Prêt ? » shows neither question. The buzzer-countdown boundary is still undecided.
+ *   « Prêt ? » shows neither question. The next question appears only when the buzzer opens.
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -105,7 +105,7 @@ function addPlayer(party: Party, id: string, name: string, teamId: number | null
   });
 }
 
-function answeredParty(opts: HoldOptions): {
+function answeredParty(opts: HoldOptions, stopBeforePlay = false): {
   store: PartyStore;
   party: Party;
   quiz: QuizPack;
@@ -140,6 +140,7 @@ function answeredParty(opts: HoldOptions): {
   store.adminSetWinnerScreenMode(party, opts.winnerMode);
   if (opts.ready) store.adminSetReadyCheckEnabled(party, true, quiz);
   store.hostLaunchManche(party, party.mancheScript[0]!.id, "autonomous", true, packs);
+  if (stopBeforePlay) return { store, party, quiz, packs };
   if (opts.ready) {
     store.playerSetReady(party, "alice", true);
     if (opts.players === 2) store.playerSetReady(party, "bob", true);
@@ -374,9 +375,67 @@ describe("question holdback payloads", () => {
     }
   });
 
-  it.todo(
-    "frontière countdownDurationSec non tranchée : option A, la question suivante apparaît au début de ce décompte ; option B, elle n'apparaît qu'à l'ouverture du buzzer",
-  );
+  it("cache la question suivante pendant le décompte du buzzer et l'affiche à l'ouverture", async () => {
+    beginClock();
+    const { store, party, quiz, packs } = answeredParty({ ...pauseOpts, buzzerSec: 5 }, true);
+    store.playerSetReady(party, "alice", true);
+    store.playerSetReady(party, "bob", true);
+    const firstCountdown = party.countdownStartedAt ?? 0;
+    expect(firstCountdown).not.toBe(0);
+    vi.setSystemTime(firstCountdown + 5_000);
+    expect(store.maybeOpenBuzzAfterCountdown(party)).toBe(true);
+    store.adminSetBuzzGraceWindow(party, 0);
+    const choice = { choicesLen: 2, choiceIndex: 0 };
+    store.buzz(party, "alice", Date.now(), choice);
+    store.buzz(party, "bob", Date.now(), choice);
+    store.maybeFinalizeBuzzDecision(party);
+    store.maybeAutoResolveQuizWhenEveryPlayerBuzzed(party, quiz);
+    const pauseStarted = party.nextQuestionCountdownStartedAt ?? 0;
+    expect(store.maybeFinishNextQuestionCountdown(party, quiz, pauseStarted + 5_000)).toBe(true);
+    store.playerSetReady(party, "alice", true);
+    store.playerSetReady(party, "bob", true);
+    expect(party.countdownStartedAt).not.toBeNull();
+    expect(party.buzzWindowOpen).toBe(false);
+    expect(party.appliedCountdownDurationSec).toBe(5);
+
+    const during = snapsOf(party, packs);
+    for (const snap of [during.player, during.host]) {
+      const raw = JSON.stringify(snap);
+      expect(raw).toContain(PREV_PROMPT);
+      expect(raw).toContain(PREV_A);
+      expect(raw).toContain(PREV_B);
+      expect(leakedNext(raw)).toEqual([]);
+    }
+    const duringTexts = await textsOf(during);
+    for (const name of ["player", "broadcast"] as const) {
+      expect(duringTexts[name]).toContain(PREV_PROMPT);
+      expect(duringTexts[name]).toContain(PREV_A);
+      expect(duringTexts[name]).toContain(PREV_B);
+      expect(leakedNext(duringTexts[name])).toEqual([]);
+    }
+
+    const countdownStarted = party.countdownStartedAt ?? 0;
+    expect(store.maybeOpenBuzzAfterCountdown(party)).toBe(false);
+    vi.setSystemTime(countdownStarted + 5_000);
+    expect(store.maybeOpenBuzzAfterCountdown(party)).toBe(true);
+    expect(party.buzzWindowOpen).toBe(true);
+
+    const opened = snapsOf(party, packs);
+    for (const snap of [opened.player, opened.host]) {
+      const raw = JSON.stringify(snap);
+      expect(raw).toContain(NEXT_PROMPT);
+      expect(raw).toContain(NEXT_A);
+      expect(raw).toContain(NEXT_B);
+      expect(raw).not.toContain(PREV_PROMPT);
+    }
+    const openedTexts = await textsOf(opened);
+    for (const name of ["player", "broadcast"] as const) {
+      expect(openedTexts[name]).toContain(NEXT_PROMPT);
+      expect(openedTexts[name]).toContain(NEXT_A);
+      expect(openedTexts[name]).toContain(NEXT_B);
+      expect(openedTexts[name]).not.toContain(PREV_PROMPT);
+    }
+  });
 });
 
 describe("question holdback screens", () => {

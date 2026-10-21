@@ -1,7 +1,7 @@
 /**
- * * INCERTAIN: the next question stays hidden through the between-question pause,
- *   the « Prêt ? » phase, and the buzzer countdown. It is revealed when the buzzer opens.
- *   Change QUESTION_REVEAL_AT to move that single point.
+ * * Décidé (Minipen, 21/10/2026) : the next question stays hidden through the
+ *   between-question pause, « Prêt ? », and the buzzer countdown. It appears
+ *   only when the buzzer opens, not at the start of that countdown.
  */
 export const QUESTION_REVEAL_AT = "buzzer_open" as const;
 
