@@ -207,8 +207,8 @@ function installFetch(snaps: ScreenSnaps): void {
   );
 }
 
-function rememberPlayer(partyId: string): void {
-  const body = btoa(JSON.stringify({ sub: "alice" }));
+function rememberPlayer(partyId: string, playerId = "alice"): void {
+  const body = btoa(JSON.stringify({ sub: playerId }));
   sessionStorage.setItem(`partygames:playerJwt:${partyId}`, `e.${body}.s`);
 }
 
@@ -243,9 +243,9 @@ function screenReady(container: HTMLElement, route: string): boolean {
   return container.querySelector(".bz-buzz-btn, .bz-buzz-closed, .bz-board, .bz-winner-screen") !== null;
 }
 
-async function show(route: string, snaps: ScreenSnaps): Promise<HTMLElement> {
+async function show(route: string, snaps: ScreenSnaps, playerId = "alice"): Promise<HTMLElement> {
   installFetch(snaps);
-  if (route.includes("/play")) rememberPlayer(snaps.player.id);
+  if (route.includes("/play")) rememberPlayer(snaps.player.id, playerId);
   if (route.includes("/admin")) rememberHost(snaps.host.id);
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -525,6 +525,39 @@ describe("broadcast sequence after every answer", () => {
     expect(container.textContent).toContain(PREV_PROMPT);
   });
 
+  it("keeps the scorer's name on every screen except the scorer's own phone", async () => {
+    beginClock();
+    const { party, packs } = answeredParty(pauseOpts);
+    const snaps = snapsOf(party, packs);
+    const winner = await show(`/party/${party.id}/play`, snaps, "alice");
+    const winnerDisc = winner.querySelector(".bz-buzz-award");
+    expect(winnerDisc?.textContent).toContain("Vous !");
+    expect(winnerDisc?.textContent).not.toContain("Alice");
+
+    const other = await show(`/party/${party.id}/play`, snaps, "bob");
+    const otherDisc = other.querySelector(".bz-buzz-award");
+    expect(otherDisc?.textContent).toContain("Alice");
+    expect(otherDisc?.textContent).not.toContain("Vous !");
+
+    const broadcast = await show(`/party/${party.id}/broadcast`, snaps);
+    expect(broadcast.textContent).toContain("Alice");
+    expect(broadcast.textContent).toContain("Point pour");
+    expect(broadcast.textContent).not.toContain("Vous !");
+  });
+
+  it("keeps the point award out of the host preview during the pause", async () => {
+    beginClock();
+    const { party, packs } = answeredParty(pauseOpts);
+    const container = await show(`/party/${party.id}/admin`, snapsOf(party, packs));
+    expect(container.querySelector(".bz-bc-preview-frame")).not.toBeNull();
+    expect(container.querySelector(".bz-point-modal, .bz-buzz-award")).toBeNull();
+    expect(container.textContent).not.toContain("Vous !");
+    expect(container.textContent).not.toContain("+ 10 points");
+  });
+
+  // * The disc can close early in the visibility helper, but the button never calls that path.
+  it.todo("un clic du joueur ferme le disque de points avant la fin du décompte");
+
   it("closes the point modal when the pause itself is only 2 s", async () => {
     beginClock();
     const { party, packs } = answeredParty({ ...pauseOpts, pauseSec: 2 });
@@ -732,5 +765,72 @@ describe("player buzzer control", () => {
     expect(party.pendingBuzzQueue.map((row) => row.playerId)).toEqual(["alice"]);
     const container = await show(`/party/${party.id}/play`, snapsOf(party, new Map()));
     expect(container.textContent).toContain("Buzz envoyé");
+  });
+});
+
+describe("ready marks and the host return tab", () => {
+  function readyScene(markAlice: boolean): { party: Party; snaps: ScreenSnaps } {
+    const { store, party, quiz, packs } = answeredParty(pauseOpts);
+    const startedAt = party.nextQuestionCountdownStartedAt ?? 0;
+    store.maybeFinishNextQuestionCountdown(party, quiz, startedAt + 5_000);
+    if (markAlice) store.playerSetReady(party, "alice", true);
+    return { party, snaps: snapsOf(party, packs) };
+  }
+
+  it("shows an orange Prêt ? button, then a green Prêt ! button for that player", async () => {
+    beginClock();
+    const waiting = readyScene(false);
+    const before = await show(`/party/${waiting.party.id}/play`, waiting.snaps);
+    const orange = before.querySelector<HTMLButtonElement>("button.bz-buzz-ready");
+    expect(orange?.textContent?.trim()).toBe("Prêt ?");
+    expect(orange?.classList.contains("is-ready")).toBe(false);
+    expect(orange?.getAttribute("aria-pressed")).toBe("false");
+
+    const ready = readyScene(true);
+    const after = await show(`/party/${ready.party.id}/play`, ready.snaps);
+    const green = after.querySelector<HTMLButtonElement>("button.bz-buzz-ready");
+    expect(green?.textContent?.trim()).toBe("Prêt !");
+    expect(green?.classList.contains("is-ready")).toBe(true);
+    expect(green?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows a waiting hourglass or a ready check on the broadcast and the host, only while the mode is on", async () => {
+    beginClock();
+    const { party, snaps } = readyScene(true);
+    const broadcast = await show(`/party/${party.id}/broadcast`, snaps);
+    expect(broadcast.querySelectorAll('.bz-ready-mark.is-ready[aria-label="Prêt"]').length).toBe(1);
+    expect(broadcast.querySelectorAll('.bz-ready-mark.is-waiting[aria-label="Pas encore prêt"]').length).toBe(1);
+
+    const host = await show(`/party/${party.id}/admin`, snaps);
+    const hostReady = host.querySelectorAll('.bz-ready-mark.is-ready[aria-label="Prêt"]');
+    const hostWaiting = host.querySelectorAll('.bz-ready-mark.is-waiting[aria-label="Pas encore prêt"]');
+    expect(hostReady.length).toBeGreaterThan(0);
+    expect(hostWaiting.length).toBe(hostReady.length);
+
+    const off = answeredParty({ ...pauseOpts, ready: false });
+    const plain = await show(`/party/${off.party.id}/broadcast`, snapsOf(off.party, off.packs));
+    expect(plain.querySelector(".bz-ready-mark")).toBeNull();
+  });
+
+  it("opens the host board in a new tab without putting the token in the url", async () => {
+    beginClock();
+    const { party, packs } = answeredParty(pauseOpts);
+    const token = "secret-host-token";
+    localStorage.setItem(`partygames:hostToken:${party.id.toLowerCase()}`, token);
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    const container = await show(`/party/${party.id}/broadcast`, snapsOf(party, packs));
+    const link = container.querySelector<HTMLButtonElement>(".bz-bc-exit");
+    expect(link?.textContent).toContain("retour tableau");
+    await act(async () => {
+      link?.click();
+    });
+    expect(opened).toHaveBeenCalledTimes(1);
+    const [url, target, features] = opened.mock.calls[0] ?? [];
+    expect(String(url)).toContain(`/party/${party.id.toLowerCase()}/admin`);
+    expect(String(url).includes(token)).toBe(false);
+    expect(String(url).includes("token=")).toBe(false);
+    expect(target).toBe("_blank");
+    expect(features).toBe("noopener,noreferrer");
+    opened.mockRestore();
   });
 });
