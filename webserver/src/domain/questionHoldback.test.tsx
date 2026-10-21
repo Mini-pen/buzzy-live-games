@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { readFileSync } from "node:fs";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { MemoryRouter } from "react-router-dom";
@@ -841,6 +842,50 @@ describe("ready marks and the host return tab", () => {
     const off = answeredParty({ ...pauseOpts, ready: false });
     const plain = await show(`/party/${off.party.id}/play`, snapsOf(off.party, off.packs));
     expect(plain.querySelector(".bz-ready-mark")).toBeNull();
+  });
+
+  it("places the ready instruction above the ready count, in orange and in green", async () => {
+    beginClock();
+    const sheet = readFileSync("client/src/styles/buzzy.css", "utf8");
+    const captionRule = sheet.slice(
+      sheet.indexOf(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption {"),
+      sheet.indexOf(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption {") + 220,
+    );
+    const countRule = sheet.slice(
+      sheet.indexOf(".bz-buzz-slot .bz-ready-stack .bz-ready-count {"),
+      sheet.indexOf(".bz-buzz-slot .bz-ready-stack .bz-ready-count {") + 180,
+    );
+    expect(captionRule).toContain("bottom: calc(4px + 1.25em + 4px)");
+    expect(countRule).toContain("bottom: 4px");
+    expect(captionRule).toContain("overflow: hidden");
+    expect(countRule).toContain("overflow: hidden");
+    expect(sheet).not.toMatch(/\.bz-ready-stack[\s\S]{0,400}overflow:\s*(auto|scroll)/);
+
+    const style = document.createElement("style");
+    style.textContent = sheet;
+    document.head.appendChild(style);
+
+    const waiting = readyScene(false);
+    const orange = await show(`/party/${waiting.party.id}/play`, waiting.snaps);
+    const orangeCaption = orange.querySelector(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption");
+    const orangeCount = orange.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count");
+    expect(orangeCaption?.textContent).toContain("Touchez quand vous êtes prêt");
+    expect(orangeCount?.textContent).toMatch(/joueurs pr/);
+    expect(orange.querySelector(".bz-ready-hold .bz-ready-roster")).not.toBeNull();
+    expect(getComputedStyle(orangeCaption as Element).bottom).not.toBe(getComputedStyle(orangeCount as Element).bottom);
+    expect(getComputedStyle(orange.querySelector(".bz-buzz-slot") as Element).overflow).toBe("hidden");
+
+    const ready = readyScene(true);
+    const green = await show(`/party/${ready.party.id}/play`, ready.snaps);
+    expect(green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption")?.textContent).toContain(
+      "Touchez à nouveau pour annuler",
+    );
+    expect(green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count")?.textContent).toMatch(
+      /joueurs pr/,
+    );
+    const greenCaption = green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption");
+    const greenCount = green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count");
+    expect(getComputedStyle(greenCaption as Element).bottom).not.toBe(getComputedStyle(greenCount as Element).bottom);
   });
 
   it("keeps four buttons on the host bar and parks the other controls under the scenario", async () => {

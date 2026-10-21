@@ -2885,6 +2885,19 @@ html, body {
   text-align: center;
   font-size: 12px;
 }
+/* * Both ready lines used the same bottom edge, so they drew on top of each other. */
+.bz-buzz-slot .bz-ready-stack .bz-ready-count {
+  bottom: 4px;
+  line-height: 1.25;
+  max-height: 1.25em;
+  overflow: hidden;
+}
+.bz-buzz-slot .bz-ready-stack .bz-buzz-caption {
+  bottom: calc(4px + 1.25em + 4px);
+  line-height: 1.25;
+  max-height: 2.5em;
+  overflow: hidden;
+}
 .bz-app .bz-buzz-btn.bz-buzz-award {
   background: radial-gradient(circle at 35% 30%, #3a3a4a, #1c1c28 70%);
   border-color: #ffca28;
