@@ -11,7 +11,7 @@
 
 ## Réalisations
 
-- CA-60 : décidé, rapporté par Coding Agent le 21/10, citation de Minipen non vue dans le salon. Pendant les décomptes, la question qui vient d'être jouée reste. La nouvelle n'apparaît qu'à l'ouverture. Avec tous les décomptes à 0, elle apparaît directement à l'ouverture. Pendant « Prêt ? », le CA-64 reste. La phrase du §4.5 sur le départ du décompte après l'affichage de la question n'est pas réécrite.
+- CA-60 : Décidé (Minipen, 21/10/2026, réponse transmise par Coding Agent). En privé, à 22h52 heure de Paris : « la nouvelle question s'affiche seulement quand le buzzer s'ouvre ». Pendant les décomptes, la question qui vient d'être jouée reste. La nouvelle n'apparaît qu'à l'ouverture. Avec tous les décomptes à 0, elle apparaît directement à l'ouverture. Pendant « Prêt ? », le CA-64 reste. La phrase du §4.5 sur le départ du décompte après l'affichage de la question n'est pas réécrite.
 - CA-61 : l'envoi avant l'ouverture reste un choix incertain.
 - Écart `5fd119a` : `commitCueAdvance` avance l'index avant la pause, la question suivante est visible trop tôt sur les trois écrans. Le correctif n'est pas choisi.
 - Écart `5fd119a` sur le CA-55 : le serveur ne passe jamais `state` à "ended". L'écran noir vient de `WinnerScreen` en plein écran en fin de manche. L'écran de fin de manche reste non décrit. Le correctif n'est pas choisi.
