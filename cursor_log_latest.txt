@@ -13,8 +13,8 @@
 
 - `cahier-des-charges.md`, §4.6, sous-section au statut « En cours de correction ». CA-39 à CA-51. Règle, critère vérifiable et cas limites pour chacun.
 - Maquettes citées, hors dépôt (`/workspace/ui/buzzy/`) : `modale_lancement_v1.png`, `gagnant_joueur_v1.png`, `decompte_question_joueur_v1.png`, `gagnant_diffusion_v1.png`.
-- Modale de lancement : cartes pleine largeur, hauteur automatique, `#FFCA28` / `#1E7A3C`, contrastes 11,4:1 et 5,4:1, anneau blanc au survol et au focus.
-- Gagnant joueur : avatar rond 120 px, anneau doré 4 px, « Point pour <nom> », « +1 point », « Prochaine question dans : N s », « Touchez pour fermer ». Après fermeture : libellé et cercle en haut à droite du bloc question.
+- Modale de lancement (`modale_lancement_v1.png`) : Décidé par Minipen. Cartes pleine largeur, hauteur automatique, `#FFCA28` / `#1E7A3C`, contrastes 11,4:1 et 5,4:1, anneau blanc au survol et au focus.
+- Décompte : les v2 remplacent les v1. Dans la modale (`gagnant_joueur_v2.png`, `gagnant_diffusion_v2.png`), texte « Prochaine question dans : », sans les secondes, cercle juste à droite (Décidé). Après fermeture, bandeau pleine largeur en haut du bloc question, joueur et diffusion (`decompte_question_joueur_v2.png`, `decompte_question_diffusion_v2.png`, sources HTML, `banner.css`). Valeurs en Proposition de Design UI : fond `#FFCA28`, texte `#1a1a1a` gras, 18 px / 28 px, chiffre 24 px / 36 px, barre 5 px / 8 px. L'énoncé et les réponses restent visibles dessous.
 - Diffusion : même modale en 16:9, avatar 220 px, fermeture à 3 s.
 - Fermeture joueur laissée à Minipen (3 ou 4 s). Provisoire documenté : le code garde 4 s, marqué incertain.
 - Écarts non tranchés : emplacement de l'aperçu (CA-30 / CA-40), aside (CA-30 / CA-41), compte à rebours §4.5 vs CA-49, avance automatique §2.5 et CA-15 §4.8, jeton sessionStorage vs « Retour tableau », contenu de l'écran du gagnant (§4.5, CA-20) vs « +1 point ».
