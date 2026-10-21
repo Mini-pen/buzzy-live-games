@@ -214,7 +214,7 @@ export class PartyStore {
     const pol = defaultBuzzSoundPolicyFromCatalog(this.buzzCatalog);
     const pauseSec = opts.nextQuestionCountdownSec ?? NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC;
     if (!isValidNextQuestionCountdownSec(pauseSec)) {
-      throw Object.assign(new Error("Durée entre 3 et 30 secondes."), { code: "INVALID_DURATION" });
+      throw Object.assign(new Error("Durée entre 0 et 30 secondes."), { code: "INVALID_DURATION" });
     }
     const party: Party = {
       id: randomUUID(),
@@ -874,13 +874,13 @@ export class PartyStore {
     clearBuzzQueue(party);
     party.buzzWindowOpen = false;
     this.clearReadyPhase(party);
-    if (opts?.gap !== false) {
-      // INCERTAIN: la même pause s'applique aussi en mode autonome, avant la phase « Prêt ».
+    if (opts?.gap !== false && party.nextQuestionCountdownSec > 0) {
       party.pointAward = party.pendingPointAward;
       party.pendingPointAward = null;
       party.nextQuestionCountdownStartedAt = Date.now();
       return;
     }
+    party.pendingPointAward = null;
     this.openBuzzPolicyAfterGap(party, pack);
   }
 
@@ -912,7 +912,9 @@ export class PartyStore {
     party.currentQuestionIndex = nextIndex;
     if (bumpReplay) party.videoReplaySerial += 1;
     this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
-    this.maybeAutoShowWinnerEndOfQuestion(party);
+    if (party.nextQuestionCountdownStartedAt !== null) {
+      this.maybeAutoShowWinnerEndOfQuestion(party);
+    }
     this.syncActiveQuizProgressIntoScriptItem(party);
     this.touch(party);
     this.broadcast(party);
@@ -1352,8 +1354,8 @@ export class PartyStore {
   }
 
   adminSetCountdownDuration(party: Party, seconds: number): void {
-    if (seconds < 3 || seconds > 10 || !Number.isInteger(seconds)) {
-      throw Object.assign(new Error("Durée entre 3 et 10 secondes."), { code: "INVALID_DURATION" });
+    if (seconds < 0 || seconds > 10 || !Number.isInteger(seconds)) {
+      throw Object.assign(new Error("Durée entre 0 et 10 secondes."), { code: "INVALID_DURATION" });
     }
     party.countdownDurationSec = seconds;
     this.touch(party);
@@ -1363,7 +1365,7 @@ export class PartyStore {
   /** * Sets the pause before the next question. Does not change the §4.5 pre-buzzer countdown. */
   adminSetNextQuestionCountdownSec(party: Party, seconds: number): void {
     if (!isValidNextQuestionCountdownSec(seconds)) {
-      throw Object.assign(new Error("Durée entre 3 et 30 secondes."), { code: "INVALID_DURATION" });
+      throw Object.assign(new Error("Durée entre 0 et 30 secondes."), { code: "INVALID_DURATION" });
     }
     party.nextQuestionCountdownSec = seconds;
     this.touch(party);
@@ -1443,11 +1445,23 @@ export class PartyStore {
     const timeoutReached = elapsed >= readyTimeoutMs;
     
     if (allReady || timeoutReached) {
-      party.countdownStartedAt = Date.now();
+      this.releaseBuzzerAfterReady(party);
     }
     
     this.touch(party);
     this.broadcast(party);
+  }
+
+  /** * Starts the pre-buzzer countdown, or opens the buzzer at once when that countdown is 0. */
+  private releaseBuzzerAfterReady(party: Party): void {
+    if (party.countdownDurationSec <= 0) {
+      party.winnerDisplay = null;
+      party.buzzWindowOpen = true;
+      party.buzzWindowOpenedAt = Date.now();
+      this.clearReadyPhase(party);
+      return;
+    }
+    party.countdownStartedAt = Date.now();
   }
   
   maybeStartCountdownIfReady(party: Party, readyTimeoutMs: number): boolean {
@@ -1462,7 +1476,7 @@ export class PartyStore {
     const timeoutReached = elapsed >= readyTimeoutMs;
     
     if (allReady || timeoutReached) {
-      party.countdownStartedAt = Date.now();
+      this.releaseBuzzerAfterReady(party);
       this.touch(party);
       this.broadcast(party);
       return true;

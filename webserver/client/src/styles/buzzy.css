@@ -852,6 +852,12 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 .bz-app .bz-buzz-btn.bz-buzz-armed { animation: bz-buzz-pulse 1.6s ease-in-out infinite; }
+.bz-app .bz-buzz-btn.bz-buzz-counting,
+.bz-app button.bz-buzz-btn.bz-buzz-counting:disabled {
+  animation: none;
+  opacity: 1;
+  cursor: default;
+}
 .bz-app .bz-buzz-btn:hover { filter: brightness(1.05); }
 .bz-app .bz-buzz-btn:active { transform: scale(0.95); filter: brightness(0.88); }
 .bz-app .bz-buzz-btn:focus-visible { outline: 4px solid var(--bz-accent-soft); outline-offset: 6px; }

@@ -54,7 +54,7 @@ const createPartySchema = z
     closedAfterStart: z.boolean(),
     allowRename: z.boolean(),
     allowTeamChange: z.boolean(),
-    nextQuestionCountdownSec: z.number().int().min(3).max(30).optional(),
+    nextQuestionCountdownSec: z.number().int().min(0).max(30).optional(),
   })
   .superRefine((d, ctx) => {
     if (!d.playersUnlimited && d.maxPlayers === undefined) {
@@ -137,11 +137,11 @@ const verdictSoundsSchema = z.object({
 });
 
 const countdownDurationSchema = z.object({
-  seconds: z.number().int().min(3).max(10),
+  seconds: z.number().int().min(0).max(10),
 });
 
 const nextQuestionCountdownSchema = z.object({
-  seconds: z.number().int().min(3).max(30),
+  seconds: z.number().int().min(0).max(30),
 });
 
 const winnerScreenModeSchema = z.object({

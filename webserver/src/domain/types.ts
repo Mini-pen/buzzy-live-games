@@ -165,10 +165,10 @@ export interface Party {
   autoPlay: AutoPlayState;
   /** * Game kinds (round types) already seen in this party; used to determine if tutorial should be shown. */
   seenGameKinds: Set<string>;
-  /** * Pre-question countdown duration in seconds (3–10). §4.5, after « Prêt ». */
+  /** * Pre-buzzer countdown in seconds (0–10). `0` opens the buzzer as soon as the question is ready. */
   countdownDurationSec: number;
   /**
-   * * Pause before the next question becomes playable (3–30 s).
+   * * Pause before the next question becomes playable (0–30 s). `0` skips the pause.
    *   Distinct from `countdownDurationSec`.
    */
   nextQuestionCountdownSec: number;
@@ -431,9 +431,9 @@ export interface PartyPublicSnapshot {
     currentScriptIndex: number;
     waitingForManualAction: boolean;
   };
-  /** * Pre-question countdown duration in seconds (3–10), host only. */
+  /** * Pre-buzzer countdown in seconds (0–10). `0` skips it. */
   countdownDurationSec?: number;
-  /** * Pause before the next question (3–30 s). Distinct from `countdownDurationSec`. */
+  /** * Pause before the next question (0–30 s). Distinct from `countdownDurationSec`. `0` skips it. */
   nextQuestionCountdownSec?: number;
   /** * Server timestamp of the next-question pause; null when idle. */
   nextQuestionCountdownStartedAt?: number | null;

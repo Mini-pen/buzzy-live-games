@@ -17,7 +17,7 @@ import {
   NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC,
   nextQuestionCountdownProgress,
   nextQuestionCountdownRemainingSec,
-  PLAYER_POINT_MODAL_CLOSE_MS,
+  POINT_MODAL_CLOSE_MS,
   pointAwardLabel,
 } from "./nextQuestionCountdown.js";
 import { PartyStore } from "./store.js";
@@ -108,11 +108,21 @@ describe("next-question countdown", () => {
     expect(party.nextQuestionCountdownSec).toBe(12);
     expect(party.countdownDurationSec).toBe(5);
 
-    expect(() => store.adminSetNextQuestionCountdownSec(party, 2)).toThrow(/3 et 30/);
-    expect(() => store.adminSetNextQuestionCountdownSec(party, 31)).toThrow(/3 et 30/);
-    expect(isValidNextQuestionCountdownSec(3)).toBe(true);
+    store.adminSetNextQuestionCountdownSec(party, 0);
+    expect(party.nextQuestionCountdownSec).toBe(0);
+    expect(party.countdownDurationSec).toBe(5);
+
+    expect(() => store.adminSetNextQuestionCountdownSec(party, -1)).toThrow(/0 et 30/);
+    expect(() => store.adminSetNextQuestionCountdownSec(party, 31)).toThrow(/0 et 30/);
+    expect(isValidNextQuestionCountdownSec(0)).toBe(true);
     expect(isValidNextQuestionCountdownSec(30)).toBe(true);
     expect(isValidNextQuestionCountdownSec(10.5)).toBe(false);
+
+    store.adminSetCountdownDuration(party, 0);
+    expect(party.countdownDurationSec).toBe(0);
+    expect(party.nextQuestionCountdownSec).toBe(0);
+    expect(() => store.adminSetCountdownDuration(party, -1)).toThrow(/0 et 10/);
+    expect(() => store.adminSetCountdownDuration(party, 11)).toThrow(/0 et 10/);
   });
 
   it("starts on the next question, including when auto-open is on, and not on the first launch", () => {
@@ -130,7 +140,6 @@ describe("next-question countdown", () => {
     const auto = launchedParty("autonomous");
     expect(auto.party.autoOpenBuzzOnCueAdvance).toBe(true);
     expect(auto.party.autoAdvanceQuizWhenAllBuzzed).toBe(true);
-    // INCERTAIN: the same pause runs before the next question in autonomous mode.
     auto.store.adminAdvanceCue(auto.party, auto.quiz);
     expect(auto.party.nextQuestionCountdownStartedAt).not.toBeNull();
     expect(auto.party.readyPhaseStartedAt).toBeNull();
@@ -166,6 +175,29 @@ describe("next-question countdown", () => {
     expect(party.countdownDurationSec).toBe(before);
   });
 
+  it("skips the pause and the point when the between-question delay is 0", () => {
+    const { store, party, quiz } = launchedParty("autonomous");
+    store.adminSetNextQuestionCountdownSec(party, 0);
+    party.buzzOrder = ["alice"];
+    party.buzzWindowOpen = true;
+    store.adminValidateBuzzAnswer(party, "alice", "good", quiz);
+    store.adminAdvanceCue(party, quiz);
+    expect(party.nextQuestionCountdownStartedAt).toBeNull();
+    expect(party.pointAward).toBeNull();
+    expect(party.winnerDisplay).toBeNull();
+    expect(party.readyPhaseStartedAt).not.toBeNull();
+    expect(party.countdownStartedAt).toBeNull();
+  });
+
+  it("opens the buzzer at once when the pre-buzzer countdown is 0", () => {
+    const { store, party } = launchedParty("normal");
+    store.adminSetCountdownDuration(party, 0);
+    store.playerMarkReady(party, "alice", 30_000);
+    expect(party.buzzWindowOpen).toBe(true);
+    expect(party.countdownStartedAt).toBeNull();
+    expect(party.readyPhaseStartedAt).toBeNull();
+  });
+
   it("refuses « Prêt » while the next-question pause is running", () => {
     const { store, party, quiz } = launchedParty("normal");
     store.adminAdvanceCue(party, quiz);
@@ -190,9 +222,12 @@ describe("next-question countdown", () => {
       durationSec: 5,
       nowMs: startedAt + 2_000,
     };
-    expect(isPointModalVisible({ ...base, closeAfterMs: PLAYER_POINT_MODAL_CLOSE_MS })).toBe(true);
+    expect(isPointModalVisible({ ...base, closeAfterMs: POINT_MODAL_CLOSE_MS })).toBe(true);
     expect(
-      isPointModalVisible({ ...base, nowMs: startedAt + 4_000, closeAfterMs: PLAYER_POINT_MODAL_CLOSE_MS }),
+      isPointModalVisible({ ...base, nowMs: startedAt + 2_999, closeAfterMs: POINT_MODAL_CLOSE_MS }),
+    ).toBe(true);
+    expect(
+      isPointModalVisible({ ...base, nowMs: startedAt + 3_000, closeAfterMs: POINT_MODAL_CLOSE_MS }),
     ).toBe(false);
     expect(
       isPointModalVisible({ ...base, nowMs: startedAt + 3_000, closeAfterMs: BROADCAST_POINT_MODAL_CLOSE_MS }),
@@ -200,20 +235,23 @@ describe("next-question countdown", () => {
     expect(
       isPointModalVisible({
         ...base,
-        durationSec: 3,
-        nowMs: startedAt + 3_000,
-        closeAfterMs: PLAYER_POINT_MODAL_CLOSE_MS,
+        durationSec: 2,
+        nowMs: startedAt + 2_000,
+        closeAfterMs: POINT_MODAL_CLOSE_MS,
       }),
     ).toBe(false);
     expect(
       isPointModalVisible({
         ...base,
-        durationSec: 3,
-        nowMs: startedAt + 2_999,
-        closeAfterMs: PLAYER_POINT_MODAL_CLOSE_MS,
+        durationSec: 2,
+        nowMs: startedAt + 1_999,
+        closeAfterMs: POINT_MODAL_CLOSE_MS,
       }),
     ).toBe(true);
-    expect(isPointModalVisible({ ...base, dismissed: true, closeAfterMs: PLAYER_POINT_MODAL_CLOSE_MS })).toBe(
+    expect(
+      isPointModalVisible({ ...base, durationSec: 0, nowMs: startedAt, closeAfterMs: POINT_MODAL_CLOSE_MS }),
+    ).toBe(false);
+    expect(isPointModalVisible({ ...base, dismissed: true, closeAfterMs: POINT_MODAL_CLOSE_MS })).toBe(
       false,
     );
     expect(pointAwardLabel(1)).toBe("+1 point");

@@ -28,7 +28,7 @@ import {
   isPointModalVisible,
   nextQuestionCountdownProgress,
   nextQuestionCountdownRemainingSec,
-  PLAYER_POINT_MODAL_CLOSE_MS,
+  POINT_MODAL_CLOSE_MS,
   pointAwardLabel,
 } from "../../src/domain/nextQuestionCountdown";
 
@@ -660,7 +660,6 @@ function peekAdminBearer(routePartyIdRaw: string): string | null {
 /**
  * * Copies the host token into localStorage so another tab on this origin (the broadcast screen)
  *   can open the host page. The token is never written into a URL.
- *   INCERTAIN: jeton animateur partagé entre onglets via localStorage, par partie, à confirmer par Minipen.
  */
 function rememberSharedHostToken(partyId: string, token: string): void {
   if (typeof globalThis.localStorage === "undefined") return;
@@ -902,36 +901,12 @@ function playSfxUrl(url: string | undefined | null): void {
 
 function ReadyCountdownHero(props: {
   readyPlayers: string[];
-  readyPhaseStartedAt: number;
-  countdownStartedAt: number | null;
   allPlayersCount: number;
-  myId: string;
   isReady: boolean;
   onMarkReady: () => void;
   readyLoading: boolean;
-  countdownDurationSec: number;
-  onCountdownComplete: () => void;
 }): JSX.Element {
-  const {
-    readyPlayers,
-    allPlayersCount,
-    isReady,
-    onMarkReady,
-    readyLoading,
-    countdownStartedAt,
-    countdownDurationSec,
-    onCountdownComplete,
-  } = props;
-
-  if (countdownStartedAt !== null) {
-    return (
-      <CountdownDisplay
-        countdownStartedAt={countdownStartedAt}
-        durationSec={countdownDurationSec}
-        onComplete={onCountdownComplete}
-      />
-    );
-  }
+  const { readyPlayers, allPlayersCount, isReady, onMarkReady, readyLoading } = props;
 
   if (!isReady) {
     return (
@@ -2355,15 +2330,15 @@ function Create(): JSX.Element {
           Authoriser le changement d’équipe (lobby)
         </label>
         <label>
-          Délai avant la question suivante (3–30 secondes)
+          Délai avant la question suivante (0–30 secondes, 0 = aucun)
           <input
             type="number"
-            min={3}
+            min={0}
             max={30}
             value={nextQuestionCountdownSec}
             onChange={(e) => {
               const val = Number.parseInt(e.target.value, 10);
-              if (val >= 3 && val <= 30) setNextQuestionCountdownSec(val);
+              if (val >= 0 && val <= 30) setNextQuestionCountdownSec(val);
             }}
           />
         </label>
@@ -2401,13 +2376,14 @@ function Play(): JSX.Element {
   const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
   const [readyLoading, setReadyLoading] = useState(false);
-  const [countdownCompleted, setCountdownCompleted] = useState(false);
   const [clockSync, setClockSync] = useState<ClientClockSync | null>(null);
   const [buzzPending, setBuzzPending] = useState(false);
   const periodicSyncInterval = useRef<number | null>(null);
   const pauseStartedAt =
     typeof snap?.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
-  const countdownNow = useServerCountdownNow(pauseStartedAt);
+  const preBuzzClock =
+    typeof snap?.countdownStartedAt === "number" ? snap.countdownStartedAt : null;
+  const countdownNow = useServerCountdownNow(pauseStartedAt ?? preBuzzClock);
   const pointDismissKey =
     snap?.pointAward != null && pauseStartedAt !== null
       ? `${snap.pointAward.playerId}:${pauseStartedAt}`
@@ -2735,7 +2711,7 @@ function Play(): JSX.Element {
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
 
       <QuestionCountdownFrame
-        startedAt={pauseStartedAt}
+        startedAt={(snap.nextQuestionCountdownSec ?? 0) > 0 ? pauseStartedAt : null}
         durationSec={snap.nextQuestionCountdownSec ?? 5}
         nowMs={countdownNow}
         variant="player"
@@ -2760,13 +2736,13 @@ function Play(): JSX.Element {
         />
       </QuestionCountdownFrame>
 
-      {snap.pointAward != null && pauseStartedAt !== null ? (
+      {snap.pointAward != null && pauseStartedAt !== null && (snap.nextQuestionCountdownSec ?? 0) > 0 ? (
         <PointAwardModal
           award={snap.pointAward}
           startedAt={pauseStartedAt}
           durationSec={snap.nextQuestionCountdownSec ?? 5}
           nowMs={countdownNow}
-          closeAfterMs={PLAYER_POINT_MODAL_CLOSE_MS}
+          closeAfterMs={POINT_MODAL_CLOSE_MS}
           variant="player"
           dismissed={dismissedPointKey === pointDismissKey && pointDismissKey !== null}
           onDismiss={() => {
@@ -2786,20 +2762,32 @@ function Play(): JSX.Element {
       <section className="bz-buzz-hero">
         {snap.state === "round_active" &&
         snap.readyPhaseStartedAt !== null &&
+        snap.countdownStartedAt == null &&
         !snap.buzzWindowOpen &&
         !canBuzz ? (
           <ReadyCountdownHero
             readyPlayers={snap.readyPlayers ?? []}
-            readyPhaseStartedAt={snap.readyPhaseStartedAt ?? Date.now()}
-            countdownStartedAt={snap.countdownStartedAt ?? null}
             allPlayersCount={snap.players?.length ?? 0}
-            myId={myId ?? ""}
             isReady={(snap.readyPlayers ?? []).includes(myId ?? "")}
             onMarkReady={() => void markReady()}
             readyLoading={readyLoading}
-            countdownDurationSec={snap.countdownDurationSec ?? 5}
-            onCountdownComplete={() => {}}
           />
+        ) : snap.state === "round_active" &&
+          snap.countdownStartedAt != null &&
+          !snap.buzzWindowOpen &&
+          (snap.countdownDurationSec ?? 0) > 0 ? (
+          <button
+            type="button"
+            className="bz-buzz-btn bz-buzz-counting"
+            disabled
+            aria-label="Compte à rebours avant le buzzer"
+          >
+            {nextQuestionCountdownRemainingSec(
+              snap.countdownStartedAt,
+              snap.countdownDurationSec ?? 0,
+              countdownNow,
+            ) ?? 0}
+          </button>
         ) : canBuzz && !queuedBuzz ? (
           <button
             type="button"
@@ -3708,11 +3696,11 @@ function Admin(): JSX.Element {
   );
 
   const onHostCountdownDurationChange = useCallback(
-    async (durationSec: number): Promise<void> => {
+    async (seconds: number): Promise<void> => {
       setErr(null);
       try {
         const n = await callHostSnapshot(`${hostBasePath}/host/countdown-duration`, "POST", {
-          durationSec,
+          seconds,
         });
         setSnap(n);
       } catch (e) {
@@ -3722,7 +3710,6 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
-  // INCERTAIN: l'animateur peut modifier ce délai après la création, comme l'autre compte à rebours.
   const onHostNextQuestionCountdownChange = useCallback(
     async (seconds: number): Promise<void> => {
       setErr(null);
@@ -4274,28 +4261,28 @@ function Admin(): JSX.Element {
                   />
                 </label>
                 <label className="bz-settings-label">
-                  Durée du compte à rebours (3–10 secondes)
+                  Compte à rebours avant le buzzer (0–10 secondes, 0 = aucun)
                   <input
                     type="number"
-                    min={3}
+                    min={0}
                     max={10}
                     value={snap.countdownDurationSec ?? 5}
                     onChange={(e) => {
                       const val = Number.parseInt(e.target.value, 10);
-                      if (val >= 3 && val <= 10) void onHostCountdownDurationChange(val);
+                      if (val >= 0 && val <= 10) void onHostCountdownDurationChange(val);
                     }}
                   />
                 </label>
                 <label className="bz-settings-label">
-                  Délai avant la question suivante (3–30 secondes)
+                  Délai avant la question suivante (0–30 secondes, 0 = aucun)
                   <input
                     type="number"
-                    min={3}
+                    min={0}
                     max={30}
                     value={snap.nextQuestionCountdownSec ?? 5}
                     onChange={(e) => {
                       const val = Number.parseInt(e.target.value, 10);
-                      if (val >= 3 && val <= 30) void onHostNextQuestionCountdownChange(val);
+                      if (val >= 0 && val <= 30) void onHostNextQuestionCountdownChange(val);
                     }}
                   />
                 </label>
@@ -5242,7 +5229,10 @@ function BroadcastSurface(props: {
           </div>
         ) : null}
 
-        {!preview && snap.pointAward != null && pauseStartedAt !== null ? (
+        {!preview &&
+        snap.pointAward != null &&
+        pauseStartedAt !== null &&
+        (snap.nextQuestionCountdownSec ?? 0) > 0 ? (
           <PointAwardModal
             award={snap.pointAward}
             startedAt={pauseStartedAt}
@@ -5295,7 +5285,9 @@ function BroadcastSurface(props: {
         ) : null}
 
         <QuestionCountdownFrame
-          startedAt={snap.state === "round_active" ? pauseStartedAt : null}
+          startedAt={
+            snap.state === "round_active" && (snap.nextQuestionCountdownSec ?? 0) > 0 ? pauseStartedAt : null
+          }
           durationSec={snap.nextQuestionCountdownSec ?? 5}
           nowMs={countdownNow}
           variant="broadcast"

@@ -1,8 +1,7 @@
 /**
  * * Host return link from the public broadcast screen.
- *   INCERTAIN: jeton animateur partagé entre onglets via localStorage, par partie, à confirmer par Minipen.
  *   sessionStorage reste la copie de l'onglet animateur. localStorage (même origine, jamais dans une URL)
- *   permet à l'onglet diffusion d'ouvrir le tableau. L'entrée est effacée quand la partie se termine.
+ *   partage le jeton entre onglets, par partie. L'entrée est effacée quand la partie se termine.
  */
 
 const HOST_TOKEN_LOCAL_PREFIX = "partygames:hostToken:";

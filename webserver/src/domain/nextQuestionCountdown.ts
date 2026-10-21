@@ -6,19 +6,19 @@
 /** * Default length of the next-question pause. */
 export const NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC = 5;
 
-// INCERTAIN: borne 3–30 s retenue comme intervalle raisonnable ; Minipen peut la resserrer.
-/** * Inclusive minimum for `nextQuestionCountdownSec`. */
-export const NEXT_QUESTION_COUNTDOWN_MIN_SEC = 3;
+/** * Inclusive minimum for `nextQuestionCountdownSec`. `0` means no pause. */
+export const NEXT_QUESTION_COUNTDOWN_MIN_SEC = 0;
 
+// INCERTAIN: plafond 30 s ; Minipen peut le resserrer. 0 (pas de pause) est décidé.
 /** * Inclusive maximum for `nextQuestionCountdownSec`. */
 export const NEXT_QUESTION_COUNTDOWN_MAX_SEC = 30;
 
-// INCERTAIN: l'animateur pourra aligner le téléphone sur 3 s. Garder cette constante facile à changer.
-/** * Player point-modal auto-close, unless the pause ends sooner. */
-export const PLAYER_POINT_MODAL_CLOSE_MS = 4_000;
+/** * Point-modal auto-close on the player page, unless the pause ends sooner. */
+export const POINT_MODAL_CLOSE_MS = 3_000;
 
+// INCERTAIN: la diffusion reprend le même plafond de 3 s, et n'affiche pas la modale si le délai est 0.
 /** * Broadcast point-modal auto-close, unless the pause ends sooner. */
-export const BROADCAST_POINT_MODAL_CLOSE_MS = 3_000;
+export const BROADCAST_POINT_MODAL_CLOSE_MS = POINT_MODAL_CLOSE_MS;
 
 /** * True when `seconds` is an integer inside the allowed pause range. */
 export function isValidNextQuestionCountdownSec(seconds: number): boolean {
@@ -74,16 +74,13 @@ export function isPointModalVisible(input: {
   closeAfterMs: number;
   nowMs: number;
 }): boolean {
-  if (input.dismissed || input.startedAt === null) return false;
-  const pauseEnd = input.startedAt + Math.max(0, input.durationSec) * 1000;
+  if (input.dismissed || input.startedAt === null || !(input.durationSec > 0)) return false;
+  const pauseEnd = input.startedAt + input.durationSec * 1000;
   const modalEnd = input.startedAt + Math.max(0, input.closeAfterMs);
   return input.nowMs < Math.min(pauseEnd, modalEnd);
 }
 
-/**
- * * Pill under the winner name.
- *   INCERTAIN: the mockup prints the literal « +1 point » ; this uses the points just awarded.
- */
+/** * Pill under the winner name. Uses the points just awarded (`+1 point`, `+N points`). */
 export function pointAwardLabel(points: number): string {
   const n = Number.isInteger(points) && points > 0 ? points : 1;
   return n === 1 ? "+1 point" : `+${n} points`;
