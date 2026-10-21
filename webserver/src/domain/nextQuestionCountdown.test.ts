@@ -4,12 +4,17 @@ import { BuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
 import type { QuizPack } from "../games/pack.js";
 import {
   forgetHostToken,
+  forgetLegacyHostToken,
   hostAdminPath,
   hostTokenLocalStorageKey,
+  listStoredHostPartyIds,
+  migrateLegacyHostTokens,
   readHostToken,
   rememberHostToken,
   shouldShowHostReturnLink,
+  type HostTokenBucket,
 } from "./hostReturnLink.js";
+import type { Party } from "./types.js";
 import {
   BROADCAST_POINT_MODAL_CLOSE_MS,
   isPointModalVisible,
@@ -53,7 +58,10 @@ function pack(): QuizPack {
   };
 }
 
-function launchedParty(mode: "normal" | "autonomous" = "normal") {
+function launchedParty(
+  mode: "normal" | "autonomous" = "normal",
+  prepare?: (store: PartyStore, party: Party) => void,
+) {
   const store = new PartyStore(() => {}, buzzCatalog);
   const party = store.createParty({
     maxPlayers: null,
@@ -85,8 +93,26 @@ function launchedParty(mode: "normal" | "autonomous" = "normal") {
     transitionKind: null,
     transitionDurationMs: null,
   });
+  prepare?.(store, party);
   store.hostLaunchManche(party, party.mancheScript[0]!.id, mode, true, packs);
   return { store, party, quiz, packs };
+}
+
+function tokenBucket(): HostTokenBucket {
+  const memory = new Map<string, string>();
+  return {
+    getItem: (key) => memory.get(key) ?? null,
+    setItem: (key, value) => {
+      memory.set(key, value);
+    },
+    removeItem: (key) => {
+      memory.delete(key);
+    },
+    get length() {
+      return memory.size;
+    },
+    key: (index) => [...memory.keys()][index] ?? null,
+  };
 }
 
 describe("next-question countdown", () => {
@@ -106,6 +132,7 @@ describe("next-question countdown", () => {
 
     store.adminSetNextQuestionCountdownSec(party, 12);
     expect(party.nextQuestionCountdownSec).toBe(12);
+    expect(party.appliedNextQuestionCountdownSec).toBe(5);
     expect(party.countdownDurationSec).toBe(5);
 
     store.adminSetNextQuestionCountdownSec(party, 0);
@@ -189,13 +216,47 @@ describe("next-question countdown", () => {
     expect(party.countdownStartedAt).toBeNull();
   });
 
-  it("opens the buzzer at once when the pre-buzzer countdown is 0", () => {
-    const { store, party } = launchedParty("normal");
-    store.adminSetCountdownDuration(party, 0);
+  it("opens the buzzer at once when the pre-buzzer countdown is 0 before the question starts", () => {
+    const { store, party } = launchedParty("normal", (s, p) => {
+      s.adminSetCountdownDuration(p, 0);
+    });
+    expect(party.appliedCountdownDurationSec).toBe(0);
     store.playerMarkReady(party, "alice", 30_000);
     expect(party.buzzWindowOpen).toBe(true);
     expect(party.countdownStartedAt).toBeNull();
     expect(party.readyPhaseStartedAt).toBeNull();
+  });
+
+  it("keeps the current question's countdowns when the host edits them mid-question", () => {
+    const { store, party, quiz } = launchedParty("normal");
+    store.adminSetCountdownDuration(party, 0);
+    store.adminSetNextQuestionCountdownSec(party, 0);
+    store.playerMarkReady(party, "alice", 30_000);
+    expect(party.appliedCountdownDurationSec).toBe(5);
+    expect(party.buzzWindowOpen).toBe(false);
+    expect(party.countdownStartedAt).not.toBeNull();
+    expect(store.maybeOpenBuzzAfterCountdown(party)).toBe(false);
+
+    store.adminAdvanceCue(party, quiz);
+    expect(party.appliedCountdownDurationSec).toBe(0);
+    expect(party.appliedNextQuestionCountdownSec).toBe(0);
+    expect(party.nextQuestionCountdownStartedAt).toBeNull();
+    expect(party.buzzWindowOpen).toBe(false);
+    store.playerMarkReady(party, "alice", 30_000);
+    expect(party.buzzWindowOpen).toBe(true);
+    expect(party.countdownStartedAt).toBeNull();
+  });
+
+  it("does not shorten a pause that has already started", () => {
+    const { store, party, quiz } = launchedParty("autonomous");
+    store.adminAdvanceCue(party, quiz);
+    const startedAt = party.nextQuestionCountdownStartedAt;
+    expect(startedAt).not.toBeNull();
+    store.adminSetNextQuestionCountdownSec(party, 0);
+    expect(party.nextQuestionCountdownSec).toBe(0);
+    expect(party.appliedNextQuestionCountdownSec).toBe(5);
+    expect(store.maybeFinishNextQuestionCountdown(party, quiz, startedAt! + 1_000)).toBe(false);
+    expect(store.maybeFinishNextQuestionCountdown(party, quiz, startedAt! + 5_000)).toBe(true);
   });
 
   it("refuses « Prêt » while the next-question pause is running", () => {
@@ -290,5 +351,25 @@ describe("broadcast host return link", () => {
     forgetHostToken(storage, partyId);
     expect(readHostToken(storage, partyId)).toBeNull();
     expect(shouldShowHostReturnLink(readHostToken(storage, partyId))).toBe(false);
+  });
+
+  it("copies a legacy sessionStorage host token into localStorage once, then drops the session copy", () => {
+    const session = tokenBucket();
+    const local = tokenBucket();
+    session.setItem("partygames:adminToken:Party-ABC", "legacy-token");
+    migrateLegacyHostTokens(session, local);
+    expect(readHostToken(local, "party-abc")).toBe("legacy-token");
+    expect(session.length).toBe(0);
+    expect(listStoredHostPartyIds(local)).toEqual(["party-abc"]);
+
+    session.setItem("partygames:adminToken:party-abc", "stale");
+    migrateLegacyHostTokens(session, local);
+    expect(readHostToken(local, "Party-ABC")).toBe("legacy-token");
+    expect(session.getItem("partygames:adminToken:party-abc")).toBeNull();
+
+    session.setItem("partygames:adminToken:Other", "gone");
+    forgetLegacyHostToken(session, "other");
+    expect(session.length).toBe(0);
+    expect(readHostToken(local, "other")).toBeNull();
   });
 });

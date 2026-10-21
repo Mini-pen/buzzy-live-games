@@ -18,7 +18,10 @@ import {
 } from "../../src/domain/broadcastDisplay";
 import {
   forgetHostToken,
+  forgetLegacyHostToken,
   hostAdminPath,
+  listStoredHostPartyIds,
+  migrateLegacyHostTokens,
   readHostToken,
   rememberHostToken,
   shouldShowHostReturnLink,
@@ -212,7 +215,9 @@ interface PartySnapshot {
   autoOpenBuzzOnCueAdvance?: boolean;
   autoAdvanceQuizWhenAllBuzzed?: boolean;
   countdownDurationSec?: number;
+  appliedCountdownDurationSec?: number;
   nextQuestionCountdownSec?: number;
+  appliedNextQuestionCountdownSec?: number;
   nextQuestionCountdownStartedAt?: number | null;
   pointAward?: {
     playerId: string;
@@ -394,6 +399,45 @@ function DrainingCircle(props: {
   );
 }
 
+/**
+ * * Grey disabled buzzer with the remaining second centered and a yellow ring draining on the server clock.
+ *   INCERTAIN: grey disc, yellow ring and the red armed state are a Design UI proposal. The round shape stays.
+ */
+function BuzzCountdownButton(props: {
+  startedAt: number | null | undefined;
+  durationSec: number;
+  nowMs: number;
+}): JSX.Element {
+  const startedAt = typeof props.startedAt === "number" ? props.startedAt : null;
+  const remaining = nextQuestionCountdownRemainingSec(startedAt, props.durationSec, props.nowMs) ?? 0;
+  const progress = nextQuestionCountdownProgress(startedAt, props.durationSec, props.nowMs) ?? 0;
+  const radius = 46;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - Math.min(1, Math.max(0, progress)));
+  return (
+    <button
+      type="button"
+      className="bz-buzz-btn bz-buzz-counting"
+      disabled
+      aria-label="Compte à rebours avant le buzzer"
+    >
+      <svg className="bz-buzz-ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle className="bz-buzz-ring-track" cx="50" cy="50" r={radius} />
+        <circle
+          className="bz-buzz-ring-fill"
+          cx="50"
+          cy="50"
+          r={radius}
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform="rotate(-90 50 50)"
+        />
+      </svg>
+      <span className="bz-buzz-count-num">{remaining}</span>
+    </button>
+  );
+}
+
 /** * Yellow banner on the question block while the server pause is running. Children render alone when it is idle. */
 function QuestionCountdownFrame(props: {
   startedAt: number | null;
@@ -563,36 +607,32 @@ function playerSessionKey(pid: string): string {
   return `partygames:playerJwt:${pid.trim().toLowerCase()}`;
 }
 
-function adminSessionKey(pid: string): string {
-  return `partygames:adminToken:${pid.trim().toLowerCase()}`;
+/** * Countdown length locked for the question on screen. The settings fields stay editable for the next one. */
+function appliedBuzzerCountdownSec(snap: PartySnapshot | null): number {
+  if (snap === null) return 0;
+  return snap.appliedCountdownDurationSec ?? snap.countdownDurationSec ?? 5;
 }
 
-/** * Case-insensitive lookup for admin token (URL path vs legacy storage key mismatch). */
+/** * Between-question pause locked for the question on screen. */
+function appliedNextQuestionSec(snap: PartySnapshot | null): number {
+  if (snap === null) return 0;
+  return snap.appliedNextQuestionCountdownSec ?? snap.nextQuestionCountdownSec ?? 5;
+}
+
+/**
+ * * Moves a legacy sessionStorage host token into localStorage once.
+ *   localStorage is the only copy afterwards.
+ */
+function migrateHostTokenStorage(): void {
+  if (typeof globalThis.localStorage === "undefined" || typeof globalThis.sessionStorage === "undefined") return;
+  migrateLegacyHostTokens(sessionStorage, localStorage);
+}
+
+/** * Host token for one party. Reads localStorage after the one-time session migration. */
 function findAdminBearerForPartyRouteId(routePartyIdRaw: string): string | null {
-  if (routePartyIdRaw.trim() === "" || typeof globalThis.sessionStorage === "undefined")
-    return null;
-  const needle = routePartyIdRaw.trim().toLowerCase();
-  const prefix = "partygames:adminToken:";
-  let foundKey: string | null = null;
-  let tok: string | null = null;
-  for (let i = 0; i < sessionStorage.length; i += 1) {
-    const k = sessionStorage.key(i);
-    if (k === null || !k.startsWith(prefix)) continue;
-    const idPart = k.slice(prefix.length);
-    if (idPart.toLowerCase() === needle) {
-      const t = sessionStorage.getItem(k);
-      if (typeof t === "string" && t.length > 0) {
-        foundKey = k;
-        tok = t;
-        break;
-      }
-    }
-  }
-  if (tok !== null && foundKey !== null && foundKey !== adminSessionKey(needle)) {
-    sessionStorage.setItem(adminSessionKey(needle), tok);
-    sessionStorage.removeItem(foundKey);
-  }
-  return tok;
+  if (routePartyIdRaw.trim() === "" || typeof globalThis.localStorage === "undefined") return null;
+  migrateHostTokenStorage();
+  return readHostToken(localStorage, canonicalPartyIdFromRoute(routePartyIdRaw));
 }
 
 /** * Case-insensitive lookup for player JWT (same issue as admin keys). */
@@ -628,7 +668,7 @@ function canonicalPartyIdFromRoute(param: string | undefined): string {
   return (param ?? "").trim().toLowerCase();
 }
 
-/** * Browser-only: restores admin Bearer from `#token=` or sessionStorage synchronously on first paint. */
+/** * Browser-only: restores admin Bearer from `#token=` or localStorage synchronously on first paint. */
 function peekAdminBearer(routePartyIdRaw: string): string | null {
   if (routePartyIdRaw.trim() === "" || typeof globalThis.window === "undefined") return null;
   const pidNorm = canonicalPartyIdFromRoute(routePartyIdRaw);
@@ -636,30 +676,17 @@ function peekAdminBearer(routePartyIdRaw: string): string | null {
   const h =
     typeof rawHash === "string" && rawHash.startsWith("#") ? rawHash.slice(1) : "";
   const frag = new URLSearchParams(h).get("token");
-  let t = findAdminBearerForPartyRouteId(routePartyIdRaw);
   if (frag !== null && frag.length > 0) {
-    sessionStorage.setItem(adminSessionKey(pidNorm), frag);
     rememberSharedHostToken(pidNorm, frag);
     window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
     return frag;
   }
-  if (typeof t === "string" && t.length > 0) {
-    rememberSharedHostToken(pidNorm, t);
-    return t;
-  }
-  if (typeof globalThis.localStorage !== "undefined") {
-    const shared = readHostToken(localStorage, pidNorm);
-    if (shared !== null) {
-      sessionStorage.setItem(adminSessionKey(pidNorm), shared);
-      return shared;
-    }
-  }
-  return null;
+  return findAdminBearerForPartyRouteId(routePartyIdRaw);
 }
 
 /**
- * * Copies the host token into localStorage so another tab on this origin (the broadcast screen)
- *   can open the host page. The token is never written into a URL.
+ * * Stores the host token in localStorage, one entry per party.
+ *   The token is never written into a URL. There is no sessionStorage copy.
  */
 function rememberSharedHostToken(partyId: string, token: string): void {
   if (typeof globalThis.localStorage === "undefined") return;
@@ -692,15 +719,7 @@ function purgeAdminSessionForPartyRouteId(routePartyIdRaw: string): void {
     forgetHostToken(localStorage, needle);
   }
   if (typeof globalThis.sessionStorage === "undefined") return;
-  const prefix = "partygames:adminToken:";
-  const keysToDrop: string[] = [];
-  for (let i = 0; i < sessionStorage.length; i += 1) {
-    const k = sessionStorage.key(i);
-    if (k === null || !k.startsWith(prefix)) continue;
-    const idSuffix = k.slice(prefix.length);
-    if (canonicalPartyIdFromRoute(idSuffix) === needle) keysToDrop.push(k);
-  }
-  for (const k of keysToDrop) sessionStorage.removeItem(k);
+  forgetLegacyHostToken(sessionStorage, needle);
 
   const last = sessionStorage.getItem(STORAGE_LAST_ADMIN_PARTY);
   if (last !== null && canonicalPartyIdFromRoute(last) === needle) {
@@ -776,18 +795,9 @@ function listPartyIdsWithStoredPlayerJwt(): string[] {
 }
 
 function listPartyIdsWithStoredAdminToken(): string[] {
-  if (typeof globalThis.sessionStorage === "undefined") return [];
-  const prefix = "partygames:adminToken:";
-  const ids: string[] = [];
-  for (let i = 0; i < sessionStorage.length; i += 1) {
-    const k = sessionStorage.key(i);
-    if (k === null || !k.startsWith(prefix)) continue;
-    const id = k.slice(prefix.length);
-    const tok = sessionStorage.getItem(k);
-    if (typeof tok === "string" && tok.length > 0) ids.push(id);
-  }
-  ids.sort();
-  return ids;
+  if (typeof globalThis.localStorage === "undefined") return [];
+  migrateHostTokenStorage();
+  return listStoredHostPartyIds(localStorage);
 }
 
 /** * Party id if a player JWT is still in session for this tab. */
@@ -2267,7 +2277,6 @@ function Create(): JSX.Element {
         adminToken: string;
         partyId: string;
       }>(`/api/parties`, { method: "POST", body: JSON.stringify(body) });
-      sessionStorage.setItem(adminSessionKey(res.partyId), res.adminToken);
       rememberSharedHostToken(res.partyId, res.adminToken);
       rememberAdminParty(res.partyId);
       nav(`/party/${res.partyId}/admin#token=${encodeURIComponent(res.adminToken)}`);
@@ -2383,6 +2392,8 @@ function Play(): JSX.Element {
     typeof snap?.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
   const preBuzzClock =
     typeof snap?.countdownStartedAt === "number" ? snap.countdownStartedAt : null;
+  const gapSec = appliedNextQuestionSec(snap);
+  const buzzerSec = appliedBuzzerCountdownSec(snap);
   const countdownNow = useServerCountdownNow(pauseStartedAt ?? preBuzzClock);
   const pointDismissKey =
     snap?.pointAward != null && pauseStartedAt !== null
@@ -2711,8 +2722,8 @@ function Play(): JSX.Element {
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
 
       <QuestionCountdownFrame
-        startedAt={(snap.nextQuestionCountdownSec ?? 0) > 0 ? pauseStartedAt : null}
-        durationSec={snap.nextQuestionCountdownSec ?? 5}
+        startedAt={gapSec > 0 ? pauseStartedAt : null}
+        durationSec={gapSec}
         nowMs={countdownNow}
         variant="player"
       >
@@ -2736,11 +2747,11 @@ function Play(): JSX.Element {
         />
       </QuestionCountdownFrame>
 
-      {snap.pointAward != null && pauseStartedAt !== null && (snap.nextQuestionCountdownSec ?? 0) > 0 ? (
+      {snap.pointAward != null && pauseStartedAt !== null && gapSec > 0 ? (
         <PointAwardModal
           award={snap.pointAward}
           startedAt={pauseStartedAt}
-          durationSec={snap.nextQuestionCountdownSec ?? 5}
+          durationSec={gapSec}
           nowMs={countdownNow}
           closeAfterMs={POINT_MODAL_CLOSE_MS}
           variant="player"
@@ -2775,19 +2786,12 @@ function Play(): JSX.Element {
         ) : snap.state === "round_active" &&
           snap.countdownStartedAt != null &&
           !snap.buzzWindowOpen &&
-          (snap.countdownDurationSec ?? 0) > 0 ? (
-          <button
-            type="button"
-            className="bz-buzz-btn bz-buzz-counting"
-            disabled
-            aria-label="Compte à rebours avant le buzzer"
-          >
-            {nextQuestionCountdownRemainingSec(
-              snap.countdownStartedAt,
-              snap.countdownDurationSec ?? 0,
-              countdownNow,
-            ) ?? 0}
-          </button>
+          buzzerSec > 0 ? (
+          <BuzzCountdownButton
+            startedAt={snap.countdownStartedAt}
+            durationSec={buzzerSec}
+            nowMs={countdownNow}
+          />
         ) : canBuzz && !queuedBuzz ? (
           <button
             type="button"
@@ -2796,7 +2800,7 @@ function Play(): JSX.Element {
             className="bz-buzz-btn bz-buzz-armed"
             aria-label="Buzz"
           >
-            BUZZ
+            BUZZ !
           </button>
         ) : queuedBuzz ? (
           <div className="bz-buzz-closed">
@@ -5061,6 +5065,7 @@ function Broadcast(): JSX.Element {
       setShowHostReturn(false);
       return;
     }
+    migrateHostTokenStorage();
     setShowHostReturn(shouldShowHostReturnLink(readHostToken(localStorage, pid)));
   }, [pid]);
 
@@ -5102,6 +5107,7 @@ function Broadcast(): JSX.Element {
     };
     const onTerminated = (): void => {
       if (typeof localStorage !== "undefined") forgetHostToken(localStorage, pid);
+      if (typeof sessionStorage !== "undefined") forgetLegacyHostToken(sessionStorage, pid);
       setShowHostReturn(false);
     };
     s.on("party:patch", onSnap);
@@ -5162,6 +5168,8 @@ function BroadcastSurface(props: {
   const pauseStartedAt =
     typeof snap.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
   const countdownNow = useServerCountdownNow(pauseStartedAt);
+  const gapSec = appliedNextQuestionSec(snap);
+  const buzzerSec = appliedBuzzerCountdownSec(snap);
   const joinUrl = `${window.location.origin}${BASE_PATH}/join?code=${encodeURIComponent(snap.joinCode)}`;
   const board = snap.gameBoard ?? null;
   const quizBoard = board !== null && board.kind === "quiz" ? board : null;
@@ -5229,14 +5237,11 @@ function BroadcastSurface(props: {
           </div>
         ) : null}
 
-        {!preview &&
-        snap.pointAward != null &&
-        pauseStartedAt !== null &&
-        (snap.nextQuestionCountdownSec ?? 0) > 0 ? (
+        {!preview && snap.pointAward != null && pauseStartedAt !== null && gapSec > 0 ? (
           <PointAwardModal
             award={snap.pointAward}
             startedAt={pauseStartedAt}
-            durationSec={snap.nextQuestionCountdownSec ?? 5}
+            durationSec={gapSec}
             nowMs={countdownNow}
             closeAfterMs={BROADCAST_POINT_MODAL_CLOSE_MS}
             variant="broadcast"
@@ -5252,12 +5257,14 @@ function BroadcastSurface(props: {
           />
         ) : null}
 
+        {/* INCERTAIN: the broadcast screen still shows the pre-buzzer countdown as large digits, in addition to the player button. */}
         {snap.state === "round_active" &&
         snap.countdownStartedAt !== null &&
-        !snap.buzzWindowOpen ? (
+        !snap.buzzWindowOpen &&
+        buzzerSec > 0 ? (
           <CountdownDisplay
             countdownStartedAt={snap.countdownStartedAt}
-            durationSec={snap.countdownDurationSec ?? 5}
+            durationSec={buzzerSec}
             onComplete={() => {
               /* * Countdown completes when server opens buzz; no client action needed. */
             }}
@@ -5285,10 +5292,8 @@ function BroadcastSurface(props: {
         ) : null}
 
         <QuestionCountdownFrame
-          startedAt={
-            snap.state === "round_active" && (snap.nextQuestionCountdownSec ?? 0) > 0 ? pauseStartedAt : null
-          }
-          durationSec={snap.nextQuestionCountdownSec ?? 5}
+          startedAt={snap.state === "round_active" && gapSec > 0 ? pauseStartedAt : null}
+          durationSec={gapSec}
           nowMs={countdownNow}
           variant="broadcast"
         >

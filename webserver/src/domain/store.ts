@@ -23,6 +23,9 @@ import { resolveJoinAvatarKey, requireParsedAvatarKey } from "../avatars/catalog
 import { randomJoinCode, randomSecretHex } from "./codes.js";
 import { defaultBroadcastViewMode } from "./broadcastDisplay.js";
 import {
+  BUZZER_COUNTDOWN_DEFAULT_SEC,
+  BUZZER_COUNTDOWN_MAX_SEC,
+  BUZZER_COUNTDOWN_MIN_SEC,
   isValidNextQuestionCountdownSec,
   NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC,
 } from "./nextQuestionCountdown.js";
@@ -259,8 +262,10 @@ export class PartyStore {
         pendingScriptUpdates: null,
       },
       seenGameKinds: new Set(),
-      countdownDurationSec: 5,
+      countdownDurationSec: BUZZER_COUNTDOWN_DEFAULT_SEC,
+      appliedCountdownDurationSec: BUZZER_COUNTDOWN_DEFAULT_SEC,
       nextQuestionCountdownSec: pauseSec,
+      appliedNextQuestionCountdownSec: pauseSec,
       nextQuestionCountdownStartedAt: null,
       pointAward: null,
       pendingPointAward: null,
@@ -874,7 +879,7 @@ export class PartyStore {
     clearBuzzQueue(party);
     party.buzzWindowOpen = false;
     this.clearReadyPhase(party);
-    if (opts?.gap !== false && party.nextQuestionCountdownSec > 0) {
+    if (opts?.gap !== false && party.appliedNextQuestionCountdownSec > 0) {
       party.pointAward = party.pendingPointAward;
       party.pendingPointAward = null;
       party.nextQuestionCountdownStartedAt = Date.now();
@@ -907,10 +912,20 @@ export class PartyStore {
     party.pendingPointAward = null;
   }
 
+  /**
+   * * Freezes both countdown lengths for the question that is starting.
+   *   INCERTAIN: a mid-party edit applies on the next question (CDC §4.5 / CA-49), not on the question already showing.
+   */
+  private lockCountdownSettingsForQuestion(party: Party): void {
+    party.appliedCountdownDurationSec = party.countdownDurationSec;
+    party.appliedNextQuestionCountdownSec = party.nextQuestionCountdownSec;
+  }
+
   /** * Moves to the next cue, starts the pause, then the per-question leader so one snapshot carries both. */
   private commitCueAdvance(party: Party, pack: QuizPack, nextIndex: number, bumpReplay: boolean): void {
     party.currentQuestionIndex = nextIndex;
     if (bumpReplay) party.videoReplaySerial += 1;
+    this.lockCountdownSettingsForQuestion(party);
     this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
     if (party.nextQuestionCountdownStartedAt !== null) {
       this.maybeAutoShowWinnerEndOfQuestion(party);
@@ -1173,6 +1188,7 @@ export class PartyStore {
     party.pendingPointAward = null;
     party.pointAward = null;
     party.nextQuestionCountdownStartedAt = null;
+    this.lockCountdownSettingsForQuestion(party);
     const pk = quizPackFromLoadedId(packs, party.loadedPackId);
     this.reopenBuzzAccordingToCueAdvancePolicy(party, pk, { gap: false });
     this.touch(party);
@@ -1354,7 +1370,11 @@ export class PartyStore {
   }
 
   adminSetCountdownDuration(party: Party, seconds: number): void {
-    if (seconds < 0 || seconds > 10 || !Number.isInteger(seconds)) {
+    if (
+      seconds < BUZZER_COUNTDOWN_MIN_SEC ||
+      seconds > BUZZER_COUNTDOWN_MAX_SEC ||
+      !Number.isInteger(seconds)
+    ) {
       throw Object.assign(new Error("Durée entre 0 et 10 secondes."), { code: "INVALID_DURATION" });
     }
     party.countdownDurationSec = seconds;
@@ -1380,7 +1400,7 @@ export class PartyStore {
     if (party.nextQuestionCountdownStartedAt === null) return false;
     if (party.state !== "round_active") return false;
     const elapsed = now - party.nextQuestionCountdownStartedAt;
-    if (elapsed < party.nextQuestionCountdownSec * 1000) return false;
+    if (elapsed < party.appliedNextQuestionCountdownSec * 1000) return false;
     this.openBuzzPolicyAfterGap(party, pack);
     this.touch(party);
     this.broadcast(party);
@@ -1454,7 +1474,7 @@ export class PartyStore {
 
   /** * Starts the pre-buzzer countdown, or opens the buzzer at once when that countdown is 0. */
   private releaseBuzzerAfterReady(party: Party): void {
-    if (party.countdownDurationSec <= 0) {
+    if (party.appliedCountdownDurationSec <= 0) {
       party.winnerDisplay = null;
       party.buzzWindowOpen = true;
       party.buzzWindowOpenedAt = Date.now();
@@ -1490,7 +1510,7 @@ export class PartyStore {
     if (party.buzzWindowOpen) return false;
     
     const elapsed = Date.now() - party.countdownStartedAt;
-    const countdownMs = party.countdownDurationSec * 1000;
+    const countdownMs = party.appliedCountdownDurationSec * 1000;
     
     if (elapsed >= countdownMs) {
       party.buzzWindowOpen = true;
@@ -1874,6 +1894,7 @@ export class PartyStore {
       this.hydrateRuntimeFromMancheItem(party, item, packs);
       party.state = "round_active";
       party.hasStartedRound = true;
+      this.lockCountdownSettingsForQuestion(party);
       const pk = quizPackFromLoadedId(packs, party.loadedPackId);
       this.reopenBuzzAccordingToCueAdvancePolicy(party, pk, { gap: false });
     }

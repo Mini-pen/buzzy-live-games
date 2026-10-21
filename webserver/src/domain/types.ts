@@ -165,13 +165,23 @@ export interface Party {
   autoPlay: AutoPlayState;
   /** * Game kinds (round types) already seen in this party; used to determine if tutorial should be shown. */
   seenGameKinds: Set<string>;
-  /** * Pre-buzzer countdown in seconds (0–10). `0` opens the buzzer as soon as the question is ready. */
+  /** * Configured pre-buzzer countdown in seconds (0–10). `0` opens the buzzer as soon as the question is ready. */
   countdownDurationSec: number;
   /**
-   * * Pause before the next question becomes playable (0–30 s). `0` skips the pause.
+   * * Pre-buzzer countdown locked for the question on screen.
+   *   A mid-party edit of `countdownDurationSec` waits for the next question.
+   */
+  appliedCountdownDurationSec: number;
+  /**
+   * * Configured pause before the next question becomes playable (0–30 s). `0` skips the pause.
    *   Distinct from `countdownDurationSec`.
    */
   nextQuestionCountdownSec: number;
+  /**
+   * * Between-question pause locked for the question on screen.
+   *   A mid-party edit of `nextQuestionCountdownSec` waits for the next question.
+   */
+  appliedNextQuestionCountdownSec: number;
   /** * Server timestamp when the next-question pause started; null when that pause is idle. */
   nextQuestionCountdownStartedAt: number | null;
   /** * Point published while the next-question pause runs. Null when nobody scored. */
@@ -431,10 +441,14 @@ export interface PartyPublicSnapshot {
     currentScriptIndex: number;
     waitingForManualAction: boolean;
   };
-  /** * Pre-buzzer countdown in seconds (0–10). `0` skips it. */
+  /** * Configured pre-buzzer countdown in seconds (0–10). `0` skips it. */
   countdownDurationSec?: number;
-  /** * Pause before the next question (0–30 s). Distinct from `countdownDurationSec`. `0` skips it. */
+  /** * Pre-buzzer countdown locked for the question on screen. */
+  appliedCountdownDurationSec?: number;
+  /** * Configured pause before the next question (0–30 s). Distinct from `countdownDurationSec`. `0` skips it. */
   nextQuestionCountdownSec?: number;
+  /** * Between-question pause locked for the question on screen. */
+  appliedNextQuestionCountdownSec?: number;
   /** * Server timestamp of the next-question pause; null when idle. */
   nextQuestionCountdownStartedAt?: number | null;
   /** * Point shown during the next-question pause. */

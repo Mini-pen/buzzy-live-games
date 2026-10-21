@@ -851,12 +851,47 @@ html, body {
   padding: 0;
   -webkit-tap-highlight-color: transparent;
 }
-.bz-app .bz-buzz-btn.bz-buzz-armed { animation: bz-buzz-pulse 1.6s ease-in-out infinite; }
+/* INCERTAIN: red armed buzzer and the « BUZZ ! » label are a Design UI proposal. The round shape is unchanged. */
+.bz-app .bz-buzz-btn.bz-buzz-armed {
+  animation: bz-buzz-pulse-hot 1.6s ease-in-out infinite;
+  background: radial-gradient(circle at 35% 30%, #ff5a5a, #c41010 68%);
+  border-color: #6e0a0a;
+  color: #fff;
+  font-size: clamp(28px, 8vw, 48px);
+}
+/* INCERTAIN: grey disc, centered digit and draining #FFCA28 ring are a Design UI proposal. */
 .bz-app .bz-buzz-btn.bz-buzz-counting,
 .bz-app button.bz-buzz-btn.bz-buzz-counting:disabled {
+  position: relative;
+  overflow: visible;
   animation: none;
   opacity: 1;
   cursor: default;
+  background: #5a5a66;
+  border-color: #3c3c48;
+  color: #f7f7fb;
+  box-shadow: none;
+}
+.bz-app .bz-buzz-ring {
+  position: absolute;
+  inset: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  pointer-events: none;
+}
+.bz-app .bz-buzz-ring-track,
+.bz-app .bz-buzz-ring-fill {
+  fill: none;
+  stroke-width: 5;
+}
+.bz-app .bz-buzz-ring-track { stroke: rgba(255, 202, 40, 0.28); }
+.bz-app .bz-buzz-ring-fill { stroke: #ffca28; stroke-linecap: round; }
+.bz-app .bz-buzz-count-num {
+  position: relative;
+  z-index: 1;
+  font-size: clamp(48px, 14vw, 84px);
+  font-weight: 900;
+  line-height: 1;
 }
 .bz-app .bz-buzz-btn:hover { filter: brightness(1.05); }
 .bz-app .bz-buzz-btn:active { transform: scale(0.95); filter: brightness(0.88); }
@@ -865,6 +900,11 @@ html, body {
 @keyframes bz-buzz-pulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--bz-accent) 60%, transparent), 0 0 64px color-mix(in oklab, var(--bz-accent) 35%, transparent); }
   50%      { box-shadow: 0 0 0 28px color-mix(in oklab, var(--bz-accent) 0%, transparent), 0 0 96px color-mix(in oklab, var(--bz-accent) 55%, transparent); }
+}
+
+@keyframes bz-buzz-pulse-hot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(196, 16, 16, 0.55), 0 0 48px rgba(196, 16, 16, 0.35); }
+  50%      { box-shadow: 0 0 0 28px rgba(196, 16, 16, 0), 0 0 80px rgba(196, 16, 16, 0.5); }
 }
 
 .bz-app .bz-buzz-closed {

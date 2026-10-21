@@ -13,6 +13,16 @@ export const NEXT_QUESTION_COUNTDOWN_MIN_SEC = 0;
 /** * Inclusive maximum for `nextQuestionCountdownSec`. */
 export const NEXT_QUESTION_COUNTDOWN_MAX_SEC = 30;
 
+/** * Default pre-buzzer countdown. `0` opens the buzzer as soon as the question is ready. */
+export const BUZZER_COUNTDOWN_DEFAULT_SEC = 5;
+
+/** * Inclusive minimum for `countdownDurationSec`. */
+export const BUZZER_COUNTDOWN_MIN_SEC = 0;
+
+// INCERTAIN: plafond 10 s du décompte buzzer. 0 et le défaut 5 s sont décidés.
+/** * Inclusive maximum for `countdownDurationSec`. */
+export const BUZZER_COUNTDOWN_MAX_SEC = 10;
+
 /** * Point-modal auto-close on the player page, unless the pause ends sooner. */
 export const POINT_MODAL_CLOSE_MS = 3_000;
 

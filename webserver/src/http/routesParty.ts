@@ -15,6 +15,12 @@ import type { QuizPack } from "../games/pack.js";
 import { isQuizRound, quizPackSchema } from "../games/pack.js";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
 import { GAME_TUTORIALS } from "../domain/tutorials.js";
+import {
+  BUZZER_COUNTDOWN_MAX_SEC,
+  BUZZER_COUNTDOWN_MIN_SEC,
+  NEXT_QUESTION_COUNTDOWN_MAX_SEC,
+  NEXT_QUESTION_COUNTDOWN_MIN_SEC,
+} from "../domain/nextQuestionCountdown.js";
 import type { ImportedPackStore } from "../games/zipPackImporter.js";
 import { importZipPack } from "../games/zipPackImporter.js";
 import { PackEditorStore } from "../games/packEditor.js";
@@ -54,7 +60,12 @@ const createPartySchema = z
     closedAfterStart: z.boolean(),
     allowRename: z.boolean(),
     allowTeamChange: z.boolean(),
-    nextQuestionCountdownSec: z.number().int().min(0).max(30).optional(),
+    nextQuestionCountdownSec: z
+      .number()
+      .int()
+      .min(NEXT_QUESTION_COUNTDOWN_MIN_SEC)
+      .max(NEXT_QUESTION_COUNTDOWN_MAX_SEC)
+      .optional(),
   })
   .superRefine((d, ctx) => {
     if (!d.playersUnlimited && d.maxPlayers === undefined) {
@@ -137,11 +148,11 @@ const verdictSoundsSchema = z.object({
 });
 
 const countdownDurationSchema = z.object({
-  seconds: z.number().int().min(0).max(10),
+  seconds: z.number().int().min(BUZZER_COUNTDOWN_MIN_SEC).max(BUZZER_COUNTDOWN_MAX_SEC),
 });
 
 const nextQuestionCountdownSchema = z.object({
-  seconds: z.number().int().min(0).max(30),
+  seconds: z.number().int().min(NEXT_QUESTION_COUNTDOWN_MIN_SEC).max(NEXT_QUESTION_COUNTDOWN_MAX_SEC),
 });
 
 const winnerScreenModeSchema = z.object({
