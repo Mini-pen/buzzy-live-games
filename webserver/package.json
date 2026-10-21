@@ -43,6 +43,7 @@
     "concurrently": "^9.1.2",
     "eslint": "^9.26.0",
     "globals": "^16.0.0",
+    "happy-dom": "^21.0.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
