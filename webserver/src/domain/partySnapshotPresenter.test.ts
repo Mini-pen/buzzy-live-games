@@ -152,6 +152,8 @@ function partyStub(over: Partial<Party>): Party {
     pointAward: null,
     pendingPointAward: null,
     winnerScreenMode: "question",
+    readyCheckEnabled: false,
+    readyTimeoutSec: 15,
     readyPlayers: new Set(),
     readyPhaseStartedAt: null,
     countdownStartedAt: null,

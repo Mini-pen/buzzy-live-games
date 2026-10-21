@@ -19,11 +19,14 @@ import {
   BROADCAST_POINT_MODAL_CLOSE_MS,
   isPointModalVisible,
   isValidNextQuestionCountdownSec,
+  isValidReadyTimeoutSec,
   NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC,
+  READY_TIMEOUT_DEFAULT_SEC,
   nextQuestionCountdownProgress,
   nextQuestionCountdownRemainingSec,
   POINT_MODAL_CLOSE_MS,
   pointAwardLabel,
+  readyStatusLabel,
 } from "./nextQuestionCountdown.js";
 import { PartyStore } from "./store.js";
 
@@ -174,6 +177,7 @@ describe("next-question countdown", () => {
 
   it("records who scored, then opens the ready phase only after the pause", () => {
     const { store, party, quiz } = launchedParty("autonomous");
+    store.adminSetReadyCheckEnabled(party, true, quiz);
     party.buzzOrder = ["alice"];
     party.buzzWindowOpen = true;
     store.adminValidateBuzzAnswer(party, "alice", "good", quiz);
@@ -185,6 +189,7 @@ describe("next-question countdown", () => {
       playerName: "Alice",
       avatarKey: "a.png",
       points: 10,
+      teamName: null,
     });
     expect(party.countdownDurationSec).toBe(before);
     expect(party.readyPhaseStartedAt).toBeNull();
@@ -204,6 +209,7 @@ describe("next-question countdown", () => {
 
   it("skips the pause and the point when the between-question delay is 0", () => {
     const { store, party, quiz } = launchedParty("autonomous");
+    store.adminSetReadyCheckEnabled(party, true, quiz);
     store.adminSetNextQuestionCountdownSec(party, 0);
     party.buzzOrder = ["alice"];
     party.buzzWindowOpen = true;
@@ -218,20 +224,24 @@ describe("next-question countdown", () => {
 
   it("opens the buzzer at once when the pre-buzzer countdown is 0 before the question starts", () => {
     const { store, party } = launchedParty("normal", (s, p) => {
+      s.adminSetReadyCheckEnabled(p, true, null);
       s.adminSetCountdownDuration(p, 0);
     });
     expect(party.appliedCountdownDurationSec).toBe(0);
-    store.playerMarkReady(party, "alice", 30_000);
+    expect(party.readyPhaseStartedAt).not.toBeNull();
+    store.playerSetReady(party, "alice", true);
     expect(party.buzzWindowOpen).toBe(true);
     expect(party.countdownStartedAt).toBeNull();
     expect(party.readyPhaseStartedAt).toBeNull();
   });
 
   it("keeps the current question's countdowns when the host edits them mid-question", () => {
-    const { store, party, quiz } = launchedParty("normal");
+    const { store, party, quiz } = launchedParty("normal", (s, p) => {
+      s.adminSetReadyCheckEnabled(p, true, null);
+    });
     store.adminSetCountdownDuration(party, 0);
     store.adminSetNextQuestionCountdownSec(party, 0);
-    store.playerMarkReady(party, "alice", 30_000);
+    store.playerSetReady(party, "alice", true);
     expect(party.appliedCountdownDurationSec).toBe(5);
     expect(party.buzzWindowOpen).toBe(false);
     expect(party.countdownStartedAt).not.toBeNull();
@@ -242,7 +252,7 @@ describe("next-question countdown", () => {
     expect(party.appliedNextQuestionCountdownSec).toBe(0);
     expect(party.nextQuestionCountdownStartedAt).toBeNull();
     expect(party.buzzWindowOpen).toBe(false);
-    store.playerMarkReady(party, "alice", 30_000);
+    store.playerSetReady(party, "alice", true);
     expect(party.buzzWindowOpen).toBe(true);
     expect(party.countdownStartedAt).toBeNull();
   });
@@ -262,7 +272,7 @@ describe("next-question countdown", () => {
   it("refuses « Prêt » while the next-question pause is running", () => {
     const { store, party, quiz } = launchedParty("normal");
     store.adminAdvanceCue(party, quiz);
-    expect(() => store.playerMarkReady(party, "alice", 30_000)).toThrow(/pas encore ouverte/);
+    expect(() => store.playerSetReady(party, "alice", true)).toThrow(/pas encore ouverte/);
     expect(party.countdownStartedAt).toBeNull();
   });
 
@@ -315,8 +325,133 @@ describe("next-question countdown", () => {
     expect(isPointModalVisible({ ...base, dismissed: true, closeAfterMs: POINT_MODAL_CLOSE_MS })).toBe(
       false,
     );
-    expect(pointAwardLabel(1)).toBe("+1 point");
-    expect(pointAwardLabel(10)).toBe("+10 points");
+    expect(pointAwardLabel(1)).toBe("+ 1 point");
+    expect(pointAwardLabel(10)).toBe("+ 10 points");
+    expect(pointAwardLabel(1, "2")).toBe("+ 1 point pour l'équipe 2");
+    expect(pointAwardLabel(10, "2")).toBe("+ 10 points pour l'équipe 2");
+    expect(readyStatusLabel(3, 5, "player")).toBe("3 / 5 joueurs prêts");
+    expect(readyStatusLabel(1, 5, "player")).toBe("1 / 5 joueurs prêt");
+    expect(readyStatusLabel(3, 5, "summary")).toBe("3/5 prêts");
+    expect(readyStatusLabel(1, 5, "summary")).toBe("1/5 prêt");
+  });
+
+  it("toggles Prêt, waits for a late joiner, then starts the buzzer countdown", () => {
+    const { store, party } = launchedParty("normal", (s, p) => {
+      s.adminSetReadyCheckEnabled(p, true, null);
+    });
+    expect(party.readyPhaseStartedAt).not.toBeNull();
+    party.players.set("bob", {
+      id: "bob",
+      displayName: "Bob",
+      avatarKey: "b.png",
+      buzzSoundKey: "good1",
+      teamId: null,
+      score: 0,
+      joinedAt: 2,
+    });
+    store.notePlayerJoinedDuringQuestion(party, "bob");
+    store.playerSetReady(party, "alice", true);
+    expect(party.countdownStartedAt).toBeNull();
+    store.playerSetReady(party, "alice", false);
+    expect(party.readyPlayers.has("alice")).toBe(false);
+    store.playerSetReady(party, "alice", true);
+    expect(party.buzzWindowOpen).toBe(false);
+    expect(party.countdownStartedAt).toBeNull();
+    store.playerSetReady(party, "bob", true);
+    expect(party.countdownStartedAt).not.toBeNull();
+    expect(party.buzzWindowOpen).toBe(false);
+
+    party.players.set("carol", {
+      id: "carol",
+      displayName: "Carol",
+      avatarKey: "c.png",
+      buzzSoundKey: "good1",
+      teamId: null,
+      score: 0,
+      joinedAt: 3,
+    });
+    store.notePlayerJoinedDuringQuestion(party, "carol");
+    expect(party.readyPlayers.has("carol")).toBe(true);
+    expect(party.countdownStartedAt).not.toBeNull();
+
+    party.countdownStartedAt = Date.now() - 10_000;
+    expect(store.maybeOpenBuzzAfterCountdown(party)).toBe(true);
+    party.players.set("dave", {
+      id: "dave",
+      displayName: "Dave",
+      avatarKey: "d.png",
+      buzzSoundKey: "good1",
+      teamId: null,
+      score: 0,
+      joinedAt: 4,
+    });
+    store.notePlayerJoinedDuringQuestion(party, "dave");
+    expect(party.readyPlayers.has("carol")).toBe(true);
+    expect(party.readyPlayers.has("dave")).toBe(true);
+    expect(party.buzzWindowOpen).toBe(true);
+  });
+
+  it("starts the buzzer countdown from the host timeout or from Lancer la question", () => {
+    const { store, party } = launchedParty("normal", (s, p) => {
+      s.adminSetReadyCheckEnabled(p, true, null);
+    });
+    expect(party.readyTimeoutSec).toBe(READY_TIMEOUT_DEFAULT_SEC);
+    expect(isValidReadyTimeoutSec(0)).toBe(true);
+    expect(isValidReadyTimeoutSec(5)).toBe(true);
+    expect(isValidReadyTimeoutSec(60)).toBe(true);
+    expect(isValidReadyTimeoutSec(4)).toBe(false);
+    expect(isValidReadyTimeoutSec(61)).toBe(false);
+    expect(() => store.adminSetReadyTimeoutSec(party, 4)).toThrow(/5 et 60/);
+    store.adminSetReadyTimeoutSec(party, 0);
+    party.readyPhaseStartedAt = Date.now() - 120_000;
+    expect(store.maybeStartCountdownIfReady(party)).toBe(false);
+
+    store.adminSetReadyTimeoutSec(party, 15);
+    party.readyPhaseStartedAt = Date.now() - 14_000;
+    expect(store.maybeStartCountdownIfReady(party)).toBe(false);
+    party.readyPhaseStartedAt = Date.now() - 15_000;
+    expect(store.maybeStartCountdownIfReady(party)).toBe(true);
+    expect(party.countdownStartedAt).not.toBeNull();
+    expect(party.buzzWindowOpen).toBe(false);
+
+    const manual = launchedParty("normal", (s, p) => {
+      s.adminSetReadyCheckEnabled(p, true, null);
+    });
+    manual.party.players.set("bob", {
+      id: "bob",
+      displayName: "Bob",
+      avatarKey: "b.png",
+      buzzSoundKey: "good1",
+      teamId: null,
+      score: 0,
+      joinedAt: 2,
+    });
+    manual.store.adminLaunchQuestion(manual.party);
+    expect(manual.party.countdownStartedAt).not.toBeNull();
+    expect(manual.party.buzzWindowOpen).toBe(false);
+    expect(manual.party.readyPlayers.has("bob")).toBe(false);
+
+    const instant = launchedParty("normal", (s, p) => {
+      s.adminSetReadyCheckEnabled(p, true, null);
+      s.adminSetCountdownDuration(p, 0);
+    });
+    instant.store.adminLaunchQuestion(instant.party);
+    expect(instant.party.buzzWindowOpen).toBe(true);
+    expect(instant.party.countdownStartedAt).toBeNull();
+  });
+
+  it("names the team on the point pill when the scorer has a team", () => {
+    const { store, party, quiz } = launchedParty("autonomous");
+    party.maxTeams = 2;
+    party.players.get("alice")!.teamId = 1;
+    party.buzzOrder = ["alice"];
+    party.buzzWindowOpen = true;
+    store.adminValidateBuzzAnswer(party, "alice", "good", quiz);
+    store.adminAdvanceCue(party, quiz);
+    expect(party.pointAward?.teamName).toBe("1");
+    expect(pointAwardLabel(party.pointAward?.points ?? 0, party.pointAward?.teamName)).toBe(
+      "+ 10 points pour l'équipe 1",
+    );
   });
 });
 

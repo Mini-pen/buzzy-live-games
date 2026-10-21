@@ -23,6 +23,23 @@ export const BUZZER_COUNTDOWN_MIN_SEC = 0;
 /** * Inclusive maximum for `countdownDurationSec`. */
 export const BUZZER_COUNTDOWN_MAX_SEC = 10;
 
+/** * Default « Prêt ? » auto-timeout. `0` never skips the ready wait. */
+export const READY_TIMEOUT_DEFAULT_SEC = 15;
+
+/** * Smallest non-zero « Prêt ? » auto-timeout. */
+export const READY_TIMEOUT_MIN_SEC = 5;
+
+// INCERTAIN: plage 5–60 s, et 0 = pas de délai automatique. Le défaut 15 s est décidé.
+/** * Inclusive maximum for `readyTimeoutSec`. */
+export const READY_TIMEOUT_MAX_SEC = 60;
+
+/** * True for `0` (no auto-timeout) or an integer from 5 to 60. */
+export function isValidReadyTimeoutSec(seconds: number): boolean {
+  if (!Number.isInteger(seconds)) return false;
+  if (seconds === 0) return true;
+  return seconds >= READY_TIMEOUT_MIN_SEC && seconds <= READY_TIMEOUT_MAX_SEC;
+}
+
 /** * Point-modal auto-close on the player page, unless the pause ends sooner. */
 export const POINT_MODAL_CLOSE_MS = 3_000;
 
@@ -90,8 +107,32 @@ export function isPointModalVisible(input: {
   return input.nowMs < Math.min(pauseEnd, modalEnd);
 }
 
-/** * Pill under the winner name. Uses the points just awarded (`+1 point`, `+N points`). */
-export function pointAwardLabel(points: number): string {
+/**
+ * * Pill under the winner name.
+ *   INCERTAIN: the singular form is « + 1 point ».
+ *   A team score appends « pour l'équipe <nom> ». Parties have no custom team name, so `<nom>` is the team index.
+ */
+export function pointAwardLabel(points: number, teamName?: string | null): string {
   const n = Number.isInteger(points) && points > 0 ? points : 1;
-  return n === 1 ? "+1 point" : `+${n} points`;
+  const amount = n === 1 ? "+ 1 point" : `+ ${n} points`;
+  const team = typeof teamName === "string" ? teamName.trim() : "";
+  if (team !== "") return `${amount} pour l'équipe ${team}`;
+  return amount;
+}
+
+/**
+ * * Ready-count line.
+ *   `player` is under the buzzer (« 3 / 5 joueurs prêts »). `summary` is the host and the broadcast (« 3/5 prêts »).
+ */
+export function readyStatusLabel(ready: number, total: number, surface: "player" | "summary"): string {
+  const safeReady = Number.isFinite(ready) ? Math.max(0, Math.floor(ready)) : 0;
+  const safeTotal = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+  const pret = safeReady === 1 ? "prêt" : "prêts";
+  if (surface === "summary") {
+    // INCERTAIN: host and broadcast use « 3/5 prêts ».
+    return `${safeReady}/${safeTotal} ${pret}`;
+  }
+  // INCERTAIN: « 3 / 5 joueurs prêts » under the player button is a Design UI proposal.
+  const joueur = safeTotal === 1 ? "joueur" : "joueurs";
+  return `${safeReady} / ${safeTotal} ${joueur} ${pret}`;
 }
