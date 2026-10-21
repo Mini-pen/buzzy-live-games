@@ -68,9 +68,11 @@ export function nextQuestionCountdownRemainingSec(
   if (startedAt === null || !Number.isFinite(startedAt) || !Number.isFinite(durationSec)) return null;
   const totalMs = durationSec * 1000;
   if (totalMs <= 0) return 0;
-  const elapsed = nowMs - startedAt;
+  // * A client clock slightly behind the server start used to ceil 5.05 s up to 6.
+  const elapsed = Math.max(0, nowMs - startedAt);
   if (elapsed >= totalMs) return 0;
-  return Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+  const cap = Math.max(0, Math.floor(durationSec));
+  return Math.min(cap, Math.max(0, Math.ceil((totalMs - elapsed) / 1000)));
 }
 
 /**

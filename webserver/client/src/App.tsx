@@ -308,12 +308,8 @@ function CountdownDisplay(props: {
   durationSec: number;
   onComplete: () => void;
 }): JSX.Element {
-  const computeRemaining = (): number => {
-    const elapsed = Date.now() - props.countdownStartedAt;
-    const elapsedSec = Math.floor(elapsed / 1000);
-    const remaining = Math.max(0, props.durationSec - elapsedSec);
-    return remaining;
-  };
+  const computeRemaining = (): number =>
+    nextQuestionCountdownRemainingSec(props.countdownStartedAt, props.durationSec, Date.now()) ?? 0;
 
   const [remaining, setRemaining] = useState(computeRemaining);
 

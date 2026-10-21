@@ -280,6 +280,8 @@ describe("next-question countdown", () => {
   it("derives the visible second, the drain, and the modal deadline from one server timestamp", () => {
     const startedAt = 1_000_000;
     expect(nextQuestionCountdownRemainingSec(startedAt, 5, startedAt)).toBe(5);
+    expect(nextQuestionCountdownRemainingSec(startedAt, 5, startedAt - 1)).toBe(5);
+    expect(nextQuestionCountdownRemainingSec(startedAt, 5, startedAt - 400)).toBe(5);
     expect(nextQuestionCountdownRemainingSec(startedAt, 5, startedAt + 1_001)).toBe(4);
     expect(nextQuestionCountdownRemainingSec(startedAt, 5, startedAt + 5_000)).toBe(0);
     expect(nextQuestionCountdownRemainingSec(null, 5, startedAt)).toBeNull();
