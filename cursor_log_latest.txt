@@ -1,29 +1,29 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Minipen a tranché le délai qui passe outre « Prêt ? », le lancement manuel et les icônes de la liste. Documentation seule, poussée sur `main`.
+**Contexte** : 2e recette Minipen (vers 16 h), puis validations et lectures de Coding Agent. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Remplacer le choix incertain de 30 s par un délai automatique de 15 s, réglable.
-- Remplacer l'« À décider » du forçage par le lancement manuel, même si tout le monde n'est pas prêt.
-- Remplacer la proposition d'emplacement vide par une coche verte et un sablier orange.
+- Ajouter la sous-section « Recette Minipen du 21/10/2026, 2e passage », CA-52 à CA-63.
+- Garder les anciens textes. Marquer « remplacé si confirmé » là où le bloc rond joueur toucherait une modale.
+- Inscrire `buzzer_etats_joueur_v3.png` comme décidée, avec le résultat joueur (vert, jaune, effectifs).
 
 ## Réalisations
 
-- §4.5 : délai automatique 15 s par défaut, dans l'interface animateur. Il déclenche le décompte du buzzer même si tout le monde n'est pas prêt. Les phrases « 30 secondes » et « majorité ou timeout » sont conservées, puis marquées remplacées.
-- L'animateur peut lancer manuellement la question pendant l'attente.
-- Liste des joueurs, animateur, joueur et diffusion : coche verte si prêt, petit sablier orange sinon, seulement si le mode est actif.
-- Critères et cas limites : départ à 15 s, départ anticipé si tous sont verts, un seul départ, lancement manuel, absence d'icônes si le mode est inactif.
-- Proposition de Design UI : `#1E7A3C`, `#F07800`, icônes de la hauteur du nom. Compteur « 3 / 5 joueurs prêts » toujours en proposition, en plus des icônes.
+- Bugs : un seul buzz (CA-52), surbrillance QCM qui rappelle le CA-45 (CA-53), taille de texte stable (CA-54), pas d'écran noir en diffusion qui rappelle le CA-44 (CA-55).
+- Décidé : retrait de « Réponse enregistrée… » (CA-56). Le buzzer reste et passe au gris « Buzz envoyé » (CA-57), la maquette v3 étant validée.
+- CA-58 : vague orange, rayons verts, disque du gagnant, « + 1 point ». Les v1 ne sont plus valables. Ligne d'équipe encore en proposition. Vitesses d'animation à confirmer.
+- CA-59 : choix incertain de Coding Agent. Bloc rond joueur, notification seulement sur la diffusion. Remplacerait CA-46 et CA-50 si confirmé. CA-47 reste la notification de diffusion.
+- CA-60 et CA-61 : question jouée pendant les trois décomptes. Lecture de Coding Agent : la suivante n'apparaît, et n'est envoyée, qu'à l'ouverture du buzzer. Question ouverte : l'afficher dès le début du décompte du buzzer, à cause du rôle de lecture donné par le §4.5.
+- CA-62 et CA-63 : bonne réponse sur fond vert, surlignage jaune gardé, effectif et pourcentage. Format « 2 (11%) », cumul vert et jaune, arrondi et « 0 (0%) » encore incertains. Design UI doit retoucher la maquette.
 
 ## Prochain focus suggéré
 
-- Confirmer : bornes 5 à 60 s, et 0 = pas de délai automatique. Sens du lancement manuel (décompte du buzzer, ou buzzer ouvert si ce décompte vaut 0).
-- Autres choix incertains du mode : réglage du mode, changement à la question suivante, joueurs connectés, buzzer à 0, compteur diffusion, arrivée pendant le décompte du buzzer.
-- Toujours ouverts : CA-34, CA-41, maxima 10 s / 30 s, grands chiffres du buzzer sur la diffusion, CA-20 fin de partie, fermeture CA-47, singulier « + 1 point ».
-- `resultat_diffusion_v3.png` attend toujours l'avis de Minipen. Non inscrit au CDC.
+- Minipen : téléphone ou souris pour le double buzz ; vitesses d'animation ; confirmer le bloc rond ; moment d'affichage de la nouvelle question ; format des pourcentages.
+- Toujours ouverts du 1er passage : CA-34, CA-41, maxima, grands chiffres du buzzer sur la diffusion, CA-20, fermeture CA-47, réglages du mode « Prêt ? ».
+- `resultat_diffusion_v3.png` n'est toujours pas inscrit.
 
 ## Références
 
-- `cahier-des-charges.md` §4.5 et §4.6 (écart « Prêt » et points ouverts).
+- `cahier-des-charges.md` §2, §4.5, §4.6 (CA-44 à CA-63). `DEV_PLAN.md` note de correspondance du §7.6.

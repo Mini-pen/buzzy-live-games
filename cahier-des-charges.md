@@ -136,7 +136,7 @@ Application web temps réel permettant d'animer des soirées quiz et jeux de typ
 
 - Le joueur voit le `gameBoard` (question, choix, image, vidéo) selon le type de round actif.
 - Le score du joueur et de son équipe est mis à jour en temps réel.
-- Le bouton buzz est grisé si la fenêtre est fermée ou si le joueur a déjà buzzé.
+- Le bouton buzz est grisé si la fenêtre est fermée ou si le joueur a déjà buzzé. Il reste affiché (CA-57). Sa disparition après un buzz n'est pas le comportement attendu.
 - Sur QCM, le joueur voit ses choix (A, B, C, D…) et sélectionne avant de buzzer.
 
 **Cas limites :**
@@ -625,7 +625,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 - **Alertes sonores :** Les sons de validation bon/mauvais (déjà en place) sont joués automatiquement à la validation d'un buzz ou à la fin d'une question en mode automatique. Si ce comportement n'est pas encore implémenté, l'ajouter : jouer le son `good` si le verdict est bon, `bad` sinon, côté animateur et/ou joueur selon la configuration.
 - **Visuel de victoire :** Lorsque le temps imparti pour une question ou une manche se termine, un écran de victoire affiche le nom du gagnant (joueur ou équipe avec le meilleur score) sur le grand écran spectateur et dans l'interface joueur. Résolu par Minipen le 21/10/2026 pour la modale de point entre les questions : cette formulation est remplacée par la maquette, « Point pour <nom> », « +1 point », « Touchez pour fermer » (CA-46, CA-47). Décidé par Minipen le 21/10/2026 : le « +1 point » de cette phrase est à son tour remplacé par « + N points » pour un joueur, et par « + N points pour l'équipe <nom> » pour une équipe. « Point pour <nom> » et « Touchez pour fermer » restent. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : au singulier, le libellé est « + 1 point » ; le titre « Point pour <nom> » et l'avatar du joueur restent au-dessus. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : l'ancienne formulation et le CA-20 restent valables pour l'écran de fin de partie.
-- **Compte à rebours avant question :** Un compte à rebours configurable (3 à 10 secondes) démarre avant chaque question, uniquement lorsque tous les participants ont marqué « Prêt ». Le buzzer reste fermé pendant le compte à rebours et s'ouvre automatiquement à la fin. Résolu par Minipen le 21/10/2026 : cette règle est remplacée. Le décompte d'ouverture du buzzer est `countdownDurationSec`. Il démarre après l'affichage de la question. Côté joueur, il s'affiche dans le bouton buzzer. Il est optionnel et se règle dans l'interface animateur. 0 = pas de décompte. Le défaut déjà écrit plus bas dans ce paragraphe est 5 secondes : il est conservé. Le minimum passe de 3 à 0. Ce n'est pas le décompte entre les questions (`nextQuestionCountdownSec`, CA-49). Si le mode « Prêt ? » est inactif, ce départ après l'affichage de la question reste. S'il est actif, le décompte du buzzer ne démarre qu'à la fin de l'attente « Prêt ? ».
+- **Compte à rebours avant question :** Un compte à rebours configurable (3 à 10 secondes) démarre avant chaque question, uniquement lorsque tous les participants ont marqué « Prêt ». Le buzzer reste fermé pendant le compte à rebours et s'ouvre automatiquement à la fin. Résolu par Minipen le 21/10/2026 : cette règle est remplacée. Le décompte d'ouverture du buzzer est `countdownDurationSec`. Il démarre après l'affichage de la question. Côté joueur, il s'affiche dans le bouton buzzer. Il est optionnel et se règle dans l'interface animateur. 0 = pas de décompte. Le défaut déjà écrit plus bas dans ce paragraphe est 5 secondes : il est conservé. Le minimum passe de 3 à 0. Ce n'est pas le décompte entre les questions (`nextQuestionCountdownSec`, CA-49). Si le mode « Prêt ? » est inactif, ce départ après l'affichage de la question reste. S'il est actif, le décompte du buzzer ne démarre qu'à la fin de l'attente « Prêt ? ». La 2e recette laisse ouverte la question de l'affichage de la nouvelle question pendant ce décompte (CA-60). Cette phrase n'est pas réécrite.
 
 **Acteurs :**
 
@@ -634,13 +634,13 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 **Règles métier :**
 
-- Le compte à rebours est affiché en grand sur le grand écran et dans l'interface joueur. Résolu par Minipen le 21/10/2026 : côté joueur, cet affichage en grand est remplacé par l'affichage dans le bouton buzzer. Proposition de Design UI, référence `buzzer_decompte_joueur_v1.png` (hors dépôt, `/workspace/ui/buzzy/`) : pendant le décompte, le buzzer est gris et inactif, le chiffre est au centre, un anneau jaune se vide. À 0, il passe au rouge « BUZZ ! » et devient actif. Si le réglage vaut 0, il est actif tout de suite. Le buzzer garde sa forme actuelle : seuls le chiffre et l'anneau s'ajoutent.
+- Le compte à rebours est affiché en grand sur le grand écran et dans l'interface joueur. Résolu par Minipen le 21/10/2026 : côté joueur, cet affichage en grand est remplacé par l'affichage dans le bouton buzzer. Proposition de Design UI, référence `buzzer_decompte_joueur_v1.png` (hors dépôt, `/workspace/ui/buzzy/`) : pendant le décompte, le buzzer est gris et inactif, le chiffre est au centre, un anneau jaune se vide. À 0, il passe au rouge « BUZZ ! » et devient actif. Si le réglage vaut 0, il est actif tout de suite. Le buzzer garde sa forme actuelle : seuls le chiffre et l'anneau s'ajoutent. Cette v1 n'est plus valable : `buzzer_decompte_joueur_v2.png` la remplace (CA-58).
 - Le buzzer est fermé (`buzzWindowOpen = false`) pendant le compte à rebours ; il s'ouvre automatiquement à 0. Cette fermeture reste vraie. Un appui pendant le décompte est refusé.
 - Le bouton « Prêt » est affiché dans l'interface joueur en début de question ; le compte à rebours démarre lorsque tous les joueurs connectés ont cliqué « Prêt ». La note « le départ au « Prêt » est remplacé par le départ après l'affichage de la question. Le maintien du bouton « Prêt » et de son timeout n'est pas dit » est remplacée. Résolu par Minipen le 21/10/2026 : « Prêt ? » est un autre mode, optionnel. S'il est inactif, le décompte d'ouverture du buzzer (`countdownDurationSec`) suit directement l'affichage de la question. S'il est actif, il est intercalé entre le décompte entre les questions (« question suivante », `nextQuestionCountdownSec`) et le décompte du buzzer. Il s'affiche sur le bouton buzzer. Chaque joueur clique sur « Prêt ? » en orange, qui devient « Prêt ! » en vert. Un nouveau clic repasse en orange. Une fois que tous les joueurs sont en vert, cela déclenche le décompte du buzzer.
 - Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : le mode se règle dans l'interface animateur, comme les deux décomptes. Un changement en cours de partie s'applique à partir de la question suivante. « Tous les joueurs » désigne les joueurs connectés. La phrase déjà écrite s'applique : « Si un joueur se déconnecte pendant le compte à rebours, il n'est pas compté dans le « tous prêts ». » Un joueur déconnecté ne bloque donc pas. Si `countdownDurationSec` vaut 0, le buzzer s'ouvre dès que tout le monde est prêt. La diffusion affiche combien sont prêts, par exemple « 3/5 prêts ». Ce compteur de diffusion ne se confond pas avec le compteur joueur de la maquette.
 - Si un joueur ne marque pas « Prêt » après un timeout (ex. 30 secondes), le compte à rebours démarre quand même (majorité ou timeout). La note « Cette phrase ne démarre plus `countdownDurationSec` » est remplacée. Quand le mode « Prêt ? » est actif, « le compte à rebours » de cette phrase est le décompte du buzzer. Le choix incertain « le délai de 30 s reste écrit tel quel, sans le fondre avec le cas limite de 30 secondes » est remplacé. Décidé par Minipen le 21/10/2026, mot pour mot : « on conserve le délai auto qui bypass le 'pret' (15 sec par défaut, paramétrable). » Le délai automatique qui passe outre « Prêt ? » vaut 15 secondes par défaut et se règle dans l'interface animateur. Même si tout le monde n'est pas prêt, il déclenche le décompte du buzzer. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : le réglage va de 5 à 60 secondes, et 0 veut dire « pas de délai automatique » (on attend tous les joueurs ou l'animateur), comme pour les deux décomptes.
 - Le visuel de victoire affiche le pseudo du gagnant, son avatar, et son score final (ou celui de l'équipe). Pour la modale de point, ces éléments sont remplacés par « Point pour <nom> », « +1 point » et « Touchez pour fermer ». Décidé par Minipen le 21/10/2026 : « +1 point » est remplacé par « + N points » pour un joueur, et par « + N points pour l'équipe <nom> » pour une équipe.
-- Proposition de Design UI, référence `buzzer_pret_joueur_v1.png` (hors dépôt, `/workspace/ui/buzzy/`). La maquette montre trois états : « Prêt ? » orange avec texte foncé (contraste 6,1:1), « Prêt ! » vert avec texte blanc (contraste 5,4:1), puis le décompte dans le bouton. Les mots, l'orange, le vert, le basculement à chaque clic et la place sur le bouton buzzer sont décidés. Les contrastes sont une proposition. Un compteur « 3 / 5 joueurs prêts » s'affiche sous le bouton côté joueur : Proposition de Design UI, à confirmer par Minipen. Il reste une proposition, en plus de la coche et du sablier de la liste des joueurs.
+- Proposition de Design UI, référence `buzzer_pret_joueur_v1.png` (hors dépôt, `/workspace/ui/buzzy/`). La maquette montre trois états : « Prêt ? » orange avec texte foncé (contraste 6,1:1), « Prêt ! » vert avec texte blanc (contraste 5,4:1), puis le décompte dans le bouton. Les mots, l'orange, le vert, le basculement à chaque clic et la place sur le bouton buzzer sont décidés. Les contrastes sont une proposition. Un compteur « 3 / 5 joueurs prêts » s'affiche sous le bouton côté joueur : Proposition de Design UI, à confirmer par Minipen. Il reste une proposition, en plus de la coche et du sablier de la liste des joueurs. Cette v1 n'est plus valable : `buzzer_pret_joueur_v2.png` et `buzzer_etats_joueur_v3.png` la remplacent (CA-58).
 - Décidé par Minipen le 21/10/2026 pour une arrivée en cours de route. Mot pour mot : « Si un joueur rejoins en cours de décompte, il est en orange, et il faut l'attendre. Si il rejoint pendant une question, il est considéré comme pret et peux déjà répondre à la question. » Lecture retenue, mode « Prêt ? » actif : s'il rejoint pendant le décompte entre les questions ou pendant l'attente « Prêt ? », il arrive en orange et on l'attend. S'il rejoint pendant une question, il est considéré comme prêt et peut répondre tout de suite. Ces règles remplacent le choix incertain (Coding Agent et Specs Writer, 21/10/2026) selon lequel un joueur qui rejoint pendant l'attente compte parmi les joueurs connectés et doit lui aussi passer au vert.
 - Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : pendant le décompte du buzzer, la question est déjà affichée, donc un joueur qui rejoint compte comme prêt.
 - À décider par Minipen : un bouton qui permet à l'animateur de forcer le départ. Il n'est pas prévu pour l'instant. Cette note est remplacée. Décidé par Minipen le 21/10/2026 : même si tout le monde n'est pas prêt, l'animateur peut lancer manuellement la question. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : « lancer manuellement la question » veut dire que l'animateur démarre le décompte du buzzer, ou ouvre directement le buzzer si ce décompte vaut 0.
@@ -654,7 +654,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 - Le visuel de victoire s'affiche sur `/party/:partyId/broadcast` et dans l'interface joueur à la fin d'une manche ou d'une question (selon configuration).
 - Un champ « Durée du compte à rebours » est configurable dans les réglages animateur. L'ancienne borne « 3 à 10 secondes » est remplacée : minimum 0, défaut 5. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : le maximum du buzzer reste 10 secondes.
 - Le bouton « Prêt » apparaît dans l'interface joueur avant chaque question. Il ne déclenche plus le décompte d'ouverture du buzzer. Cette phrase vaut si le mode « Prêt ? » est inactif. S'il est actif, le bouton affiche « Prêt ? » en orange, passe à « Prêt ! » en vert au clic, et repasse en orange au clic suivant. Le décompte du buzzer démarre quand tous les joueurs connectés sont au vert. Décidé par Minipen le 21/10/2026 : il démarre aussi à la fin du délai automatique (15 secondes par défaut), et quand l'animateur lance manuellement la question.
-- Le compte à rebours s'affiche en grand (chiffres animés) et le buzzer s'ouvre à la fin. Côté joueur, les grands chiffres sont remplacés par `buzzer_decompte_joueur_v1.png` : buzzer gris et inactif, chiffre au centre, anneau jaune qui se vide, puis rouge « BUZZ ! » actif à 0. Réglage à 0 : buzzer actif tout de suite, sans décompte. Mode « Prêt ? » actif : ce décompte dans le bouton ne commence qu'une fois tout le monde au vert. Cette restriction est complétée par le délai de 15 secondes et par le lancement manuel. La maquette `buzzer_pret_joueur_v1.png` précède cet état.
+- Le compte à rebours s'affiche en grand (chiffres animés) et le buzzer s'ouvre à la fin. Côté joueur, les grands chiffres sont remplacés par `buzzer_decompte_joueur_v1.png` : buzzer gris et inactif, chiffre au centre, anneau jaune qui se vide, puis rouge « BUZZ ! » actif à 0. Réglage à 0 : buzzer actif tout de suite, sans décompte. Mode « Prêt ? » actif : ce décompte dans le bouton ne commence qu'une fois tout le monde au vert. Cette restriction est complétée par le délai de 15 secondes et par le lancement manuel. La maquette `buzzer_pret_joueur_v1.png` précède cet état. Ces deux v1 ne sont plus valables : voir `buzzer_decompte_joueur_v2.png`, `buzzer_pret_joueur_v2.png` et `buzzer_etats_joueur_v3.png` (CA-58).
 - Mode « Prêt ? » actif : un joueur qui rejoint pendant le décompte entre les questions, ou pendant l'attente « Prêt ? », est orange. Le décompte du buzzer ne démarre pas tant qu'il n'est pas passé au vert, sauf à l'échéance du délai automatique ou au lancement manuel. Un joueur qui rejoint pendant une question est prêt et peut répondre tout de suite.
 - Mode « Prêt ? » actif, délai au défaut : si au moins un joueur connecté n'est pas prêt, le décompte du buzzer démarre 15 secondes après le début de l'attente. Si tous passent au vert avant ces 15 secondes, le décompte démarre à ce moment-là, sans attendre la fin du délai. L'interface animateur affiche ce délai. Sans changement de réglage, la valeur est 15 secondes.
 - Mode « Prêt ? » actif : un lancement manuel par l'animateur, alors qu'un joueur n'est pas prêt, démarre la suite sans attendre ce joueur ni la fin des 15 secondes.
@@ -684,7 +684,7 @@ Cette section regroupe les évolutions produit décidées, au-delà du MVP actue
 
 ### 4.6 Configuration de l'affichage projeté depuis une fenêtre miniature
 
-**Statut :** Livré et testé (logique serveur / helpers) — PR 27 (`bcd142c`), 341/341 Vitest verts (`broadcastDisplay.test.ts` et suite). CA UI restants hors Vitest pour l'instant (miniature admin, bloc téléphone joueur, localStorage). La sous-section « Recette Minipen du 21/10/2026 » (CA-39 à CA-51) a son propre statut, « En cours de correction ». Elle ne modifie pas le statut des CA-1 à CA-38.
+**Statut :** Livré et testé (logique serveur / helpers) — PR 27 (`bcd142c`), 341/341 Vitest verts (`broadcastDisplay.test.ts` et suite). CA UI restants hors Vitest pour l'instant (miniature admin, bloc téléphone joueur, localStorage). La sous-section « Recette Minipen du 21/10/2026 » (CA-39 à CA-51) a son propre statut, « En cours de correction ». Elle ne modifie pas le statut des CA-1 à CA-38. La sous-section « Recette Minipen du 21/10/2026, 2e passage » (CA-52 à CA-63) a le même statut.
 
 **Comportement :**
 
@@ -852,8 +852,8 @@ Aucun sur les CA-1 à CA-38. Les points rouverts par la recette du 21/10/2026 so
 - `decompte_question_joueur_v2.png` — bandeau après fermeture, page joueur. Remplace `decompte_question_joueur_v1.png` (CA-49).
 - `decompte_question_diffusion_v2.png` — bandeau après fermeture, écran de diffusion (CA-49).
 - sources HTML et `banner.css` — même dossier, hors dépôt, avec ces maquettes v2.
-- `buzzer_decompte_joueur_v1.png` — décompte d'ouverture du buzzer dans le bouton joueur (§4.5). Proposition de Design UI.
-- `buzzer_pret_joueur_v1.png` — trois états du bouton, mode « Prêt ? » (§4.5). Proposition de Design UI pour les contrastes et le compteur sous le bouton. Les mots, l'orange, le vert et le basculement sont décidés.
+- `buzzer_decompte_joueur_v1.png` — décompte d'ouverture du buzzer dans le bouton joueur (§4.5). Proposition de Design UI. Cette v1 n'est plus valable : `buzzer_decompte_joueur_v2.png` la remplace (2e passage, CA-58).
+- `buzzer_pret_joueur_v1.png` — trois états du bouton, mode « Prêt ? » (§4.5). Proposition de Design UI pour les contrastes et le compteur sous le bouton. Les mots, l'orange, le vert et le basculement sont décidés. Cette v1 n'est plus valable : `buzzer_pret_joueur_v2.png` et `buzzer_etats_joueur_v3.png` la remplacent (CA-58).
 
 Les mesures encore marquées **Proposition de Design UI** ne sont pas des décisions. Le CA-42 est décidé. Une phrase marquée « Décidé par Minipen » est une décision de recette. Une phrase marquée « choix incertain » ou « À décider par Minipen » attend une confirmation.
 
@@ -919,7 +919,7 @@ Les mesures encore marquées **Proposition de Design UI** ne sont pas des décis
 
 46. **CA-46 — Modale du gagnant, page joueur**
 
-   **Règle :** Un clic sur la modale du gagnant la ferme côté joueur. Sans clic, elle se ferme selon le CA-50. Décidé par Minipen le 21/10/2026 : les libellés de la maquette sont « Point pour <nom> », « +1 point » et « Touchez pour fermer ». Ils remplacent le pseudo, l'avatar-score et le score final du §4.5 pour cette modale de point. Décidé par Minipen le 21/10/2026 : « +1 point » est remplacé par « + N points » pour un joueur, et par « + N points pour l'équipe <nom> » pour une équipe. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : au singulier, « + 1 point » ; le titre « Point pour <nom> » et l'avatar restent au-dessus. Proposition de Design UI pour les mesures, référence `gagnant_joueur_v1.png` : avatar rond de 120 px, anneau doré de 4 px avec une lueur. Dans cette modale, le texte est « Prochaine question dans : », sans le nombre de secondes. Le cercle du décompte est juste à droite de ce texte. Le nombre de secondes est porté par le cercle. Référence visuelle de ce décompte : `gagnant_joueur_v2.png` (remplace la v1 pour le décompte). Les mesures de cette maquette v2 sont une Proposition de Design UI. Si le décompte entre les questions vaut 0, cette modale ne s'affiche pas.
+   **Règle :** Un clic sur la modale du gagnant la ferme côté joueur. Sans clic, elle se ferme selon le CA-50. Décidé par Minipen le 21/10/2026 : les libellés de la maquette sont « Point pour <nom> », « +1 point » et « Touchez pour fermer ». Ils remplacent le pseudo, l'avatar-score et le score final du §4.5 pour cette modale de point. Décidé par Minipen le 21/10/2026 : « +1 point » est remplacé par « + N points » pour un joueur, et par « + N points pour l'équipe <nom> » pour une équipe. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : au singulier, « + 1 point » ; le titre « Point pour <nom> » et l'avatar restent au-dessus. Proposition de Design UI pour les mesures, référence `gagnant_joueur_v1.png` : avatar rond de 120 px, anneau doré de 4 px avec une lueur. Dans cette modale, le texte est « Prochaine question dans : », sans le nombre de secondes. Le cercle du décompte est juste à droite de ce texte. Le nombre de secondes est porté par le cercle. Référence visuelle de ce décompte : `gagnant_joueur_v2.png` (remplace la v1 pour le décompte). Les mesures de cette maquette v2 sont une Proposition de Design UI. Si le décompte entre les questions vaut 0, cette modale ne s'affiche pas. Choix incertain (Coding Agent, 21/10/2026), à confirmer par Minipen (CA-59) : cette modale joueur est remplacée si confirmé par un bloc rond au-dessus du buzzer. Le texte de ce CA est conservé.
 
    **Critère :** Quand le décompte entre les questions est supérieur à 0, la modale joueur montre « Point pour » suivi du nom, « + N points » (ou « + N points pour l'équipe <nom> ») et « Touchez pour fermer ». L'ancien critère « +1 point » est remplacé par ces deux libellés. L'avatar rond mesure 120 px, avec un anneau doré de 4 px et une lueur (`gagnant_joueur_v1.png`). Le décompte dans la modale suit `gagnant_joueur_v2.png` : « Prochaine question dans : », sans nombre de secondes dans la phrase, cercle juste à droite. Un clic ferme la modale immédiatement. Sans clic, elle se ferme au bout de min(3 s, décompte entre les questions) (CA-50). Les tailles et l'anneau restent une Proposition de Design UI. « Point pour <nom> » et « Touchez pour fermer » sont décidés. « +1 point » est remplacé par « + N points » ou « + N points pour l'équipe <nom> ». Le texte sans les secondes et la place du cercle sont décidés.
 
@@ -955,7 +955,7 @@ Les mesures encore marquées **Proposition de Design UI** ne sont pas des décis
 
 50. **CA-50 — Fermeture de la modale de victoire**
 
-   **Règle :** Résolu par Minipen le 21/10/2026. L'alternative « 4 s ou 3 s », le provisoire « le code garde 4 s » et la question « délais fixes ou liés au décompte » sont remplacés. Côté joueur, la modale de victoire se ferme au bout de min(3 s, décompte entre les questions), ou plus tôt au clic. Si le décompte entre les questions vaut 0, la modale de victoire ne s'affiche pas. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : même règle sur la diffusion (CA-47).
+   **Règle :** Résolu par Minipen le 21/10/2026. L'alternative « 4 s ou 3 s », le provisoire « le code garde 4 s » et la question « délais fixes ou liés au décompte » sont remplacés. Côté joueur, la modale de victoire se ferme au bout de min(3 s, décompte entre les questions), ou plus tôt au clic. Si le décompte entre les questions vaut 0, la modale de victoire ne s'affiche pas. Choix incertain (Specs Writer, 21/10/2026), à confirmer par Minipen : même règle sur la diffusion (CA-47). Choix incertain (Coding Agent, 21/10/2026), à confirmer par Minipen (CA-59) : cette fermeture min(3 s, décompte) est remplacée si confirmé par le bloc rond joueur. Le texte de ce CA est conservé.
 
    **Critère :** Sur la page joueur, avec un décompte entre les questions de D secondes, D > 0, la modale disparaît au bout de la plus petite des deux valeurs 3 et D, sauf si un clic la ferme avant. Avec D = 0, la modale n'apparaît pas. La diffusion reprend cette formule seulement au titre du choix incertain du CA-47.
 
@@ -997,6 +997,133 @@ Les mesures encore marquées **Proposition de Design UI** ne sont pas des décis
 - Mode « Prêt ? » : réglage du mode dans l'interface animateur, comme les deux décomptes, et application d'un changement à partir de la question suivante. « Tous les joueurs » = joueurs connectés. Décompte du buzzer à 0 : ouverture dès que tout le monde est prêt. Compteur de diffusion, par exemple « 3/5 prêts ». Arrivée pendant le décompte du buzzer : le joueur compte comme prêt, parce que la question est déjà affichée. Délai automatique : bornes 5 à 60 secondes, et 0 = pas de contournement (on attend tous les joueurs ou l'animateur). Lancement manuel : il démarre le décompte du buzzer, ou ouvre le buzzer si ce décompte vaut 0. Tous ces points sont des choix incertains (Specs Writer, 21/10/2026), à confirmer par Minipen.
 - Compteur joueur « 3 / 5 joueurs prêts » sous le bouton (`buzzer_pret_joueur_v1.png`) : Proposition de Design UI, à confirmer par Minipen. Il s'ajoute à la coche et au sablier. Il ne se confond pas avec le compteur de diffusion.
 - Coche et sablier : les couleurs `#1E7A3C` et `#F07800`, et la taille égale à la hauteur du nom, restent une Proposition de Design UI. La coche verte, le sablier orange et leur présence sur les trois écrans sont décidés.
+- La 2e recette (CA-52 à CA-63) a ses propres questions ouvertes. Elle ne referme pas les points de cette liste.
+
+---
+
+#### Recette Minipen du 21/10/2026, 2e passage
+
+**Statut :** En cours de correction
+
+**Périmètre :** retours de Minipen du 21/10/2026, vers 16 h. Les CA-52 à CA-63 s'ajoutent aux CA-1 à CA-51. Ils ne les retirent pas. Un bug est une régression : la règle déjà écrite reste, et le CA demande qu'elle tienne à nouveau. Les maquettes sont hors dépôt, dossier `/workspace/ui/buzzy/`.
+
+**Références :**
+
+- `buzzer_etats_joueur_v3.png` — bouton rond en relief dans tous les états. Décidé par Minipen le 21/10/2026 (« très bien »). `buzzer_etats_joueur_v2.png` n'est plus valable.
+- `buzzer_pret_joueur_v2.png` et `buzzer_decompte_joueur_v2.png` — maquettes valables pour « Prêt ? » et le décompte du buzzer. Elles montrent la question qui vient d'être jouée. Les v1 citées plus haut ne sont plus valables.
+- Les retouches du 4e écran (fond vert, effectifs) restent à faire par Design UI (CA-62, CA-63).
+
+##### Bugs
+
+52. **CA-52 — Un seul buzz enregistre le joueur**
+
+   **Règle :** Régression. La règle déjà écrite reste : un joueur ne buzze qu'une fois par fenêtre, et ce buzz l'ajoute à `buzzOrder` (§2, §4.8). Minipen, mot pour mot : « les joueurs doivent buzzer 2 fois pour être enregistrés (mais pas toujours, j'ai du mal à reproduire le bug) ». Un seul buzz doit toujours suffire.
+
+   **Critère :** Sur `/party/:partyId/play`, un seul buzz accepté pendant une fenêtre ouverte enregistre le joueur. La file de l'animateur le montre sans second appui. Un second appui ne crée pas une seconde entrée.
+
+   **Cas limites :** deux clics rapides : seul le premier enregistre le joueur. Buzz pile au changement d'état du buzzer (ouverture, ou passage à l'état « déjà buzzé ») : s'il part pendant que la fenêtre est ouverte, il enregistre le joueur ; s'il part après la fermeture, il est refusé comme un buzz fenêtre fermée. Premier toucher sur écran tactile : ce premier contact suffit, sans second toucher. Question ouverte pour Minipen, Testeur attend la réponse : le bug vu l'a-t-il été au téléphone ou à la souris ? Ce CA ne choisit pas l'appareil.
+
+53. **CA-53 — Surbrillance QCM à nouveau au relâchement**
+
+   **Règle :** Régression du CA-45. Minipen : la mise en avant de la réponse sélectionnée ne fonctionnait pas bien, elle ne fonctionne plus du tout. Le CA-45 reste la règle : la surbrillance s'allume dès le relâchement, tant que le pointeur est encore sur le choix. Ce CA ne réécrit pas le CA-45.
+
+   **Critère :** Le critère du CA-45 tient à nouveau sur `/party/:partyId/play`. Un relâchement sur le choix allume la surbrillance à cet instant. Décidé avec `buzzer_etats_joueur_v3.png` : la réponse choisie garde la même taille de texte, avec un contour et une lettre jaunes.
+
+   **Cas limites :** ceux du CA-45 (tactile, relâchement hors du bouton). Après validation, la taille du texte ne change pas (CA-54).
+
+54. **CA-54 — Taille du texte des réponses stable**
+
+   **Règle :** Régression. Minipen : la taille des textes des réponses change une fois la réponse validée. Elle ne doit pas changer.
+
+   **Critère :** Sur la page joueur, chaque réponse a la même taille de texte avant la validation et après. La validation peut ajouter le contour jaune (CA-53, maquette v3). Elle ne change pas la taille.
+
+   **Cas limites :** énoncé long, réponse sur deux lignes : la taille reste celle d'avant la validation. Quatre réponses ou plus : aucune ne change de taille au moment de la validation.
+
+55. **CA-55 — Pas d'écran noir côté diffusion**
+
+   **Règle :** Régression. Minipen : « j'ai de nouveau des écrans noirs coté diffusion. » Le CA-44 reste la règle : aucune des trois pages ne reste noire, et la question suivante s'affiche sans rafraîchissement. Le noircissement de la page animateur par la fenêtre du gagnant dans la miniature est l'autre cas déjà écrit (CA-33) : la miniature n'a pas cette fenêtre, la vraie diffusion l'a. Ce CA ne réécrit ni le CA-44 ni le CA-33.
+
+   **Critère :** Sur `/party/:partyId/broadcast`, après un buzz, après une validation, et au passage à la question suivante, l'écran ne devient pas noir. Aucun rechargement n'est nécessaire pour revoir la diffusion.
+
+   **Cas limites :** ceux du CA-44. Deux diffusions ouvertes : aucune des deux ne reste noire. La miniature animateur suit le CA-33.
+
+##### Décisions
+
+56. **CA-56 — Texte « Réponse enregistrée » retiré**
+
+   **Règle :** Décidé par Minipen le 21/10/2026. Le texte « Réponse enregistrée — l'animateur doit valider dans la file de buzz avant l'indication bon / mauvais à l'écran. » est inutile sous les réponses lorsque la réponse est validée. Il est supprimé à cet endroit.
+
+   **Critère :** Une fois la réponse validée, cette phrase n'apparaît pas sous les réponses, sur la page joueur. L'indication bon ou mauvais, quand l'animateur valide, n'est pas retirée par ce CA.
+
+   **Cas limites :** avant la validation, la recette ne dit pas si une autre phrase s'affiche. QCM et question libre : la phrase citée est absente sous les réponses dès que la réponse du joueur est enregistrée.
+
+57. **CA-57 — Le buzzer reste après le buzz**
+
+   **Règle :** Décidé par Minipen le 21/10/2026. Le buzzer ne disparaît plus après un buzz. Il reste visible et change d'état. La phrase du §2 « Le bouton buzz est grisé si la fenêtre est fermée ou si le joueur a déjà buzzé » est conservée. Minipen avait mis un point d'interrogation (« passage au gris ? »). Ce point est remplacé par la validation de `buzzer_etats_joueur_v3.png` : l'état après buzz est le bouton gris « Buzz envoyé ».
+
+   **Critère :** Après un buzz enregistré, le bouton buzzer est encore dans la page joueur. Il n'est pas retiré du flux. Il est gris et porte « Buzz envoyé », comme la maquette décidée. Un second buzz sur cet état ne réenregistre pas le joueur (CA-52).
+
+   **Cas limites :** fenêtre qui se ferme sans que ce joueur ait buzzé : le bouton reste visible. Reconnexion après le buzz : le bouton revient déjà gris « Buzz envoyé », pas absent.
+
+58. **CA-58 — Maquette des états du buzzer**
+
+   **Règle :** Décidé par Minipen le 21/10/2026 : `buzzer_etats_joueur_v3.png` (« très bien »). Elle reprend le bouton rond en relief dans tous les états. « Prêt ? » est orange, avec une vague qui tourne. « Prêt ! » est vert, avec des rayons qui pulsent. Après un buzz, le bouton est gris « Buzz envoyé » (CA-57). Pour le gagnant, un disque remplace le buzzer, avec le nom, le gain et le décompte (CA-59). La réponse choisie garde la même taille de texte, avec un contour et une lettre jaunes (CA-53, CA-54). L'écart « +1 point » est résolu : la maquette affiche « + 1 point ». La proposition de Minipen (garder la forme du buzzer rouge, vague autour de l'orange, rayons autour du vert) est confirmée par cette validation. `buzzer_pret_joueur_v1.png`, `buzzer_decompte_joueur_v1.png` et `buzzer_etats_joueur_v2.png` ne sont plus valables. `buzzer_pret_joueur_v2.png` et `buzzer_decompte_joueur_v2.png` sont les maquettes valables de ces deux moments : elles montrent la question qui vient d'être jouée (CA-60). Les vitesses d'animation restent à confirmer par Minipen. Proposition de Design UI pour une équipe : « + N points pour l'équipe … » sur la même ligne que le gain, le nom de l'équipe passant sur deux lignes s'il est long. Les retouches du 4e écran restent à faire par Design UI (CA-62, CA-63).
+
+   **Critère :** La page joueur reprend ces états, dans la forme ronde en relief de la maquette décidée. Le disque du gagnant affiche « + 1 point » quand le gain est de 1. Un gain autre que 1 reste « + N points » (§4.5). Le singulier « + 1 point » de ce disque est celui de la maquette validée.
+
+   **Cas limites :** équipe gagnante : la ligne proposée par Design UI n'est pas encore décidée. Animation : les vitesses ne sont pas fixées. Compteur « 3 / 5 joueurs prêts » : il reste la proposition déjà écrite, en plus de ces états.
+
+59. **CA-59 — Bloc rond joueur, notification sur la diffusion**
+
+   **Règle :** Choix incertain (Coding Agent, 21/10/2026), à confirmer par Minipen. Ce n'est plus un « À décider » sans lecture. Coding Agent le code déjà. Côté joueur, un bloc rond au-dessus du buzzer remplace la fenêtre. La notification ne reste que sur la diffusion. La maquette décidée montre ce bloc comme un disque à la place du buzzer, avec le nom, le gain et le décompte (CA-58). S'il est confirmé, il remplacerait la modale joueur du CA-46 et la fermeture min(3 s, décompte) du CA-50. Ces deux CA portent la mention « remplacé si confirmé ». Leur texte est conservé. La notification de diffusion reste le CA-47 : ce choix ne le retire pas. CA concernés, non réécrits : CA-43, CA-46, CA-47, CA-49, CA-50, CA-51, et les phrases de modale du §4.5.
+
+   **Critère :** Tant que Minipen n'a pas confirmé, le CA-46 et le CA-50 restent la règle écrite. Le disque de la maquette v3 est le dessin de ce bloc. La diffusion garde une notification de gagnant (CA-47). La page joueur n'aurait plus de fenêtre modale si le choix est confirmé.
+
+   **Cas limites :** décompte entre les questions à 0 : le CA-50 dit qu'il n'y a pas de modale. Le bloc rond, s'il est confirmé, n'a pas encore de règle de durée propre. Animateur : le CA-43 (pas de modale sur cette page) n'est pas modifié par ce choix.
+
+##### Question affichée pendant les décomptes
+
+60. **CA-60 — La question qui vient d'être jouée reste pendant les trois décomptes**
+
+   **Règle :** Minipen, relayé par Chef De Projet le 21/10/2026 : pendant les trois décomptes (entre les questions, attente « Prêt ? », ouverture du buzzer), c'est la question actuelle qui reste affichée. Aucun écran (animateur, joueur, diffusion) ne montre la question suivante avant la fin de ces décomptes. C'est un bug actuel : on lit déjà la question suivante pendant le décompte. Choix incertain (Coding Agent, 21/10/2026), à confirmer par Minipen, à la place de la lecture précédente. Lecture retenue : la question qui vient d'être jouée reste affichée pendant les trois décomptes. La nouvelle n'apparaît qu'à l'ouverture du buzzer. La lecture précédente (question suivante déjà affichée pendant « Prêt ? » et le décompte du buzzer, envoyée dès la fin du décompte entre les questions) est remplacée par celle-ci. Question ouverte pour Minipen, À décider : afficher la nouvelle question au début du décompte du buzzer, ou seulement à l'ouverture ? Écart relevé par Testeur : avec la lecture « seulement à l'ouverture », les joueurs n'ont plus de temps pour lire la question avant de pouvoir buzzer, alors que le §4.5 donne justement ce rôle au décompte du buzzer. La phrase du §4.5 « le décompte du buzzer démarre après l'affichage de la question » est conservée, pas réécrite. L'ambiguïté est celle-ci : la lecture de Coding Agent place « Prêt ? » et le décompte du buzzer avant l'affichage de la nouvelle question. L'autre lecture afficherait la nouvelle question au début du décompte du buzzer, buzzer encore fermé, après « Prêt ? » si ce mode est actif. `buzzer_pret_joueur_v2.png`, `buzzer_decompte_joueur_v2.png` et `buzzer_etats_joueur_v3.png` montrent la question précédente pendant « Prêt ? » et le décompte du buzzer. Les maquettes plus anciennes, qui montraient la question suivante, ne sont plus valables. Design UI les a corrigées dans ces fichiers.
+
+   **Critère :** Sous la lecture incertaine : pendant le décompte entre les questions, pendant « Prêt ? » et pendant le décompte du buzzer, l'animateur, le joueur et la diffusion affichent la question qui vient d'être jouée, pas la suivante. La suivante apparaît quand le buzzer s'ouvre.
+
+   **Cas limites :** les trois durées à 0, et « Prêt ? » inactif : il n'y a pas de décompte. La nouvelle question apparaît à l'ouverture du buzzer, tout de suite. « Prêt ? » inactif, avec un décompte entre les questions ou un décompte du buzzer : la question jouée reste pendant les décomptes qui existent. Joueur qui rejoint pendant un de ces décomptes : il voit la question jouée, pas la suivante. Lancement manuel : le sens déjà incertain reste (décompte du buzzer, ou ouverture directe si ce décompte vaut 0). Sous cette lecture, la nouvelle question attend l'ouverture. Si le geste ne fait que démarrer le décompte du buzzer, la question jouée reste pendant ce décompte. Si le décompte vaut 0 et que le geste ouvre le buzzer, la nouvelle question apparaît alors.
+
+61. **CA-61 — La question suivante n'est pas envoyée avant l'ouverture**
+
+   **Règle :** Choix incertain (Coding Agent, 21/10/2026), à confirmer par Minipen, lié au CA-60. Le serveur n'envoie pas la question suivante avant l'ouverture du buzzer. Elle n'est pas dans ce que reçoivent les pages, pour qu'on ne puisse pas la lire en avance, même dans le code de la page. La formulation plus étroite « pas avant la fin du décompte entre les questions », qui l'aurait laissée présente pendant « Prêt ? » et le décompte du buzzer, est remplacée par celle-ci.
+
+   **Critère :** Avant l'ouverture du buzzer, le snapshot et les messages reçus par l'animateur, le joueur et la diffusion ne contiennent ni l'énoncé ni les réponses de la question suivante. À l'ouverture, ils les contiennent.
+
+   **Cas limites :** reconnexion pendant un des trois décomptes : la question suivante est toujours absente. Décompte du buzzer à 0 : elle arrive au moment de l'ouverture, pas avant. La question ouverte du CA-60, si Minipen choisit l'affichage dès le début du décompte du buzzer, avancerait cet envoi à ce début. Ce CA ne tranche pas cette question.
+
+##### Résultat côté joueur
+
+62. **CA-62 — Bonne réponse en vert, choix du joueur en jaune**
+
+   **Règle :** Décidé par Minipen le 21/10/2026, en plus de `buzzer_etats_joueur_v3.png`, pour le 4e écran (résultat côté joueur). La bonne réponse s'affiche sur fond vert. La réponse du joueur garde son surlignage jaune. Choix incertain (Specs Writer et Coding Agent, 21/10/2026), à confirmer par Minipen : si le joueur a choisi la bonne réponse, celle-ci a le fond vert et le contour jaune. Les retouches de la maquette restent à faire par Design UI.
+
+   **Critère :** Sur la page joueur, à l'écran de résultat, la bonne réponse a un fond vert. La réponse choisie par ce joueur garde le contour jaune, y compris si ce n'est pas la bonne. La taille du texte reste celle d'avant (CA-54).
+
+   **Cas limites :** le joueur n'a pas répondu : aucune réponse n'a de surlignage jaune. La bonne réponse a quand même le fond vert. Le cumul fond vert et contour jaune, quand le joueur a la bonne réponse, reste le choix incertain ci-dessus.
+
+63. **CA-63 — Nombre de répondants et pourcentage**
+
+   **Règle :** Décidé par Minipen le 21/10/2026, sur le même 4e écran. Chaque réponse affiche le nombre de répondants et le pourcentage. Choix incertains (Specs Writer et Coding Agent, 21/10/2026), à confirmer par Minipen : le format est « 2 (11%) ». Le pourcentage est calculé sur les joueurs qui ont répondu, pas sur tous les connectés, et arrondi à l'entier. Avec 0 répondant, toutes les réponses affichent « 0 (0%) ». Les retouches de la maquette restent à faire par Design UI.
+
+   **Critère :** Chaque réponse du résultat joueur montre un effectif et un pourcentage. Sans confirmation du format, la présence des deux nombres est décidée, et l'écriture « 2 (11%) » est le choix incertain.
+
+   **Cas limites :** la somme des pourcentages arrondis peut ne pas faire 100 %. Un joueur qui n'a pas répondu n'a pas de surlignage jaune (CA-62). Sous le choix incertain, il ne compte pas dans le total des répondants. Zéro répondant : « 0 (0%) » sur chaque réponse, sous le même choix incertain. Le format « 2 (11%) » est l'exemple cité pour l'écriture, pas un calcul supplémentaire.
+
+**Questions ouvertes de ce passage :**
+
+- CA-52 : téléphone ou souris, Testeur attend Minipen.
+- CA-58 : vitesses d'animation. Ligne d'équipe « + N points pour l'équipe … », Proposition de Design UI.
+- CA-59 : bloc rond à la place de la modale joueur, notification seulement sur la diffusion.
+- CA-60 : nouvelle question au début du décompte du buzzer, ou seulement à l'ouverture.
+- CA-62 et CA-63 : format « 2 (11%) », cumul vert et jaune, pourcentage sur les répondants, arrondi, « 0 (0%) ».
 
 ---
 

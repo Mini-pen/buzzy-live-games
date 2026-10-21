@@ -138,3 +138,11 @@ Session 2026-10-21 — Mode Prêt ?, + N points, CA-33 (commit c34c952)
 - « +1 point » remplacé par « + N points » ou « + N points pour l'équipe <nom> ».
 - CA-33 confirmé : pas de modale du gagnant dans la miniature. Elle reste sur la vraie diffusion.
 - Encore ouverts alors : délai 30 s, forçage À décider, compteurs, couleurs des contrastes.
+
+================================================================================
+Session 2026-10-21 — Délai 15 s, lancement manuel, coche et sablier (commit 4811b24)
+================================================================================
+- Délai automatique qui passe outre « Prêt ? » : 15 s par défaut, réglable. Les phrases de 30 s sont conservées comme remplacées.
+- L'animateur peut lancer la question à la main même si tout le monde n'est pas prêt.
+- Liste des joueurs : coche verte si prêt, sablier orange sinon, seulement si le mode est actif.
+- Choix incertains laissés : bornes 5 à 60 s, 0 = pas de délai, sens du lancement manuel. Couleurs et taille des icônes en proposition.
