@@ -46,7 +46,7 @@ import {
   shrinkPackWithReports,
   type PackFitSnapshot,
 } from "./questionEditor";
-import type { QuizPack } from "../../src/games/pack";
+import type { QuizPack } from "../../src/games/packModel";
 import { useFrozenSvh } from "./stableViewport";
 import { VisibleErrorBoundary } from "./visibleErrorBoundary";
 

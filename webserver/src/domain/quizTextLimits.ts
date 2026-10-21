@@ -1,4 +1,4 @@
-import { isQuizRound, type QuizPack } from "../games/pack.js";
+import { isQuizRound, type QuizPack } from "../games/packModel.js";
 
 /**
  * * Server-side character guardrails.

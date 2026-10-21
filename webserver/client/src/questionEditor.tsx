@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from "react";
 
-import { isQuizRound, type QuizPack, type QuizQuestion } from "../../src/games/pack";
+import { isQuizRound, type QuizPack, type QuizQuestion } from "../../src/games/packModel";
 import { PLAY_LAYOUT } from "../../src/domain/playLayout";
 import {
   ANSWER_CHOICE_MAX_GRAPHEMES,
