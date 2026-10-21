@@ -147,6 +147,18 @@ const verdictSoundsSchema = z.object({
   enabled: z.boolean(),
 });
 
+const readyCheckSchema = z.object({
+  enabled: z.boolean(),
+});
+
+const readyTimeoutSchema = z.object({
+  seconds: z.number().int(),
+});
+
+const playerReadySchema = z.object({
+  ready: z.boolean(),
+});
+
 const countdownDurationSchema = z.object({
   seconds: z.number().int().min(BUZZER_COUNTDOWN_MIN_SEC).max(BUZZER_COUNTDOWN_MAX_SEC),
 });
@@ -609,9 +621,13 @@ export async function registerPartyRoutes(
         if (partyId !== req.params.partyId)
           return reply.status(403).send({ error: "FORBIDDEN" });
         const party = requireParty(store, partyId);
-        store.playerMarkReady(party, playerId, config.readyTimeoutMs);
+        const body = playerReadySchema.parse(req.body ?? {});
+        store.playerSetReady(party, playerId, body.ready);
         return snapPlayer(party);
       } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
         return replyDomain(reply, err);
       }
     },
@@ -901,6 +917,63 @@ export async function registerPartyRoutes(
         if (err instanceof z.ZodError) {
           return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
         }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/ready-check",
+    async (req, reply) => {
+      try {
+        const body = readyCheckSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        const pack = quizPackFromLoadedId(allPacks(), party.loadedPackId);
+        store.adminSetReadyCheckEnabled(party, body.enabled, pack);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/ready-timeout",
+    async (req, reply) => {
+      try {
+        const body = readyTimeoutSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetReadyTimeoutSec(party, body.seconds);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/launch-question",
+    async (req, reply) => {
+      try {
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminLaunchQuestion(party);
+        return snapHost(party);
+      } catch (err) {
         return replyDomain(reply, err);
       }
     },

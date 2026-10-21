@@ -190,7 +190,17 @@ export interface Party {
   pendingPointAward: PointAward | null;
   /** * When to show winner screen: "question" or "round". */
   winnerScreenMode: "question" | "round";
-  /** * Player IDs who marked themselves ready for the next question. */
+  /**
+   * * When true, players confirm « Prêt ? » on the buzzer after the between-question pause
+   *   and before the pre-buzzer countdown.
+   */
+  readyCheckEnabled: boolean;
+  /**
+   * * Seconds before « Prêt ? » starts the buzzer countdown anyway.
+   *   `0` waits until every player is ready or the host launches the question.
+   */
+  readyTimeoutSec: number;
+  /** * Player IDs who are currently green (« Prêt ! ») during the ready phase. */
   readyPlayers: Set<string>;
   /** * Timestamp (ms) when the ready phase started; null when not in ready phase. */
   readyPhaseStartedAt: number | null;
@@ -453,6 +463,10 @@ export interface PartyPublicSnapshot {
   nextQuestionCountdownStartedAt?: number | null;
   /** * Point shown during the next-question pause. */
   pointAward?: PointAward | null;
+  /** * Host toggle for the « Prêt ? » step between the two countdowns. */
+  readyCheckEnabled?: boolean;
+  /** * « Prêt ? » auto-timeout in seconds. `0` disables it. Otherwise 5–60. */
+  readyTimeoutSec?: number;
   /** * Winner screen mode: "question" or "round", host only. */
   winnerScreenMode?: "question" | "round";
   /** * IDs of players who marked ready for the next question. */
@@ -471,6 +485,8 @@ export interface PointAward {
   playerName: string;
   avatarKey: string;
   points: number;
+  /** * Set when the point belongs to a team. `null` for a solo score. */
+  teamName: string | null;
 }
 
 /** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */

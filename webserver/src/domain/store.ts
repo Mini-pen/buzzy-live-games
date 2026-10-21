@@ -27,7 +27,9 @@ import {
   BUZZER_COUNTDOWN_MAX_SEC,
   BUZZER_COUNTDOWN_MIN_SEC,
   isValidNextQuestionCountdownSec,
+  isValidReadyTimeoutSec,
   NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC,
+  READY_TIMEOUT_DEFAULT_SEC,
 } from "./nextQuestionCountdown.js";
 import { evaluateJoin, normalizeTeamChoice, publicSnapshotForParty } from "./partyLogic.js";
 import { quizPackFromLoadedId } from "./partySnapshotPresenter.js";
@@ -270,6 +272,8 @@ export class PartyStore {
       pointAward: null,
       pendingPointAward: null,
       winnerScreenMode: "question",
+      readyCheckEnabled: false,
+      readyTimeoutSec: READY_TIMEOUT_DEFAULT_SEC,
       readyPlayers: new Set(),
       readyPhaseStartedAt: null,
       countdownStartedAt: null,
@@ -362,9 +366,29 @@ export class PartyStore {
       joinedAt: Date.now(),
     };
     canonical.players.set(player.id, player);
+    this.notePlayerJoinedDuringQuestion(canonical, player.id);
     this.touch(canonical);
     this.broadcast(canonical);
     return player;
+  }
+
+  /**
+   * * A joiner during the ready phase stays not ready: the phase keeps waiting for them.
+   *   A joiner while the buzzer is already open counts as ready and can answer immediately.
+   *   INCERTAIN: a joiner during the pre-buzzer countdown (ready phase already over) counts as ready and only waits for the buzzer to open.
+   */
+  notePlayerJoinedDuringQuestion(party: Party, playerId: string): void {
+    if (!party.readyCheckEnabled) return;
+    const waitingForReady =
+      party.readyPhaseStartedAt !== null &&
+      party.countdownStartedAt === null &&
+      !party.buzzWindowOpen &&
+      party.nextQuestionCountdownStartedAt === null;
+    if (waitingForReady) return;
+    const pastReady =
+      (party.countdownStartedAt !== null && !party.buzzWindowOpen) || party.buzzWindowOpen;
+    if (!pastReady) return;
+    party.readyPlayers.add(playerId);
   }
 
   verifyAdminToken(
@@ -397,8 +421,12 @@ export class PartyStore {
       });
     }
     party.players.delete(playerId);
+    party.readyPlayers.delete(playerId);
     party.buzzOrder = party.buzzOrder.filter((id) => id !== playerId);
     party.buzzQuizGuess.delete(playerId);
+    if (this.readyPhaseIsWaiting(party) && this.everyoneConnectedIsReady(party)) {
+      this.releaseBuzzerAfterReady(party);
+    }
     this.touch(party);
     this.notify(party.id, party, { kind: "player_kicked", playerId });
   }
@@ -889,20 +917,54 @@ export class PartyStore {
     this.openBuzzPolicyAfterGap(party, pack);
   }
 
-  /** * Ends the next-question pause and applies the host auto-open policy (ready phase, not the §4.5 countdown). */
+  /**
+   * * After the between-question pause: optional « Prêt ? », otherwise the pre-buzzer countdown when auto-open is on.
+   */
   private openBuzzPolicyAfterGap(party: Party, pack: QuizPack | null): void {
     party.nextQuestionCountdownStartedAt = null;
     party.pointAward = null;
     if (party.winnerScreenMode === "question") party.winnerDisplay = null;
-    const shouldOpen =
-      pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
-    if (shouldOpen) {
-      if (party.readyPhaseStartedAt === null) party.readyPhaseStartedAt = Date.now();
-      party.buzzWindowOpen = false;
+    const canBuzz = pack !== null && this.surfaceSupportsBuzz(party, pack);
+    if (party.readyCheckEnabled && canBuzz) {
+      this.beginReadyPhase(party);
+      return;
+    }
+    if (canBuzz && party.autoOpenBuzzOnCueAdvance) {
+      this.releaseBuzzerAfterReady(party);
       return;
     }
     party.buzzWindowOpen = false;
     this.clearReadyPhase(party);
+  }
+
+  /** * Opens the « Prêt ? » step. Every connected player starts orange. */
+  private beginReadyPhase(party: Party): void {
+    party.readyPlayers.clear();
+    party.readyPhaseStartedAt = Date.now();
+    party.countdownStartedAt = null;
+    party.buzzWindowOpen = false;
+  }
+
+  /** * True while players can still toggle « Prêt ? » and the buzzer countdown has not started. */
+  private readyPhaseIsWaiting(party: Party): boolean {
+    return (
+      party.readyCheckEnabled &&
+      party.readyPhaseStartedAt !== null &&
+      party.countdownStartedAt === null &&
+      !party.buzzWindowOpen &&
+      party.nextQuestionCountdownStartedAt === null
+    );
+  }
+
+  /**
+   * * Drops ready marks for players who left.
+   *   The roster is the connected set: only those players must be green.
+   */
+  private everyoneConnectedIsReady(party: Party): boolean {
+    for (const id of party.readyPlayers) {
+      if (!party.players.has(id)) party.readyPlayers.delete(id);
+    }
+    return party.players.size > 0 && party.readyPlayers.size >= party.players.size;
   }
 
   /** * Drops a running next-question pause without touching the §4.5 leader screen. */
@@ -1444,30 +1506,77 @@ export class PartyStore {
     this.broadcast(party);
   }
 
-  playerMarkReady(party: Party, playerId: string, readyTimeoutMs: number): void {
+  /**
+   * * Turns one player green or orange during « Prêt ? ».
+   *   When every connected player is green, the pre-buzzer countdown starts (or the buzzer opens if that countdown is 0).
+   */
+  playerSetReady(party: Party, playerId: string, ready: boolean): void {
     if (party.state !== "round_active") {
       throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
     }
     if (party.nextQuestionCountdownStartedAt !== null) {
       throw Object.assign(new Error("La question suivante n'est pas encore ouverte."), { code: "BAD_PHASE" });
     }
+    if (!this.readyPhaseIsWaiting(party)) {
+      throw Object.assign(new Error("Le mode Prêt n'est pas en cours."), { code: "BAD_PHASE" });
+    }
     const player = party.players.get(playerId);
     if (!player) {
       throw Object.assign(new Error("Joueur introuvable."), { code: "PLAYER_NOT_FOUND" });
     }
-    party.readyPlayers.add(playerId);
-    if (party.readyPhaseStartedAt === null) {
-      party.readyPhaseStartedAt = Date.now();
-    }
-    
-    const allReady = party.readyPlayers.size >= party.players.size;
-    const elapsed = Date.now() - party.readyPhaseStartedAt;
-    const timeoutReached = elapsed >= readyTimeoutMs;
-    
-    if (allReady || timeoutReached) {
+    if (ready) party.readyPlayers.add(playerId);
+    else party.readyPlayers.delete(playerId);
+
+    if (this.everyoneConnectedIsReady(party) || this.readyTimedOut(party)) {
       this.releaseBuzzerAfterReady(party);
     }
-    
+
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Host toggle for the « Prêt ? » step. Applies on the question that is still waiting for the buzzer. */
+  adminSetReadyCheckEnabled(party: Party, enabled: boolean, pack: QuizPack | null): void {
+    party.readyCheckEnabled = enabled;
+    const canBuzz = pack !== null && party.state === "round_active" && this.surfaceSupportsBuzz(party, pack);
+    if (!enabled && this.readyPhaseIsWaiting(party)) {
+      if (party.autoOpenBuzzOnCueAdvance && canBuzz) this.releaseBuzzerAfterReady(party);
+      else this.clearReadyPhase(party);
+    } else if (
+      enabled &&
+      canBuzz &&
+      party.readyPhaseStartedAt === null &&
+      party.countdownStartedAt === null &&
+      !party.buzzWindowOpen &&
+      party.nextQuestionCountdownStartedAt === null
+    ) {
+      this.beginReadyPhase(party);
+    }
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Sets the « Prêt ? » auto-timeout. `0` disables it. Does not change a countdown already running. */
+  adminSetReadyTimeoutSec(party: Party, seconds: number): void {
+    if (!isValidReadyTimeoutSec(seconds)) {
+      throw Object.assign(new Error("Délai de 0, ou entre 5 et 60 secondes."), {
+        code: "INVALID_DURATION",
+      });
+    }
+    party.readyTimeoutSec = seconds;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /**
+   * * Host « Lancer la question »: starts the pre-buzzer countdown even if someone is still orange.
+   *   A countdown of 0 opens the buzzer at once.
+   */
+  adminLaunchQuestion(party: Party): void {
+    if (!this.readyPhaseIsWaiting(party)) {
+      throw Object.assign(new Error("Le mode Prêt n'est pas en cours."), { code: "BAD_PHASE" });
+    }
+    this.releaseBuzzerAfterReady(party);
     this.touch(party);
     this.broadcast(party);
   }
@@ -1478,23 +1587,23 @@ export class PartyStore {
       party.winnerDisplay = null;
       party.buzzWindowOpen = true;
       party.buzzWindowOpenedAt = Date.now();
-      this.clearReadyPhase(party);
+      this.clearReadyPhase(party, { keepReadyMarks: true });
       return;
     }
     party.countdownStartedAt = Date.now();
   }
-  
-  maybeStartCountdownIfReady(party: Party, readyTimeoutMs: number): boolean {
+
+  maybeStartCountdownIfReady(party: Party): boolean {
     if (party.state !== "round_active") return false;
+    if (!party.readyCheckEnabled) return false;
     if (party.nextQuestionCountdownStartedAt !== null) return false;
     if (party.readyPhaseStartedAt === null) return false;
     if (party.countdownStartedAt !== null) return false;
     if (party.buzzWindowOpen) return false;
-    
-    const allReady = party.readyPlayers.size >= party.players.size && party.players.size > 0;
-    const elapsed = Date.now() - party.readyPhaseStartedAt;
-    const timeoutReached = elapsed >= readyTimeoutMs;
-    
+
+    const allReady = this.everyoneConnectedIsReady(party);
+    const timeoutReached = this.readyTimedOut(party);
+
     if (allReady || timeoutReached) {
       this.releaseBuzzerAfterReady(party);
       this.touch(party);
@@ -1516,7 +1625,7 @@ export class PartyStore {
       party.buzzWindowOpen = true;
       party.buzzWindowOpenedAt = Date.now();
       party.winnerDisplay = null;
-      this.clearReadyPhase(party);
+      this.clearReadyPhase(party, { keepReadyMarks: true });
       this.touch(party);
       this.broadcast(party);
       return true;
@@ -1524,8 +1633,21 @@ export class PartyStore {
     return false;
   }
 
-  clearReadyPhase(party: Party): void {
-    party.readyPlayers.clear();
+  /**
+   * * True once `readyTimeoutSec` has elapsed since the ready phase started.
+   *   `0` never elapses: only a full ready set or « Lancer la question » moves on.
+   */
+  private readyTimedOut(party: Party): boolean {
+    if (party.readyPhaseStartedAt === null) return false;
+    const seconds = Number.isInteger(party.readyTimeoutSec)
+      ? party.readyTimeoutSec
+      : READY_TIMEOUT_DEFAULT_SEC;
+    if (seconds <= 0) return false;
+    return Date.now() - party.readyPhaseStartedAt >= seconds * 1000;
+  }
+
+  clearReadyPhase(party: Party, options?: { keepReadyMarks?: boolean }): void {
+    if (options?.keepReadyMarks !== true) party.readyPlayers.clear();
     party.readyPhaseStartedAt = null;
     party.countdownStartedAt = null;
   }
@@ -1606,11 +1728,13 @@ export class PartyStore {
   private notePointAward(party: Party, playerId: string, points: number): void {
     const player = party.players.get(playerId);
     if (!player) return;
+    const teamsOn = party.maxTeams !== null && party.maxTeams >= 2 && player.teamId !== null;
     party.pendingPointAward = {
       playerId,
       playerName: player.displayName,
       avatarKey: player.avatarKey,
       points,
+      teamName: teamsOn ? String(player.teamId) : null,
     };
   }
 

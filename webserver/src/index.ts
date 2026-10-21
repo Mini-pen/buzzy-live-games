@@ -156,7 +156,7 @@ async function main(): Promise<void> {
       }
       
       if (party.countdownStartedAt === null && party.readyPhaseStartedAt !== null) {
-        store.maybeStartCountdownIfReady(party, config.readyTimeoutMs);
+        store.maybeStartCountdownIfReady(party);
       }
       
       if (party.countdownStartedAt !== null && !party.buzzWindowOpen) {

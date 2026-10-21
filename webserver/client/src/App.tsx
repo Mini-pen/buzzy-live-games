@@ -32,7 +32,11 @@ import {
   nextQuestionCountdownProgress,
   nextQuestionCountdownRemainingSec,
   POINT_MODAL_CLOSE_MS,
+  isValidReadyTimeoutSec,
   pointAwardLabel,
+  READY_TIMEOUT_DEFAULT_SEC,
+  READY_TIMEOUT_MAX_SEC,
+  readyStatusLabel,
 } from "../../src/domain/nextQuestionCountdown";
 
 /** * Quiz surface from `PartyPublicSnapshot.gameBoard`. */
@@ -224,7 +228,10 @@ interface PartySnapshot {
     playerName: string;
     avatarKey: string;
     points: number;
+    teamName?: string | null;
   } | null;
+  readyCheckEnabled?: boolean;
+  readyTimeoutSec?: number;
   winnerScreenMode?: "question" | "round";
   readyPlayers?: string[];
   readyPhaseStartedAt?: number | null;
@@ -478,7 +485,7 @@ function QuestionCountdownFrame(props: {
  *   INCERTAIN: the ring stays gold #FFCA28 — the model has no per-player color.
  */
 function PointAwardModal(props: {
-  award: { playerName: string; avatarKey: string; points: number };
+  award: { playerName: string; avatarKey: string; points: number; teamName?: string | null };
   startedAt: number;
   durationSec: number;
   nowMs: number;
@@ -520,7 +527,7 @@ function PointAwardModal(props: {
         />
         <p className="bz-point-kicker">Point pour</p>
         <p className="bz-point-name">{props.award.playerName}</p>
-        <p className="bz-point-pill">{pointAwardLabel(props.award.points)}</p>
+        <p className="bz-point-pill">{pointAwardLabel(props.award.points, props.award.teamName)}</p>
         <div className="bz-point-count">
           <span>Prochaine question dans :</span>
           <DrainingCircle
@@ -909,44 +916,43 @@ function playSfxUrl(url: string | undefined | null): void {
   }
 }
 
-function ReadyCountdownHero(props: {
-  readyPlayers: string[];
-  allPlayersCount: number;
-  isReady: boolean;
-  onMarkReady: () => void;
-  readyLoading: boolean;
-}): JSX.Element {
-  const { readyPlayers, allPlayersCount, isReady, onMarkReady, readyLoading } = props;
-
-  if (!isReady) {
-    return (
-      <div className="bz-ready-phase">
-        <p className="bz-ready-message">
-          {readyPlayers.length === 0
-            ? "Prêt pour la prochaine question ?"
-            : `${readyPlayers.length} / ${allPlayersCount} joueur${readyPlayers.length === 1 ? "" : "s"} prêt${readyPlayers.length === 1 ? "" : "s"}`}
-        </p>
-        <button
-          type="button"
-          onClick={onMarkReady}
-          disabled={readyLoading}
-          className="bz-ready-btn"
-        >
-          {readyLoading ? "Marquage..." : "Prêt"}
-        </button>
-      </div>
-    );
-  }
-
+/** * True while « Prêt ? » is the step on screen, before the pre-buzzer countdown. */
+function readyPhaseOnScreen(snap: PartySnapshot): boolean {
   return (
-    <div className="bz-ready-phase">
-      <p className="bz-ready-message">
-        ✓ En attente des autres joueurs...
-      </p>
-      <p className="bz-muted" style={{ fontSize: 14, margin: "8px 0 0" }}>
-        {readyPlayers.length} / {allPlayersCount} joueur{readyPlayers.length === 1 ? "" : "s"} prêt{readyPlayers.length === 1 ? "" : "s"}
-      </p>
-    </div>
+    snap.state === "round_active" &&
+    snap.readyPhaseStartedAt != null &&
+    snap.countdownStartedAt == null &&
+    snap.buzzWindowOpen !== true
+  );
+}
+
+/**
+ * * Check or hourglass in front of a player name.
+ *   Shown only while « Prêt ? » is enabled. Both glyphs are 1em so the names stay aligned.
+ *   INCERTAIN: green check #1E7A3C and orange hourglass #F07800 are a Design UI proposal.
+ */
+function ReadyListMark(props: { snap: PartySnapshot; playerId: string }): JSX.Element | null {
+  if (props.snap.readyCheckEnabled !== true) return null;
+  const ready = (props.snap.readyPlayers ?? []).includes(props.playerId);
+  return (
+    <span
+      className={ready ? "bz-ready-mark is-ready" : "bz-ready-mark is-waiting"}
+      role="img"
+      aria-label={ready ? "Prêt" : "Pas encore prêt"}
+    >
+      {ready ? (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8.2-8.2 1.4 1.4z" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M6 2h12v2.2c0 1.5-.7 2.8-1.8 3.8L12 12l4.2 4c1.1 1 1.8 2.3 1.8 3.8V22H6v-2.2c0-1.5.7-2.8 1.8-3.8L12 12 7.8 8C6.7 7 6 5.7 6 4.2V2zm2.2 2v.2c0 .7.3 1.3.9 1.8L12 8.6l2.9-2.6c.6-.5.9-1.1.9-1.8V4H8.2zM8.2 20h7.6v-.2c0-.7-.3-1.3-.9-1.8L12 15.4l-2.9 2.6c-.6.5-.9 1.1-.9 1.8V20z"
+          />
+        </svg>
+      )}
+    </span>
   );
 }
 
@@ -1589,8 +1595,11 @@ function PlayersPreview(props: { snap: PartySnapshot }): JSX.Element {
             }}
           >
             <AvatarFigure src={p.avatarUrl} sizePx={40} />
-            <span>
-              {p.displayName} · {p.score} pts · équipe {p.teamId === null ? "—" : p.teamId}
+            <span className="bz-player-name-line">
+              <ReadyListMark snap={props.snap} playerId={p.id} />
+              <span>
+                {p.displayName} · {p.score} pts · équipe {p.teamId === null ? "—" : p.teamId}
+              </span>
             </span>
           </li>
         ))}
@@ -2639,7 +2648,7 @@ function Play(): JSX.Element {
   const canBuzz = snap.state === "round_active" && snap.buzzWindowOpen;
   const queuedBuzz = typeof myId === "string" && snap.buzzOrder.some((bid) => bid === myId);
 
-  async function markReady(): Promise<void> {
+  async function markReady(ready: boolean): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
     setErr(null);
     setReadyLoading(true);
@@ -2649,6 +2658,7 @@ function Play(): JSX.Element {
         {
           method: "POST",
           headers: { Authorization: `Bearer ${jwt}` },
+          body: JSON.stringify({ ready }),
         },
       );
       setSnap(updated);
@@ -2771,18 +2781,25 @@ function Play(): JSX.Element {
       ) : null}
 
       <section className="bz-buzz-hero">
-        {snap.state === "round_active" &&
-        snap.readyPhaseStartedAt !== null &&
-        snap.countdownStartedAt == null &&
-        !snap.buzzWindowOpen &&
-        !canBuzz ? (
-          <ReadyCountdownHero
-            readyPlayers={snap.readyPlayers ?? []}
-            allPlayersCount={snap.players?.length ?? 0}
-            isReady={(snap.readyPlayers ?? []).includes(myId ?? "")}
-            onMarkReady={() => void markReady()}
-            readyLoading={readyLoading}
-          />
+        {readyPhaseOnScreen(snap) ? (
+          <div className="bz-ready-stack">
+            <button
+              type="button"
+              className={
+                (snap.readyPlayers ?? []).includes(myId ?? "")
+                  ? "bz-buzz-btn bz-buzz-ready is-ready"
+                  : "bz-buzz-btn bz-buzz-ready"
+              }
+              disabled={readyLoading}
+              aria-pressed={(snap.readyPlayers ?? []).includes(myId ?? "")}
+              onClick={() => void markReady(!(snap.readyPlayers ?? []).includes(myId ?? ""))}
+            >
+              {(snap.readyPlayers ?? []).includes(myId ?? "") ? "Prêt !" : "Prêt ?"}
+            </button>
+            <p className="bz-ready-count">
+              {readyStatusLabel((snap.readyPlayers ?? []).length, snap.players.length, "player")}
+            </p>
+          </div>
         ) : snap.state === "round_active" &&
           snap.countdownStartedAt != null &&
           !snap.buzzWindowOpen &&
@@ -3060,7 +3077,10 @@ function PlayerScoreDock(props: {
             <ol className="bz-player-scores-list">
               {byScore.map((player) => (
                 <li key={player.id} className={player.id === me?.id ? "is-me" : undefined}>
-                  <span>{player.displayName}</span>
+                  <span className="bz-player-name-line">
+                    <ReadyListMark snap={snap} playerId={player.id} />
+                    <span>{player.displayName}</span>
+                  </span>
                   <span>{player.score} pts</span>
                 </li>
               ))}
@@ -3073,7 +3093,10 @@ function PlayerScoreDock(props: {
                   <ol className="bz-player-scores-list">
                     {group.players.map((player) => (
                       <li key={player.id} className={player.id === me?.id ? "is-me" : undefined}>
-                        <span>{player.displayName}</span>
+                        <span className="bz-player-name-line">
+                          <ReadyListMark snap={snap} playerId={player.id} />
+                          <span>{player.displayName}</span>
+                        </span>
                         <span>{player.score} pts</span>
                       </li>
                     ))}
@@ -3714,6 +3737,42 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
+  const onHostReadyTimeoutChange = useCallback(
+    async (seconds: number): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/ready-timeout`, "POST", { seconds });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
+  const onHostLaunchQuestion = useCallback(async (): Promise<void> => {
+    setErr(null);
+    try {
+      const n = await callHostSnapshot(`${hostBasePath}/host/launch-question`, "POST", {});
+      setSnap(n);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }, [callHostSnapshot, hostBasePath]);
+
+  const onHostReadyCheckChange = useCallback(
+    async (enabled: boolean): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/ready-check`, "POST", { enabled });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
   const onHostNextQuestionCountdownChange = useCallback(
     async (seconds: number): Promise<void> => {
       setErr(null);
@@ -4186,6 +4245,16 @@ function Admin(): JSX.Element {
               ⏸ Pause (lobby)
             </button>
             <div className="bz-host-buzz-tools">
+              {readyPhaseOnScreen(snap) ? (
+                <div className="bz-host-ready-launch">
+                  <p className="bz-host-ready-count">
+                    {readyStatusLabel(snap.readyPlayers?.length ?? 0, snap.players.length, "summary")}
+                  </p>
+                  <button type="button" onClick={() => void onHostLaunchQuestion()}>
+                    Lancer la question
+                  </button>
+                </div>
+              ) : null}
               <div className="bz-host-buzz-buttons">
                 <button
                   type="button"
@@ -4274,6 +4343,27 @@ function Admin(): JSX.Element {
                     onChange={(e) => {
                       const val = Number.parseInt(e.target.value, 10);
                       if (val >= 0 && val <= 10) void onHostCountdownDurationChange(val);
+                    }}
+                  />
+                </label>
+                <label className="bz-settings-label">
+                  <input
+                    type="checkbox"
+                    checked={snap.readyCheckEnabled === true}
+                    onChange={(e) => void onHostReadyCheckChange(e.target.checked)}
+                  />{" "}
+                  Mode « Prêt ? » avant le buzzer
+                </label>
+                <label className="bz-settings-label">
+                  Délai maximum « Prêt ? » (0 ou 5–60 secondes, 0 = aucun)
+                  <input
+                    type="number"
+                    min={0}
+                    max={READY_TIMEOUT_MAX_SEC}
+                    value={snap.readyTimeoutSec ?? READY_TIMEOUT_DEFAULT_SEC}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (isValidReadyTimeoutSec(val)) void onHostReadyTimeoutChange(val);
                     }}
                   />
                 </label>
@@ -4437,6 +4527,7 @@ function Admin(): JSX.Element {
                 <li key={pl2.id} className="bz-host-score-row">
                   <span className="bz-host-rank">{idx + 1}</span>
                   <span className="bz-host-name">
+                    <ReadyListMark snap={snap} playerId={pl2.id} />
                     {pl2.displayName}
                     {pl2.teamId != null ? (
                       <span className="bz-host-team">éq. {pl2.teamId}</span>
@@ -4865,6 +4956,7 @@ function Admin(): JSX.Element {
   );
 }
 
+/** * Host preview never shows the point modal or the §4.5 winner screen. */
 function snapshotForBroadcastPreview(snap: PartySnapshot): PartySnapshot {
   const stripped: PartySnapshot = { ...snap, winnerDisplay: null, pointAward: null };
   const board = stripped.gameBoard;
@@ -4908,7 +5000,10 @@ function BroadcastStandingBlock(props: {
               {row.avatarUrl !== null && row.avatarUrl !== "" ? (
                 <AvatarFigure src={row.avatarUrl} sizePx={36} />
               ) : null}
-              <span className="bz-bc-player-name">{row.label}</span>
+              <span className="bz-bc-player-name">
+                <ReadyListMark snap={props.snap} playerId={row.key} />
+                {row.label}
+              </span>
               <span className="bz-bc-player-value">
                 {props.showScores ? row.score : frenchOrdinal(row.rank)}
               </span>
@@ -4936,7 +5031,10 @@ function BroadcastStandingBlock(props: {
                 {row.avatarUrl !== null && row.avatarUrl !== "" ? (
                   <AvatarFigure src={row.avatarUrl} sizePx={36} />
                 ) : null}
-                <span className="bz-bc-player-name">{row.label}</span>
+                <span className="bz-bc-player-name">
+                  <ReadyListMark snap={props.snap} playerId={row.key} />
+                  {row.label}
+                </span>
                 <span className="bz-bc-player-value">
                   {props.showScores ? row.score : frenchOrdinal(row.rank)}
                 </span>
@@ -5247,6 +5345,12 @@ function BroadcastSurface(props: {
             variant="broadcast"
             dismissed={false}
           />
+        ) : null}
+
+        {readyPhaseOnScreen(snap) ? (
+          <p className="bz-bc-ready-count">
+            {readyStatusLabel(snap.readyPlayers?.length ?? 0, snap.players.length, "summary")}
+          </p>
         ) : null}
 
         {!preview && snap.winnerDisplay && pauseStartedAt === null ? (

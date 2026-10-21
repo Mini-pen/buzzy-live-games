@@ -313,6 +313,8 @@ export function partySnapshotWithGame(
     appliedNextQuestionCountdownSec: party.appliedNextQuestionCountdownSec,
     nextQuestionCountdownStartedAt: party.nextQuestionCountdownStartedAt,
     pointAward: party.pointAward,
+    readyCheckEnabled: party.readyCheckEnabled === true,
+    readyTimeoutSec: party.readyTimeoutSec,
     winnerDisplay: party.winnerDisplay,
   };
   const hostExtraFields =
