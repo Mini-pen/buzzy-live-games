@@ -2753,7 +2753,13 @@ function Play(): JSX.Element {
   const buzzerControl = (
     <>
       {showPointDisc && award != null ? (
-        <button type="button" className="bz-buzz-btn bz-buzz-award" disabled>
+        <button
+          type="button"
+          className="bz-buzz-btn bz-buzz-award"
+          onClick={() => {
+            if (pointDismissKey !== null) setDismissedPointKey(pointDismissKey);
+          }}
+        >
           {/* INCERTAIN: Design UI, 2026-10-21, « Vous ! » sur le disque du gagnant, à confirmer par Minipen */}
           <span className="bz-buzz-award-kicker">{award.playerId === myId ? "Vous !" : award.playerName}</span>
           <span className="bz-buzz-award-points">{pointAwardLabel(award.points, award.teamName)}</span>
@@ -5535,7 +5541,7 @@ function BroadcastSurface(props: {
           </div>
         ) : null}
 
-        {/* INCERTAIN: Design UI, 2026-10-21, la diffusion garde la notification de point, à confirmer par Minipen */}
+        {/* INCERTAIN: Design UI, 2026-10-21, la diffusion garde la notification de point, à confirmer par Minipen. Le clic qui ferme est décidé pour le joueur ; le même clic sur la diffusion reste ouvert (CA-47). */}
         {!preview && snap.pointAward != null && pauseStartedAt !== null && gapSec > 0 ? (
           <PointAwardModal
             award={snap.pointAward}

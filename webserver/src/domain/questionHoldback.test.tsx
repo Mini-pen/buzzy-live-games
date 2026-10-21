@@ -555,8 +555,21 @@ describe("broadcast sequence after every answer", () => {
     expect(container.textContent).not.toContain("+ 10 points");
   });
 
-  // * The disc can close early in the visibility helper, but the button never calls that path.
-  it.todo("un clic du joueur ferme le disque de points avant la fin du décompte");
+  it("un clic du joueur ferme le disque de points avant la fin du décompte", async () => {
+    beginClock();
+    const { party, packs } = answeredParty(pauseOpts);
+    const container = await show(`/party/${party.id}/play`, snapsOf(party, packs));
+    const disc = container.querySelector<HTMLButtonElement>(".bz-buzz-award");
+    expect(disc).not.toBeNull();
+    expect(disc?.disabled).toBe(false);
+    expect(disc?.textContent).toContain("Prochaine question dans :");
+    await act(async () => {
+      disc?.click();
+    });
+    expect(container.querySelector(".bz-buzz-award")).toBeNull();
+    expect(container.querySelector(".bz-winner-screen")).toBeNull();
+    expect(container.textContent).toContain(PREV_PROMPT);
+  });
 
   it("closes the point modal when the pause itself is only 2 s", async () => {
     beginClock();
