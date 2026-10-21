@@ -1,28 +1,28 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Hauteur stable, coupe à l'import et nombre de réponses. Documentation seule, poussée sur `main`.
+**Contexte** : Affichage de la question à l'ouverture du buzzer. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Décider le calcul de hauteur sur la plus petite hauteur stable, sans suivre la barre d'adresse.
-- Répondre à l'endroit de la coupe à l'import par un choix incertain, sans le trancher.
-- Remplacer l'écart « N ≠ 4 non décidé » par la proposition de Design UI, et noter le vide au-delà de 6.
-- Ajouter la remesure de toutes les réponses quand on en ajoute ou en retire une.
+- Passer en décidé l'affichage de la nouvelle question seulement à l'ouverture du buzzer.
+- Retirer cette question des points ouverts.
+- Noter deux écarts code/CDC de Test Writer, sans choisir le correctif.
 
 ## Réalisations
 
-- CA-71 : décidé (« oui, je valide ce plan ! »). La répartition se calcule sur la plus petite hauteur stable. Elle ne change pas avec la barre d'adresse. Elle n'est recalculée qu'à la rotation. Testeur le vérifie sur un vrai téléphone, en faisant défiler la page.
-- CA-70 : choix incertain de Coding Agent, proposition de Testeur. Après l'import, le navigateur mesure chaque texte, tronque jusqu'à ce qu'il tienne, puis affiche « Attention, la question N dépasse la taille autorisée ». La coupe au dernier mot qui tient reste une proposition. Le point n'est pas décidé.
-- CA-66 : proposition de Design UI pour N. De 2 à 4 réponses, une colonne, parts égales, police jusqu'à 16 px avec 2 réponses. 5 ou 6 réponses, deux colonnes de 3 lignes. Le bloc question et le buzzer ne bougent pas. Au-delà de 6 réponses : À décider.
-- CA-72 : choix incertain de Testeur. L'éditeur remesure toutes les réponses, pas seulement le champ modifié. Cas limite : des textes à la limite qui ne tiennent plus de 4 à 5 réponses. Choix incertain de Specs Writer : l'éditeur refuse alors d'enregistrer et signale les réponses concernées.
+- CA-60 : décidé, rapporté par Coding Agent le 21/10, citation de Minipen non vue dans le salon. Pendant les décomptes, la question qui vient d'être jouée reste. La nouvelle n'apparaît qu'à l'ouverture. Avec tous les décomptes à 0, elle apparaît directement à l'ouverture. Pendant « Prêt ? », le CA-64 reste. La phrase du §4.5 sur le départ du décompte après l'affichage de la question n'est pas réécrite.
+- CA-61 : l'envoi avant l'ouverture reste un choix incertain.
+- Écart `5fd119a` : `commitCueAdvance` avance l'index avant la pause, la question suivante est visible trop tôt sur les trois écrans. Le correctif n'est pas choisi.
+- Écart `5fd119a` sur le CA-55 : le serveur ne passe jamais `state` à "ended". L'écran noir vient de `WinnerScreen` en plein écran en fin de manche. L'écran de fin de manche reste non décrit. Le correctif n'est pas choisi.
+- Le sens du lancement manuel reste un choix incertain.
 
 ## Prochain focus suggéré
 
-- Confirmer la disposition des cases selon N, et trancher au-delà de 6 réponses.
-- Confirmer la mesure à l'import et la coupe au dernier mot qui tient.
-- Confirmer la remesure de toutes les réponses, et le refus d'enregistrer quand elles ne tiennent plus.
+- Confirmer l'envoi de la question suivante seulement à l'ouverture (CA-61).
+- Choisir le correctif de `commitCueAdvance` et celui de l'écran de fin de manche.
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-66 à CA-72.
+- `cahier-des-charges.md` §4.5 et §4.6, CA-55, CA-60, CA-61.
+- Commit de Test Writer `5fd119a`, hors de `main` au moment de cette note.

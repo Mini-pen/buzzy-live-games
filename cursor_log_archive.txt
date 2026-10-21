@@ -178,3 +178,11 @@ Session 2026-10-21 — Zone fixe, mesure à la création, import ZIP (commit 59e
 - CA-68 : la mesure dans l'aperçu refuse un texte qui ne tient pas, même sous la limite de caractères.
 - CA-69 : compteur « 128 / 140 » et aperçu téléphone, décidé. Maquette `editeur_limites_v1.png`. Détails de gris et de 85 % encore en proposition.
 - CA-70 : import ZIP, troncature et message. Où couper un texte sous la limite mais trop large restait À décider.
+
+================================================================================
+Session 2026-10-21 — Hauteur stable, nombre de réponses (commit 575a232)
+================================================================================
+- CA-71 : hauteur calculée sur la plus petite hauteur stable. La barre d'adresse ne la change pas. Recalcul seulement à la rotation.
+- CA-66 : proposition de Design UI pour 2 à 6 réponses. Au-delà de 6 : À décider.
+- CA-70 : mesure et troncature à l'import, choix incertain. Coupe au dernier mot qui tient, encore une proposition.
+- CA-72 : remesure de toutes les réponses, choix incertain. Refus d'enregistrer, choix incertain de Specs Writer.
