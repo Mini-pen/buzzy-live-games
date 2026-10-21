@@ -12,10 +12,16 @@ import { withBasePath } from "../basePath.js";
 import { canonicalYoutubeEmbedIframeSrc } from "./youtubeEmbed.js";
 import { visibleBuzzGapMs } from "./broadcastDisplay.js";
 import { publicSnapshotForParty } from "./partyLogic.js";
+import {
+  isQuestionRevealed,
+  readyPhaseHidesQuestion,
+  shouldWithholdNextQuestion,
+} from "./questionReveal.js";
 import type {
   Party,
   PartyGameBoardAudioBlind,
   PartyGameBoardQuiz,
+  PartyGameBoardReadyHold,
   PartyGameBoardSurface,
   PartyPublicSnapshot,
 } from "./types.js";
@@ -128,8 +134,12 @@ function deriveGameBoard(
 
   if (pack === null) return null;
 
-  const ri = party.currentRoundIndex;
-  const qi = party.currentQuestionIndex;
+  if (readyPhaseHidesQuestion(party)) return deriveReadyHold(party, pack);
+
+  const held = shouldWithholdNextQuestion(party) ? party.questionHold ?? null : null;
+  const ri = held ? held.roundIndex : party.currentRoundIndex;
+  const qi = held ? held.questionIndex : party.currentQuestionIndex;
+  if (!isQuestionRevealed(party) && held == null) return null;
   if (
     ri === null ||
     qi === null ||
@@ -275,8 +285,38 @@ function deriveGameBoard(
   if (question.imageUrl !== undefined && question.imageUrl.trim() !== "") {
     surface.imageUrl = withBasePath(question.imageUrl.trim());
   }
-  if (audience === "host") surface.correctChoiceIndex = question.correctIndex;
+  const result = party.quizResult ?? null;
+  const resultPublic =
+    held != null &&
+    result != null &&
+    held.roundIndex === ri &&
+    held.questionIndex === qi;
+  if (audience === "host" || resultPublic) surface.correctChoiceIndex = question.correctIndex;
+  if (resultPublic && result) surface.choiceCounts = result.counts;
   return surface;
+}
+
+function deriveReadyHold(party: Party, pack: QuizPack): PartyGameBoardReadyHold {
+  let questionNumberHuman = 1;
+  let questionCount = 1;
+  let roundNumberHuman = 1;
+  const roundIndex = party.currentRoundIndex;
+  const questionIndex = party.currentQuestionIndex;
+  if (roundIndex !== null && roundIndex >= 0 && roundIndex < pack.rounds.length) {
+    roundNumberHuman = roundIndex + 1;
+    const round = pack.rounds[roundIndex];
+    if (round !== undefined && isQuizRound(round)) {
+      questionCount = Math.max(1, round.questions.length);
+      questionNumberHuman = (questionIndex ?? 0) + 1;
+    }
+  }
+  return {
+    kind: "ready_hold",
+    tagline: party.readyPhaseTagline ?? "",
+    questionNumberHuman,
+    questionCount,
+    roundNumberHuman,
+  };
 }
 
 /** * Assembles REST/socket snapshots with playable surfaces (`gameBoard`). */

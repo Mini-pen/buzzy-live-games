@@ -149,19 +149,8 @@ async function main(): Promise<void> {
     const allPacks = new Map([...quizPacksByRun, ...importedPacksRef.getAll()]);
     for (const party of store.getAllParties()) {
       if (party.state !== "round_active") continue;
-
-      if (party.nextQuestionCountdownStartedAt !== null) {
-        const pack = quizPackFromLoadedId(allPacks, party.loadedPackId);
-        store.maybeFinishNextQuestionCountdown(party, pack);
-      }
-      
-      if (party.countdownStartedAt === null && party.readyPhaseStartedAt !== null) {
-        store.maybeStartCountdownIfReady(party);
-      }
-      
-      if (party.countdownStartedAt !== null && !party.buzzWindowOpen) {
-        store.maybeOpenBuzzAfterCountdown(party);
-      }
+      const pack = quizPackFromLoadedId(allPacks, party.loadedPackId);
+      store.tickLiveRound(party, pack);
     }
   };
   setInterval(countdownTick, 500).unref?.();

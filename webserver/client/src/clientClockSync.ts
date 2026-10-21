@@ -85,7 +85,8 @@ export async function performClockSyncBurst(
 }
 
 /**
- * * Convert a local monotonic timestamp to server time using the sync state.
+ * * Convert a local monotonic timestamp to server time.
+ *   This is the only place that adds `offsetMs`. The server keeps that value as-is.
  */
 export function convertToServerTime(
   clientMonotonicMs: number,

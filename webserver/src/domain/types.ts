@@ -235,6 +235,25 @@ export interface Party {
    *   Stays set while the buzzer is closed, until the next question or the buzzer reopens.
    */
   decidedBuzzWinnerId: string | null;
+  /**
+   * * Cue still on screen while the next index is already stored.
+   *   Cleared when the buzzer opens.
+   */
+  questionHold?: { roundIndex: number; questionIndex: number } | null;
+  /** * False until the buzzer opens on the current cue. Omitted means already revealed. */
+  questionRevealed?: boolean;
+  /** * Result of the held quiz. Published only while that result is on screen. */
+  quizResult?: {
+    correctChoiceIndex: number;
+    counts: number[];
+    picks: Array<{ playerId: string; choiceIndex: number }>;
+  } | null;
+  /** * Picks kept until the next cue, including after the buzz queue is cleared. */
+  quizPicksThisQuestion?: Map<string, number>;
+  /** * Tagline shown during « Prêt ? ». The same string is sent to every screen. */
+  readyPhaseTagline?: string | null;
+  /** * Previous tagline, so the next ready phase does not repeat it. */
+  lastReadyPhaseTagline?: string | null;
 }
 
 /** * Buzzer-visible quiz surface (`kind: quiz`). */
@@ -250,8 +269,10 @@ export interface PartyGameBoardQuiz {
   points: number;
   /** * Optional illustration; absolute URL or `/…` path served by this app (e.g. `/games/…`). */
   imageUrl?: string;
-  /** * Present only when the snapshot is assembled for an authenticated host. */
+  /** * Present for the host during play, and for every screen once the result is public. */
   correctChoiceIndex?: number;
+  /** * Respondents per choice. Present only after the question result. */
+  choiceCounts?: number[];
 }
 
 /** * Video clip or self-hosted stream (pack `videoUrl` or admin `direct_video`). */
@@ -354,6 +375,15 @@ export interface PartyGameBoardTransition {
   startedAt: number;
 }
 
+/** * Ready phase: a tagline instead of any question text or answers. */
+export interface PartyGameBoardReadyHold {
+  kind: "ready_hold";
+  tagline: string;
+  questionNumberHuman: number;
+  questionCount: number;
+  roundNumberHuman: number;
+}
+
 export type PartyGameBoardSurface =
   | PartyGameBoardQuiz
   | PartyGameBoardVideo
@@ -363,7 +393,8 @@ export type PartyGameBoardSurface =
   | PartyGameBoardAudioBlind
   | PartyGameBoardIframe
   | PartyGameBoardYoutube
-  | PartyGameBoardTransition;
+  | PartyGameBoardTransition
+  | PartyGameBoardReadyHold;
 
 export interface PartyPublicSnapshot {
   id: string;
@@ -444,6 +475,8 @@ export interface PartyPublicSnapshot {
   broadcastViewModeGlobal: BroadcastViewMode;
   /** * Decided buzz winner, null before the decision and after the next question or a buzzer reopen. */
   decidedBuzzWinnerId: string | null;
+  /** * Players whose buzz is still inside the grace window. The button reads this before `buzzOrder`. */
+  pendingBuzzPlayerIds?: string[];
   /** * Automatic play mode state (visible to all). */
   autoPlay?: {
     enabled: boolean;

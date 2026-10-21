@@ -85,6 +85,7 @@ export function publicSnapshotForParty(part: {
   players: Map<string, Player>;
   buzzOrder: string[];
   buzzWindowOpen: boolean;
+  pendingBuzzQueue?: Array<{ playerId: string }>;
   chat: ChatEntry[];
   currentRoundIndex: number | null;
   currentQuestionIndex: number | null;
@@ -158,5 +159,6 @@ export function publicSnapshotForParty(part: {
     broadcastViewModeGlobal:
       part.broadcastViewModeGlobal ?? defaultBroadcastViewMode(part.maxTeams),
     decidedBuzzWinnerId: part.decidedBuzzWinnerId ?? null,
+    pendingBuzzPlayerIds: (part.pendingBuzzQueue ?? []).map((buzz) => buzz.playerId),
   };
 }

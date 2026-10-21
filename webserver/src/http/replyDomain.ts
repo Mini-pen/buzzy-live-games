@@ -46,6 +46,7 @@ export function replyDomain(reply: FastifyReply, err: unknown): FastifyReply {
     AVATAR_CATALOG_EMPTY: 503,
     NOT_IN_BUZZ_QUEUE: 409,
     QUIZ_CHOICE_REQUIRED: 400,
+    QUIZ_TEXT_TOO_LONG: 400,
     PLAYER_GONE: 410,
   };
 

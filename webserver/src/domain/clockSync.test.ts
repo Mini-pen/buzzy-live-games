@@ -53,7 +53,7 @@ describe("computeEstimatedTimestamp", () => {
     expect(computeEstimatedTimestamp(clientTimestamp, arrivedAt, sync, Date.now())).toBe(arrivedAt);
   });
 
-  it("applies offset when sync is valid", () => {
+  it("keeps a client timestamp that is already converted to server time", () => {
     const sync: ClockSyncState = {
       offsetMs: 50,
       minRttMs: 400,
@@ -62,11 +62,10 @@ describe("computeEstimatedTimestamp", () => {
     const arrivedAt = 10000;
     const clientTimestamp = 9900;
     const cap = 400 / 2 + 50;
-    const rawEstimated = clientTimestamp + sync.offsetMs;
-    const compensation = arrivedAt - rawEstimated;
+    const compensation = arrivedAt - clientTimestamp;
     expect(compensation).toBeLessThan(cap);
     const estimated = computeEstimatedTimestamp(clientTimestamp, arrivedAt, sync, Date.now());
-    expect(estimated).toBe(rawEstimated);
+    expect(estimated).toBe(clientTimestamp);
   });
 
   it("caps compensation to RTT/2 + 50ms", () => {

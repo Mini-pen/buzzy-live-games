@@ -2464,3 +2464,234 @@ html, body {
   box-shadow: none;
   filter: none;
 }
+
+/* Player stage. The percentage split is a Design UI proposal. */
+.bz-app.bz-play-screen {
+  min-height: 0;
+  height: 100svh;
+  height: var(--bz-stable-vh, 100svh);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr);
+  background: var(--bz-bg);
+}
+.bz-app.bz-play-screen.bz-play-screen--preview {
+  width: 360px;
+  height: 640px;
+}
+.bz-play-header {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  gap: 8px;
+}
+.bz-play-rest {
+  display: grid;
+  grid-template-rows: 50% 50%;
+  min-height: 0;
+  overflow: hidden;
+}
+.bz-qna {
+  display: grid;
+  grid-template-rows: 35% minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  padding: 4px 12px 0;
+  gap: 6px;
+}
+.bz-qna-question,
+.bz-qna-answers,
+.bz-qna-prompt,
+.bz-qna-answers .bz-choice,
+.bz-qna-answers .bz-choice-text {
+  min-height: 0;
+  overflow: hidden;
+}
+.bz-qna-kicker,
+.bz-ready-hold-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bz-muted);
+}
+.bz-qna-prompt {
+  height: 100%;
+  font-weight: 800;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+/* INCERTAIN: Specs Writer, 2026-10-21, coupure « … » en dernier recours, à confirmer par Minipen */
+.bz-qna-prompt--overflow { outline: 2px solid var(--bz-bad); border-radius: 8px; }
+.bz-qna-answers {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bz-qna-answers > li { min-height: 0; height: 100%; }
+.bz-app .bz-qna-answers .bz-choice {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  overflow: hidden;
+}
+.bz-app .bz-qna-answers .bz-choice-text {
+  font-size: 16px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  height: auto;
+  max-height: 100%;
+}
+.bz-app .bz-choice--selected,
+.bz-app .bz-qna-answers .bz-choice--selected {
+  outline: 3px solid #ffca28;
+  border-color: #ffca28;
+}
+.bz-app .bz-choice--selected .bz-choice-letter { color: #ffca28; }
+.bz-app .bz-choice--correct {
+  background: #1e7a3c;
+  border-color: #14562a;
+  color: #fff;
+}
+.bz-app .bz-choice--correct .bz-choice-text { color: #fff; }
+/* INCERTAIN: Coding Agent, 2026-10-21, cas bonne réponse choisie (proposition Design UI), à confirmer par Minipen */
+.bz-app .bz-choice--correct.bz-choice--selected {
+  outline: 3px solid #ffca28;
+}
+.bz-app .bz-choice--correct.bz-choice--selected .bz-choice-letter { color: #ffca28; }
+.bz-choice-check { width: 1.1em; text-align: center; font-weight: 800; }
+.bz-choice-check--slot { visibility: hidden; }
+.bz-choice-votes { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; white-space: nowrap; }
+.bz-choice-votes--slot { visibility: hidden; }
+.bz-choice--overflow { outline: 2px solid var(--bz-bad); }
+.bz-ready-hold {
+  display: flex;
+  flex-direction: column;
+  background: #241433;
+  border-radius: 16px;
+  margin: 8px 12px;
+  padding: 14px 16px;
+}
+.bz-ready-hold-phrase {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  margin: 0;
+  color: #ffca28;
+  font-style: italic;
+  font-weight: 800;
+  font-size: clamp(22px, 6vw, 34px);
+  line-height: 1.25;
+  overflow: hidden;
+}
+.bz-buzz-slot {
+  container-type: size;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+.bz-app .bz-play-screen .bz-buzz-btn {
+  width: min(calc(var(--bz-buzzer-slot, 0.6) * 100cqh), var(--bz-buzzer-max, 230px));
+  height: min(calc(var(--bz-buzzer-slot, 0.6) * 100cqh), var(--bz-buzzer-max, 230px));
+  font-size: clamp(18px, 22cqh, 42px);
+  flex: 0 0 auto;
+}
+.bz-app .bz-buzz-btn.bz-buzz-ready { position: relative; z-index: 0; }
+.bz-app .bz-buzz-btn.bz-buzz-ready::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, transparent 0 70%, rgba(255, 255, 255, 0.9) 86%, transparent 100%);
+  animation: bz-ready-wave 2s linear infinite;
+  z-index: -1;
+}
+.bz-app .bz-buzz-btn.bz-buzz-ready.is-ready::before {
+  background: none;
+  box-shadow:
+    0 -16px 0 -6px rgba(30, 122, 60, 0.7),
+    0 16px 0 -6px rgba(30, 122, 60, 0.7),
+    16px 0 0 -6px rgba(30, 122, 60, 0.7),
+    -16px 0 0 -6px rgba(30, 122, 60, 0.7);
+  animation: bz-ready-rays 1.2s ease-in-out infinite;
+}
+@keyframes bz-ready-wave { to { transform: rotate(360deg); } }
+@keyframes bz-ready-rays {
+  0%, 100% { opacity: 0.35; transform: scale(0.92); }
+  50% { opacity: 1; transform: scale(1); }
+}
+/* INCERTAIN: Design UI proposal for the wave (2s) and the rays (1.2s). */
+@media (prefers-reduced-motion: reduce) {
+  .bz-app .bz-buzz-btn.bz-buzz-ready::before,
+  .bz-app .bz-buzz-btn.bz-buzz-ready.is-ready::before { animation: none; }
+}
+.bz-app .bz-buzz-btn.bz-buzz-sent {
+  background: #6e6e7a;
+  border-color: #4c4c56;
+  color: #fff;
+  cursor: default;
+}
+.bz-app .bz-buzz-btn.bz-buzz-award {
+  background: radial-gradient(circle at 35% 30%, #3a3a4a, #1c1c28 70%);
+  border-color: #ffca28;
+  color: #fff;
+  font-size: clamp(14px, 12cqh, 22px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.1;
+  text-align: center;
+  padding: 12px;
+}
+.bz-buzz-award-kicker { font-size: 0.55em; font-weight: 600; opacity: 0.8; }
+.bz-buzz-award-points { color: #ffca28; font-size: 0.7em; }
+.bz-phone-frame {
+  width: 270px;
+  height: 480px;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 8px solid #2a2a36;
+  background: #000;
+}
+.bz-phone-frame .bz-play-screen--preview {
+  transform: scale(0.75);
+  transform-origin: top left;
+}
+.bz-editor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 18px;
+  align-items: start;
+}
+.bz-limit-count { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; color: var(--bz-muted); }
+.bz-limit-count--warn { color: #f07800; }
+.bz-limit-count--over { color: #ff3d5a; }
+.bz-limit-field--over input,
+.bz-limit-field--over textarea { outline: 2px solid #ff3d5a; }
+.bz-editor-save-block { color: #ff3d5a; margin: 8px 0 0; }
+.bz-error-boundary {
+  min-height: 100vh;
+  background: #1c1c28;
+  color: #f4f1e6;
+  padding: 32px 20px;
+}

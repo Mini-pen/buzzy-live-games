@@ -2,6 +2,7 @@ import AdmZip from "adm-zip";
 import path from "node:path";
 import { z } from "zod";
 
+import { applyQuizImportTextLimits, type ImportTextNotice } from "../domain/quizTextLimits.js";
 import { quizPackSchema, type QuizPack } from "./pack.js";
 
 /** * Max ZIP file size (configurable via env). */
@@ -104,7 +105,7 @@ export function importZipPack(
   maxSizeBytes: number,
   existingDiskPackIds: Set<string>,
   existingImportedPackIds: Set<string>,
-): { pack: QuizPack; zipEntries: AdmZip.IZipEntry[] } {
+): { pack: QuizPack; zipEntries: AdmZip.IZipEntry[]; textNotices: ImportTextNotice[] } {
   if (buffer.length > maxSizeBytes) {
     throw Object.assign(
       new Error(`Le fichier ZIP dépasse la limite de ${Math.floor(maxSizeBytes / (1024 * 1024))} Mo.`),
@@ -171,8 +172,12 @@ export function importZipPack(
   packJson = prefixRelativeMediaPaths(packJson);
 
   let pack: QuizPack;
+  let textNotices: ImportTextNotice[] = [];
   try {
     pack = quizPackSchema.parse(packJson);
+    const limited = applyQuizImportTextLimits(pack);
+    pack = limited.pack;
+    textNotices = limited.notices;
   } catch (err) {
     if (err instanceof z.ZodError) {
       const first = err.issues[0];
@@ -284,7 +289,7 @@ export function importZipPack(
   // * Normalize media paths to use the imported-packs route
   const normalizedPack = normalizePack(pack);
 
-  return { pack: normalizedPack, zipEntries: entries };
+  return { pack: normalizedPack, zipEntries: entries, textNotices };
 }
 
 /** * Normalize media URLs in a pack to use the /imported-packs/:packId/ route. */

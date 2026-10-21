@@ -33,6 +33,8 @@ import {
   READY_TIMEOUT_DEFAULT_SEC,
 } from "./nextQuestionCountdown.js";
 import { evaluateJoin, normalizeTeamChoice, publicSnapshotForParty } from "./partyLogic.js";
+import { buildQuizChoiceCounts } from "./questionReveal.js";
+import { pickReadyPhaseTagline } from "./readyPhaseTaglines.js";
 import { quizPackFromLoadedId } from "./partySnapshotPresenter.js";
 import type {
   BroadcastViewMode,
@@ -95,6 +97,9 @@ export class PartyStore {
 
   private readonly indexByJoinCode = new Map<string, string>();
 
+  /** * One timer per party so the grace window closes without a second buzz. */
+  private readonly graceFinalizeTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
   constructor(
     private readonly notify: PartyNotifier,
     private readonly buzzCatalog: LoadedBuzzSoundCatalog,
@@ -115,8 +120,29 @@ export class PartyStore {
   private erase(id: string): void {
     const party = this.parties.get(id);
     if (!party) return;
+    this.clearGraceFinalizeTimer(id);
     this.indexByJoinCode.delete(party.joinCode.toUpperCase());
     this.parties.delete(id);
+  }
+
+  /** * Finalizes the parked buzz when the grace window ends, even if nobody buzzes again. */
+  private scheduleGraceFinalize(party: Party): void {
+    if (this.graceFinalizeTimers.has(party.id)) return;
+    if (party.buzzWindowFirstBuzzAt === null || party.pendingBuzzQueue.length === 0) return;
+    const elapsed = Date.now() - party.buzzWindowFirstBuzzAt;
+    const delay = Math.max(0, party.buzzGraceWindowMs - elapsed);
+    const timer = setTimeout(() => {
+      this.graceFinalizeTimers.delete(party.id);
+      this.maybeFinalizeBuzzDecision(party);
+    }, delay);
+    this.graceFinalizeTimers.set(party.id, timer);
+  }
+
+  private clearGraceFinalizeTimer(partyId: string): void {
+    const timer = this.graceFinalizeTimers.get(partyId);
+    if (timer === undefined) return;
+    clearTimeout(timer);
+    this.graceFinalizeTimers.delete(partyId);
   }
 
   broadcast(party: Party): void {
@@ -291,6 +317,12 @@ export class PartyStore {
       highlightBuzzWinner: true,
       broadcastViewModeGlobal: defaultBroadcastViewMode(opts.maxTeams),
       decidedBuzzWinnerId: null,
+      questionHold: null,
+      questionRevealed: false,
+      quizResult: null,
+      quizPicksThisQuestion: new Map(),
+      readyPhaseTagline: null,
+      lastReadyPhaseTagline: null,
     };
     this.parties.set(party.id, party);
     this.indexByJoinCode.set(joinCode, party.id);
@@ -534,6 +566,9 @@ export class PartyStore {
   }
 
   buzz(party: Party, playerId: string, clientTimestamp: number | undefined, quizChoice?: QuizBuzzChoiceOpts): void {
+    if (party.state === "round_active" && !party.buzzWindowOpen) {
+      this.maybeOpenBuzzAfterCountdown(party);
+    }
     if (!(party.state === "round_active" && party.buzzWindowOpen)) {
       throw Object.assign(new Error("NO_BUZZ"), { code: "NO_BUZZ" });
     }
@@ -577,6 +612,12 @@ export class PartyStore {
       );
     }
 
+    const pickedIndex = quizChoice?.choiceIndex;
+    if (typeof pickedIndex === "number") {
+      if (!party.quizPicksThisQuestion) party.quizPicksThisQuestion = new Map();
+      party.quizPicksThisQuestion.set(playerId, pickedIndex);
+    }
+
     if (party.buzzGraceWindowMs === 0) {
       const ix = quizChoice?.choiceIndex;
       if (typeof ix === "number" && typeof len === "number" && len >= 1) {
@@ -608,6 +649,7 @@ export class PartyStore {
     this.touch(party);
     this.broadcast(party);
     this.notify(party.id, party, { kind: "buzz_fx", playerId });
+    this.scheduleGraceFinalize(party);
 
     console.log(`[buzz-sync] Player ${playerId} buzzed: clientTs=${clientTimestamp}, arrivedAt=${arrivedAt}, estimatedAt=${estimatedAt}, offset=${sync?.offsetMs ?? 'N/A'}, RTT=${sync?.minRttMs ?? 'N/A'}, compensation=${arrivedAt - estimatedAt}ms`);
   }
@@ -640,6 +682,7 @@ export class PartyStore {
 
     party.pendingBuzzQueue = [];
     party.buzzWindowFirstBuzzAt = null;
+    this.clearGraceFinalizeTimer(party.id);
 
     this.touch(party);
     this.broadcast(party);
@@ -650,6 +693,26 @@ export class PartyStore {
       if (gap < 1000) {
         console.log(`[buzz-sync] Gap between 1st and 2nd: ${gap}ms (< 1s, will be displayed)`);
       }
+    }
+  }
+
+  /**
+   * * One clock tick for the live round: pauses, ready timeout, buzzer countdown,
+   *   and the grace window. The grace window closes here even if nobody buzzes again.
+   */
+  tickLiveRound(party: Party, pack: QuizPack | null): void {
+    if (party.state !== "round_active") return;
+    if (party.nextQuestionCountdownStartedAt !== null) {
+      this.maybeFinishNextQuestionCountdown(party, pack);
+    }
+    if (party.countdownStartedAt === null && party.readyPhaseStartedAt !== null) {
+      this.maybeStartCountdownIfReady(party);
+    }
+    if (party.countdownStartedAt !== null && !party.buzzWindowOpen) {
+      this.maybeOpenBuzzAfterCountdown(party);
+    }
+    if (party.pendingBuzzQueue.length > 0) {
+      this.maybeFinalizeBuzzDecision(party);
     }
   }
 
@@ -684,6 +747,7 @@ export class PartyStore {
     const wasOpen = party.buzzWindowOpen;
     party.buzzWindowOpen = open;
     if (open) {
+      this.revealHeldQuestion(party);
       party.buzzWindowOpenedAt = Date.now();
       // * Reopening the buzzer ends the previous winner highlight. Closing keeps it.
       if (!wasOpen) {
@@ -940,6 +1004,9 @@ export class PartyStore {
 
   /** * Opens the « Prêt ? » step. Every connected player starts orange. */
   private beginReadyPhase(party: Party): void {
+    const tagline = pickReadyPhaseTagline(party.lastReadyPhaseTagline ?? null, Math.random());
+    party.readyPhaseTagline = tagline;
+    party.lastReadyPhaseTagline = tagline;
     party.readyPlayers.clear();
     party.readyPhaseStartedAt = Date.now();
     party.countdownStartedAt = null;
@@ -984,8 +1051,68 @@ export class PartyStore {
     party.appliedNextQuestionCountdownSec = party.nextQuestionCountdownSec;
   }
 
+  /** * Drops the held cue the moment the buzzer opens. Closing the buzzer does not restore it. */
+  private revealHeldQuestion(party: Party): void {
+    party.questionHold = null;
+    party.quizResult = null;
+    party.questionRevealed = true;
+  }
+
+  /** * Snapshots the quiz that is leaving the screen, before the queue is cleared. */
+  private captureQuizResult(
+    party: Party,
+    pack: QuizPack,
+    roundIndex: number,
+    questionIndex: number,
+  ): Party["quizResult"] {
+    const round = pack.rounds[roundIndex];
+    if (round === undefined || !isQuizRound(round)) return null;
+    const question = round.questions[questionIndex];
+    if (question === undefined) return null;
+    const byPlayer = new Map<string, number>();
+    for (const [playerId, choiceIndex] of party.quizPicksThisQuestion ?? []) {
+      byPlayer.set(playerId, choiceIndex);
+    }
+    for (const [playerId, choiceIndex] of party.buzzQuizGuess) {
+      if (!byPlayer.has(playerId)) byPlayer.set(playerId, choiceIndex);
+    }
+    for (const pending of party.pendingBuzzQueue) {
+      if (typeof pending.quizChoiceIndex === "number" && !byPlayer.has(pending.playerId)) {
+        byPlayer.set(pending.playerId, pending.quizChoiceIndex);
+      }
+    }
+    const picks = [...byPlayer.entries()].map(([playerId, choiceIndex]) => ({
+      playerId,
+      choiceIndex,
+    }));
+    return {
+      correctChoiceIndex: question.correctIndex,
+      counts: buildQuizChoiceCounts(
+        question.choices.length,
+        picks.map((pick) => pick.choiceIndex),
+      ),
+      picks,
+    };
+  }
+
   /** * Moves to the next cue, starts the pause, then the per-question leader so one snapshot carries both. */
   private commitCueAdvance(party: Party, pack: QuizPack, nextIndex: number, bumpReplay: boolean): void {
+    const previousRound = party.currentRoundIndex;
+    const previousQuestion = party.currentQuestionIndex;
+    if (
+      previousRound !== null &&
+      previousQuestion !== null &&
+      previousRound >= 0 &&
+      previousQuestion >= 0
+    ) {
+      party.questionHold = { roundIndex: previousRound, questionIndex: previousQuestion };
+      party.quizResult = this.captureQuizResult(party, pack, previousRound, previousQuestion);
+    } else {
+      party.questionHold = null;
+      party.quizResult = null;
+    }
+    party.quizPicksThisQuestion = new Map();
+    party.questionRevealed = false;
     party.currentQuestionIndex = nextIndex;
     if (bumpReplay) party.videoReplaySerial += 1;
     this.lockCountdownSettingsForQuestion(party);
@@ -1251,6 +1378,10 @@ export class PartyStore {
     party.pendingPointAward = null;
     party.pointAward = null;
     party.nextQuestionCountdownStartedAt = null;
+    party.questionHold = null;
+    party.quizResult = null;
+    party.questionRevealed = false;
+    party.quizPicksThisQuestion = new Map();
     this.lockCountdownSettingsForQuestion(party);
     const pk = quizPackFromLoadedId(packs, party.loadedPackId);
     this.reopenBuzzAccordingToCueAdvancePolicy(party, pk, { gap: false });
@@ -1586,6 +1717,7 @@ export class PartyStore {
   private releaseBuzzerAfterReady(party: Party): void {
     if (party.appliedCountdownDurationSec <= 0) {
       party.winnerDisplay = null;
+      this.revealHeldQuestion(party);
       party.buzzWindowOpen = true;
       party.buzzWindowOpenedAt = Date.now();
       this.clearReadyPhase(party, { keepReadyMarks: true });
@@ -1623,6 +1755,7 @@ export class PartyStore {
     const countdownMs = party.appliedCountdownDurationSec * 1000;
     
     if (elapsed >= countdownMs) {
+      this.revealHeldQuestion(party);
       party.buzzWindowOpen = true;
       party.buzzWindowOpenedAt = Date.now();
       party.winnerDisplay = null;
@@ -1661,6 +1794,7 @@ export class PartyStore {
     party.nextQuestionCountdownStartedAt = null;
     party.pointAward = null;
     party.winnerDisplay = null;
+    this.revealHeldQuestion(party);
     party.buzzWindowOpen = true;
     party.buzzWindowOpenedAt = Date.now();
     this.touch(party);

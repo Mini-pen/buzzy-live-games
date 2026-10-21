@@ -29,7 +29,9 @@ export function computeEstimatedTimestamp(
   if (!isSyncValid(sync, nowMs)) {
     return arrivedAt;
   }
-  const rawEstimated = clientTimestamp + sync!.offsetMs;
+  // * The phone already added offsetMs in convertToServerTime. Adding it here
+  //   would count the same offset twice and move the press away from the open.
+  const rawEstimated = clientTimestamp;
   const compensation = arrivedAt - rawEstimated;
   const cap = sync!.minRttMs / 2 + COMPENSATION_CAP_MARGIN_MS;
   if (compensation > cap) {

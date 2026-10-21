@@ -132,14 +132,14 @@ describe("buzz registration without a second press", () => {
     expect(party.buzzOrder).toEqual([]);
   });
 
-  it.fails("publishes the first buzz in the player snapshot while the grace window is still open", () => {
+  it("publishes the first buzz in the player snapshot while the grace window is still open", () => {
     const { store, party, ids } = openParty(["Alice", "Bob", "Chloé"]);
     routeBuzz(store, party, ids[0]!);
     expect(party.pendingBuzzQueue.map((row) => row.playerId)).toEqual([ids[0]]);
     expect(buzzVisible(payload(party), ids[0]!)).toBe(true);
   });
 
-  it.fails("moves that buzz into buzzOrder once the grace window elapses, with no second buzz", async () => {
+  it("moves that buzz into buzzOrder once the grace window elapses, with no second buzz", async () => {
     vi.useFakeTimers();
     const { store, party, ids } = openParty(["Alice", "Bob", "Chloé"]);
     routeBuzz(store, party, ids[0]!);
@@ -148,7 +148,7 @@ describe("buzz registration without a second press", () => {
     expect(buzzVisible(payload(party), ids[0]!)).toBe(true);
   });
 
-  it.fails("keeps both near-simultaneous buzzes when a third player never buzzes", async () => {
+  it("keeps both near-simultaneous buzzes when a third player never buzzes", async () => {
     vi.useFakeTimers();
     const { store, party, ids } = openParty(["Alice", "Bob", "Chloé"]);
     const [alice, bob] = ids;
@@ -161,7 +161,7 @@ describe("buzz registration without a second press", () => {
 });
 
 describe("buzz at the countdown boundary", () => {
-  it.fails("accepts a buzz once countdownDurationSec has elapsed, before the 500 ms tick", () => {
+  it("accepts a buzz once countdownDurationSec has elapsed, before the 500 ms tick", () => {
     const { store, party, ids } = openParty(["Alice", "Bob"]);
     const durationSec = 5;
     party.buzzWindowOpen = false;
@@ -274,7 +274,7 @@ describe("clock sync is not the live double-buzz", () => {
     expect(party.pendingBuzzQueue).toHaveLength(1);
   });
 
-  it.fails("does not add the offset again when the client timestamp is already converted", () => {
+  it("does not add the offset again when the client timestamp is already converted", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-21T12:00:00.000Z"));
     const { store, party, ids } = openParty(["Alice", "Bob"]);
@@ -367,7 +367,7 @@ describe("buzz and time-sync HTTP", () => {
     expect(body.snapshot.buzzOrder).toContain(ids[0]);
   });
 
-  it.fails("returns the accepted buzz in the POST snapshot while other players have not buzzed", async () => {
+  it("returns the accepted buzz in the POST snapshot while other players have not buzzed", async () => {
     const { party, tokens, ids } = await partyWithPlayers(3);
     const res = await app.inject({
       method: "POST",
@@ -379,7 +379,7 @@ describe("buzz and time-sync HTTP", () => {
     expect(buzzVisible(res.json<{ snapshot: BuzzPayload }>().snapshot, ids[0]!)).toBe(true);
   });
 
-  it.fails("shows that buzz on a later GET once the grace window has elapsed", async () => {
+  it("shows that buzz on a later GET once the grace window has elapsed", async () => {
     const { party, tokens, ids } = await partyWithPlayers(3);
     store.adminSetBuzzGraceWindow(party, 40);
     const posted = await app.inject({
@@ -415,7 +415,7 @@ describe("buzz and time-sync HTTP", () => {
     expect(typeof body.serverTimestamp).toBe("number");
   });
 
-  it.fails("stores that player's clock sync from the time-sync ping", async () => {
+  it("stores that player's clock sync from the time-sync ping", async () => {
     const { party, tokens, ids } = await partyWithPlayers(1);
     const res = await app.inject({
       method: "POST",

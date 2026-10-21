@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "../../client/src/App";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
 import type { QuizPack } from "../games/pack.js";
+import { READY_PHASE_TAGLINES } from "./readyPhaseTaglines.js";
 import { partySnapshotWithGame } from "./partySnapshotPresenter.js";
 import { PartyStore } from "./store.js";
 import type { Party, PartyPublicSnapshot } from "./types.js";
@@ -329,7 +330,7 @@ describe("question holdback payloads", () => {
     expect(party.buzzWindowOpen).toBe(false);
   });
 
-  it.fails("keeps the question just played, and omits the next one, in both snapshots during the pause", () => {
+  it("keeps the question just played, and omits the next one, in both snapshots during the pause", () => {
     const { snaps } = pauseScene();
     for (const snap of [snaps.player, snaps.host]) {
       const raw = JSON.stringify(snap);
@@ -340,7 +341,7 @@ describe("question holdback payloads", () => {
     }
   });
 
-  it.fails("omits the next question from both snapshots during « Prêt ? »", () => {
+  it("omits the next question from both snapshots during « Prêt ? »", () => {
     const { store, party, quiz, packs } = answeredParty(pauseOpts);
     const startedAt = party.nextQuestionCountdownStartedAt ?? 0;
     store.maybeFinishNextQuestionCountdown(party, quiz, startedAt + 5_000);
@@ -350,9 +351,28 @@ describe("question holdback payloads", () => {
     }
   });
 
-  it.todo(
-    "pendant « Prêt ? », le bloc question est remplacé par un bloc de même taille portant une phrase humoristique aléatoire (formulation non figée) — bloc absent de main",
-  );
+  it("remplace la question par une phrase humoristique pendant « Prêt ? »", async () => {
+    beginClock();
+    const { store, party, quiz, packs } = answeredParty(pauseOpts);
+    const startedAt = party.nextQuestionCountdownStartedAt ?? 0;
+    store.maybeFinishNextQuestionCountdown(party, quiz, startedAt + 5_000);
+    const tagline = party.readyPhaseTagline ?? "";
+    expect(READY_PHASE_TAGLINES).toContain(tagline);
+    const snaps = snapsOf(party, packs);
+    for (const snap of [snaps.player, snaps.host]) {
+      expect(snap.gameBoard?.kind).toBe("ready_hold");
+      expect(JSON.stringify(snap)).toContain(tagline);
+      expect(leakedNext(JSON.stringify(snap))).toEqual([]);
+      for (const token of [PREV_PROMPT, PREV_A, PREV_B]) {
+        expect(JSON.stringify(snap)).not.toContain(token);
+      }
+    }
+    const texts = await textsOf(snaps);
+    for (const text of Object.values(texts)) {
+      expect(text).toContain(tagline);
+      for (const token of QUESTION_TOKENS) expect(text).not.toContain(token);
+    }
+  });
 
   it.todo(
     "frontière countdownDurationSec non tranchée : option A, la question suivante apparaît au début de ce décompte ; option B, elle n'apparaît qu'à l'ouverture du buzzer",
@@ -370,7 +390,7 @@ describe("question holdback screens", () => {
     expect(document.querySelector(".bz-broadcast, .bz-app")).not.toBeNull();
   });
 
-  it.fails("shows the question just played, not the next one, on player, broadcast and host during the pause", async () => {
+  it("shows the question just played, not the next one, on player, broadcast and host during the pause", async () => {
     beginClock();
     const texts = await textsOf(pauseScene().snaps);
     const bad: string[] = [];
@@ -381,7 +401,7 @@ describe("question holdback screens", () => {
     expect(bad).toEqual([]);
   });
 
-  it.fails("shows neither question text nor any answer on player, broadcast or host during « Prêt ? »", async () => {
+  it("shows neither question text nor any answer on player, broadcast or host during « Prêt ? »", async () => {
     beginClock();
     const { store, party, quiz, packs } = answeredParty(pauseOpts);
     const startedAt = party.nextQuestionCountdownStartedAt ?? 0;
@@ -530,7 +550,7 @@ describe("end screens stay readable", () => {
     expect((container.textContent ?? "").trim().length).toBeGreaterThan(0);
   });
 
-  it.fails("does not leave the round-end winner overlay open on the broadcast or the player", async () => {
+  it("does not leave the round-end winner overlay open on the broadcast or the player", async () => {
     beginClock();
     const { party, packs } = answeredParty({
       ...pauseOpts,
@@ -600,7 +620,7 @@ describe("player buzzer control", () => {
     expect(container.querySelector('[aria-label="Compte à rebours avant le buzzer"]')).toBeNull();
   });
 
-  it.fails("arms the buzz button once the countdown has reached 0, even if the open flag is still false", async () => {
+  it("arms the buzz button once the countdown has reached 0, even if the open flag is still false", async () => {
     beginClock();
     const party = armedParty();
     party.buzzWindowOpen = false;
@@ -624,7 +644,7 @@ describe("player buzzer control", () => {
     expect(container.textContent).toContain("Buzz reçu");
   });
 
-  it.fails("shows « Buzz reçu » as soon as the server has parked the buzz, before buzzOrder is filled", async () => {
+  it("shows « Buzz reçu » as soon as the server has parked the buzz, before buzzOrder is filled", async () => {
     beginClock();
     const store = new PartyStore(() => {}, buzzCatalog);
     const party = store.createParty({

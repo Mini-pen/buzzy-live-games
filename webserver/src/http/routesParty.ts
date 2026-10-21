@@ -22,6 +22,7 @@ import {
   NEXT_QUESTION_COUNTDOWN_MIN_SEC,
 } from "../domain/nextQuestionCountdown.js";
 import type { ImportedPackStore } from "../games/zipPackImporter.js";
+import { assertQuizTextWithinLimits } from "../domain/quizTextLimits.js";
 import { importZipPack } from "../games/zipPackImporter.js";
 import { PackEditorStore } from "../games/packEditor.js";
 import { downloadAndCompressImage } from "../games/imageDownloader.js";
@@ -850,11 +851,13 @@ export async function registerPartyRoutes(
           return reply.status(400).send({ error: "VALIDATION", issues: parsedBody.error.issues });
         }
 
-        requireParty(store, partyId);
+        const party = requireParty(store, partyId);
         const serverTimestamp = Date.now();
-        
+        const clientTimestamp = parsedBody.data.clientTimestamp;
+        store.updatePlayerClockSync(party, playerId, serverTimestamp - clientTimestamp, 0);
+
         return {
-          clientTimestamp: parsedBody.data.clientTimestamp,
+          clientTimestamp,
           serverTimestamp,
         };
       } catch (err) {
@@ -1464,7 +1467,7 @@ export async function registerPartyRoutes(
         const existingDiskPackIds = new Set([...packs.values()].map((p) => p.id));
         const existingImportedPackIds = new Set([...importedPacks.getAll().values()].map((p) => p.id));
 
-        const { pack, zipEntries } = importZipPack(
+        const { pack, zipEntries, textNotices } = importZipPack(
           buffer,
           config.maxZipPackBytes,
           existingDiskPackIds,
@@ -1482,6 +1485,7 @@ export async function registerPartyRoutes(
             version: pack.version,
             roundCount: pack.rounds.length,
           },
+          textNotices,
         });
       } catch (err) {
         return replyDomain(reply, err);
@@ -1563,6 +1567,7 @@ export async function registerPartyRoutes(
 
         const body = z.object({ pack: z.unknown() }).parse(req.body);
         const validated = quizPackSchema.parse(body.pack);
+        assertQuizTextWithinLimits(validated);
 
         packEditor.update(req.params.editorId, validated);
 
@@ -1633,12 +1638,13 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
 
-        const zipBuffer = packEditor.exportAsZip(req.params.editorId);
         const pack = packEditor.get(req.params.editorId);
 
         if (!pack) {
           return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
         }
+        assertQuizTextWithinLimits(pack);
+        const zipBuffer = packEditor.exportAsZip(req.params.editorId);
 
         app.log.info(
           { partyId: party.id, editorId: req.params.editorId, packId: pack.id },
@@ -1674,6 +1680,7 @@ export async function registerPartyRoutes(
         if (!media) {
           return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
         }
+        assertQuizTextWithinLimits(pack);
 
         // * Create a synthetic ZIP to re-import the edited pack
         const zipBuffer = packEditor.exportAsZip(req.params.editorId);

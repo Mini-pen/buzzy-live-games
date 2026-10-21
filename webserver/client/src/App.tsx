@@ -7,7 +7,6 @@ import { BASE_PATH, SOCKET_PATH, withBase } from "./paths";
 import { performClockSyncBurst, convertToServerTime, type ClientClockSync } from "./clientClockSync";
 import {
   buildBroadcastStanding,
-  competitionRankForScore,
   frenchOrdinal,
   groupPlayersByTeam,
   resolveBroadcastViewMode,
@@ -142,6 +141,15 @@ interface PartyGameBoardYoutube {
   replaySerial: number;
 }
 
+/** * « Prêt ? » fills the question zone with one shared tagline. No prompt and no answers. */
+interface PartyGameBoardReadyHold {
+  kind: "ready_hold";
+  tagline: string;
+  questionNumberHuman: number;
+  questionCount: number;
+  roundNumberHuman: number;
+}
+
 type PartyGameBoardSurface =
   | PartyGameBoardQuiz
   | PartyGameBoardVideo
@@ -150,7 +158,8 @@ type PartyGameBoardSurface =
   | PartyGameBoardProgressiveGuess
   | PartyGameBoardAudioBlind
   | PartyGameBoardIframe
-  | PartyGameBoardYoutube;
+  | PartyGameBoardYoutube
+  | PartyGameBoardReadyHold;
 
 /** * Host-visible manche descriptor (mirror of `PartyPublicSnapshot.mancheScript`). */
 interface MancheCatalogItemView {
@@ -243,6 +252,8 @@ interface PartySnapshot {
   highlightBuzzWinner?: boolean;
   broadcastViewModeGlobal?: BroadcastViewMode;
   decidedBuzzWinnerId?: string | null;
+  /** * Buzzes parked in the grace window, before they enter `buzzOrder`. */
+  pendingBuzzPlayerIds?: string[];
 }
 
 /** * Catalogue GET `/api/sounds` — player buzzer picker (fichiers `buzzers/` seulement). */
@@ -290,9 +301,9 @@ function CountdownDisplay(props: {
     return remaining;
   };
 
-  const [remaining, setRemaining] = React.useState(computeRemaining);
+  const [remaining, setRemaining] = useState(computeRemaining);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       const newRemaining = computeRemaining();
       setRemaining(newRemaining);
@@ -914,6 +925,18 @@ function playSfxUrl(url: string | undefined | null): void {
   } catch {
     /* noop */
   }
+}
+
+/**
+ * * Seconds left on the pre-buzzer countdown.
+ *   `0` means the open time has passed even if the server flag is still false.
+ */
+function buzzerCountdownRemainingSec(snap: PartySnapshot, nowMs: number): number | null {
+  if (snap.state !== "round_active" || snap.buzzWindowOpen) return null;
+  if (typeof snap.countdownStartedAt !== "number") return null;
+  const durationSec = appliedBuzzerCountdownSec(snap);
+  if (durationSec <= 0) return null;
+  return nextQuestionCountdownRemainingSec(snap.countdownStartedAt, durationSec, nowMs);
 }
 
 /** * True while « Prêt ? » is the step on screen, before the pre-buzzer countdown. */
@@ -1838,6 +1861,17 @@ function GameBoardPanel(props: {
   const blindClientsMayPlay =
     !silent && (blindHostPresenter === true || (allowBlindPlaybackOnClients ?? false) === true);
 
+  if (board !== null && board.kind === "ready_hold") {
+    return (
+      <section className="bz-board bz-ready-hold">
+        <p className="bz-ready-hold-kicker">
+          Question {board.questionNumberHuman} / {board.questionCount} · en préparation
+        </p>
+        <p className="bz-ready-hold-phrase">{board.tagline}</p>
+      </section>
+    );
+  }
+
   if (board !== null && board.kind === "video") {
     return (
       <section className="bz-board">
@@ -2645,8 +2679,12 @@ function Play(): JSX.Element {
   const myId = parseJwtPlayerSub(jwt);
   const rowMe = snap.players.find((p) => p.id === myId);
   const canChatRoom = snap.state === "lobby" || snap.state === "between_rounds";
-  const canBuzz = snap.state === "round_active" && snap.buzzWindowOpen;
-  const queuedBuzz = typeof myId === "string" && snap.buzzOrder.some((bid) => bid === myId);
+  const countdownLeft = buzzerCountdownRemainingSec(snap, countdownNow);
+  const canBuzz = snap.state === "round_active" && (snap.buzzWindowOpen || countdownLeft === 0);
+  const queuedBuzz =
+    typeof myId === "string" &&
+    (snap.buzzOrder.some((bid) => bid === myId) ||
+      (snap.pendingBuzzPlayerIds ?? []).includes(myId));
 
   async function markReady(ready: boolean): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
@@ -2772,14 +2810,6 @@ function Play(): JSX.Element {
         />
       ) : null}
 
-      {snap.winnerDisplay && pauseStartedAt === null ? (
-        <WinnerScreen
-          playerName={snap.winnerDisplay.playerName}
-          avatarKey={snap.winnerDisplay.avatarKey}
-          scoreLine={snap.playerShowScores === false ? null : `${snap.winnerDisplay.score} pts`}
-        />
-      ) : null}
-
       <section className="bz-buzz-hero">
         {readyPhaseOnScreen(snap) ? (
           <div className="bz-ready-stack">
@@ -2800,10 +2830,7 @@ function Play(): JSX.Element {
               {readyStatusLabel((snap.readyPlayers ?? []).length, snap.players.length, "player")}
             </p>
           </div>
-        ) : snap.state === "round_active" &&
-          snap.countdownStartedAt != null &&
-          !snap.buzzWindowOpen &&
-          buzzerSec > 0 ? (
+        ) : countdownLeft !== null && countdownLeft > 0 ? (
           <BuzzCountdownButton
             startedAt={snap.countdownStartedAt}
             durationSec={buzzerSec}
@@ -5281,17 +5308,6 @@ function BroadcastSurface(props: {
       : undefined;
   const showBuzzWinner = highlightOn && winnerPlayer !== undefined;
   const gapMs = visibleBuzzGapMs(highlightOn, snap.buzzTimeGapMs);
-  const winnerScoreLine =
-    snap.winnerDisplay === undefined || snap.winnerDisplay === null
-      ? null
-      : showScores
-        ? `${snap.winnerDisplay.score} pts`
-        : frenchOrdinal(
-            competitionRankForScore(
-              snap.players.map((player) => player.score),
-              snap.winnerDisplay.score,
-            ),
-          );
 
   return (
     <div className={preview ? "bz-broadcast bz-broadcast--preview" : "bz-broadcast"}>
@@ -5353,14 +5369,6 @@ function BroadcastSurface(props: {
           </p>
         ) : null}
 
-        {!preview && snap.winnerDisplay && pauseStartedAt === null ? (
-          <WinnerScreen
-            playerName={snap.winnerDisplay.playerName}
-            avatarKey={snap.winnerDisplay.avatarKey}
-            scoreLine={winnerScoreLine}
-          />
-        ) : null}
-
         {/* INCERTAIN: the broadcast screen still shows the pre-buzzer countdown as large digits, in addition to the player button. */}
         {snap.state === "round_active" &&
         snap.countdownStartedAt !== null &&
@@ -5401,6 +5409,15 @@ function BroadcastSurface(props: {
           nowMs={countdownNow}
           variant="broadcast"
         >
+        {snap.state === "round_active" && board !== null && board.kind === "ready_hold" ? (
+          <>
+            <div className="bz-bc-meta">
+              Question {board.questionNumberHuman} / {board.questionCount} · en préparation
+            </div>
+            <h1 className="bz-bc-prompt">{board.tagline}</h1>
+          </>
+        ) : null}
+
         {snap.state === "round_active" && quizBoard !== null ? (
           <>
             <div className="bz-bc-meta">
