@@ -2,6 +2,10 @@ import type { JSX } from "react";
 
 import { podiumPhoneFocus, type ManchePodium, type PodiumStep } from "../../src/domain/manchePodium";
 
+function teamPlayerCountLabel(count: number): string {
+  return count === 1 ? "1 joueur" : `${count} joueurs`;
+}
+
 function StepCard(props: { step: PodiumStep }): JSX.Element {
   const { step } = props;
   return (
@@ -20,6 +24,10 @@ function StepCard(props: { step: PodiumStep }): JSX.Element {
           </span>
           <strong className="bz-podium-name">{member.name}</strong>
           {member.teamLabel !== null ? <span className="bz-podium-team">{member.teamLabel}</span> : null}
+          {member.memberCount !== null ? (
+            // INCERTAIN: Coding Agent, 2026-10-22, nombre de joueurs affiché sous le nom d'équipe d'après la maquette Design UI, à confirmer par Minipen
+            <span className="bz-podium-members">{teamPlayerCountLabel(member.memberCount)}</span>
+          ) : null}
           <span className="bz-podium-score">{member.scoreLabel}</span>
         </div>
       ))}

@@ -3037,6 +3037,11 @@ html, body {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.bz-podium-members {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+}
 .bz-podium-side {
   list-style: none;
   margin: 0;

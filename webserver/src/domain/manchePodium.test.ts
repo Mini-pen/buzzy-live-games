@@ -121,6 +121,8 @@ describe("manche podium ranking", () => {
     });
     expect(podium.kind).toBe("teams");
     expect(podium.steps.map((step) => step.members[0]?.name)).toEqual(["Équipe 2", "Équipe 1"]);
+    expect(podium.steps[0]?.members[0]?.memberCount).toBe(1);
+    expect(podium.steps[1]?.members[0]?.memberCount).toBe(2);
     expect(podium.steps[1]?.members[0]?.score).toBe(11);
     expect(podium.steps[1]?.members[0]?.initial).toBe("1");
     expect(podium.subtitle).toContain("équipes");

@@ -330,9 +330,12 @@ describe("podium on the phone and the broadcast", () => {
     expect(broadcast.textContent).toContain("11 points");
     const winningStep = broadcast.querySelector('[data-rank="1"]');
     expect(winningStep?.textContent).toContain("Équipe 1");
-    expect(winningStep?.textContent).not.toMatch(/\d+\s+joueurs/);
+    expect(winningStep?.querySelector(".bz-podium-members")?.textContent).toBe("2 joueurs");
+    expect(broadcast.querySelector('[data-rank="2"] .bz-podium-members')?.textContent).toBe("1 joueur");
 
     const phone = await showPartyScreen(`/party/${party.id}/play`, snap, "bob");
+    expect(phone.querySelector('[data-rank="1"] .bz-podium-members')?.textContent).toBe("2 joueurs");
+    expect(phone.querySelector('[data-rank="2"] .bz-podium-members')?.textContent).toBe("1 joueur");
     const card = phone.querySelector(".bz-podium-you");
     expect(card?.textContent).toContain("Votre équipe : Équipe 1");
     expect(card?.textContent).toContain("Votre apport : 3 points");
