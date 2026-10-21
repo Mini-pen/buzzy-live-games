@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { QuizPack } from "../games/pack.js";
-import { assessQuestionFields, previewFieldBoxes } from "./playLayout.js";
+import { assessQuestionFields, phoneQuizAnswerFrame, previewFieldBoxes } from "./playLayout.js";
 import {
   ANSWER_CHOICE_MAX_GRAPHEMES,
   QUESTION_PROMPT_MAX_GRAPHEMES,
@@ -125,6 +125,17 @@ describe("truncateUntilFits", () => {
 
   it("leaves a text that already fits", () => {
     expect(truncateUntilFits("Oui", () => true)).toEqual({ text: "Oui", truncated: false });
+  });
+});
+
+describe("phone answer frame", () => {
+  it("keeps four answers and the selected outline inside a 390×844 phone", () => {
+    const frame = phoneQuizAnswerFrame(390, 844);
+    expect(frame.outlineInside).toBe(true);
+    expect(frame.fourthAnswerInside).toBe(true);
+    expect(frame.textWidthPx).toBeGreaterThan(0);
+    expect(frame.rowPx).toBeGreaterThan(0);
+    expect(phoneQuizAnswerFrame(360, 640).fourthAnswerInside).toBe(true);
   });
 });
 

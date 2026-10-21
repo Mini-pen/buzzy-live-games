@@ -9,6 +9,7 @@ import App from "../../client/src/App";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
 import type { QuizPack } from "../games/pack.js";
 import { READY_PHASE_TAGLINES } from "./readyPhaseTaglines.js";
+import { phoneQuizAnswerFrame } from "./playLayout.js";
 import { partySnapshotWithGame } from "./partySnapshotPresenter.js";
 import { PartyStore } from "./store.js";
 import type { Party, PartyPublicSnapshot } from "./types.js";
@@ -166,6 +167,56 @@ const pauseOpts: HoldOptions = {
   winnerMode: "question",
   players: 2,
 };
+
+function launchNormalQuiz(questions: 1 | 2): {
+  party: Party;
+  quiz: QuizPack;
+  snaps: ScreenSnaps;
+} {
+  const store = new PartyStore(() => {}, buzzCatalog);
+  const party = store.createParty({
+    maxPlayers: null,
+    maxTeams: null,
+    closedAfterStart: false,
+    allowRename: true,
+    allowTeamChange: true,
+  });
+  addPlayer(party, "alice", "Alice", null);
+  const quiz = holdPack({ ...pauseOpts, questions, ready: false, players: 1 });
+  const packs = new Map<string, QuizPack>([[quiz.basename, quiz]]);
+  store.hostAppendManche(party, {
+    kind: "pack_quiz",
+    title: quiz.title,
+    packBasename: quiz.basename,
+    iframeUrl: null,
+    youtubeEmbedUrl: null,
+    directVideoUrl: null,
+    savedRoundIndex: 0,
+    savedQuestionIndex: 0,
+    transitionKind: null,
+    transitionDurationMs: null,
+  });
+  store.adminSetNextQuestionCountdownSec(party, 0);
+  store.hostLaunchManche(party, party.mancheScript[0]!.id, "normal", false, packs);
+  return { party, quiz, snaps: snapsOf(party, packs) };
+}
+
+function cueAdvanceButton(root: ParentNode): HTMLButtonElement | null {
+  return (
+    [...root.querySelectorAll<HTMLButtonElement>(".bz-manche-moment button")].find((button) =>
+      (button.textContent ?? "").includes("Question suivante"),
+    ) ?? null
+  );
+}
+
+function setNativeValue(input: HTMLInputElement, value: string): void {
+  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+  const tracker = (input as HTMLInputElement & { _valueTracker?: { setValue: (next: string) => void } })
+    ._valueTracker;
+  tracker?.setValue("");
+  setter?.call(input, value);
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+}
 
 function snapsOf(party: Party, packs: Map<string, QuizPack>): ScreenSnaps {
   return {
@@ -1019,5 +1070,214 @@ describe("normal launch", () => {
       expect(leakedNext(raw)).toEqual([]);
       expect(snap.buzzWindowOpen).toBe(false);
     }
+  });
+
+  it("keeps four answers and their outline inside a 390 px phone", async () => {
+    beginClock();
+    const sheet = readFileSync("client/src/styles/buzzy.css", "utf8");
+    expect(sheet).toMatch(/\.bz-app \.bz-qna-answers \{[^}]*padding:\s*3px/);
+    expect(sheet).toMatch(/\.bz-app \.bz-qna-answers > li \{[^}]*margin:\s*0/);
+    expect(sheet).toContain("outline-offset: 0");
+    const frame = phoneQuizAnswerFrame(390, 844);
+    expect(frame.outlineInside).toBe(true);
+    expect(frame.fourthAnswerInside).toBe(true);
+    expect(frame.textWidthPx).toBeGreaterThan(0);
+
+    const store = new PartyStore(() => {}, buzzCatalog);
+    const party = store.createParty({
+      maxPlayers: null,
+      maxTeams: null,
+      closedAfterStart: false,
+      allowRename: true,
+      allowTeamChange: true,
+    });
+    addPlayer(party, "alice", "Alice", null);
+    const quiz: QuizPack = {
+      id: "pack-four",
+      basename: "pack-four",
+      title: "Pack",
+      rounds: [
+        {
+          title: "Manche",
+          questions: [
+            {
+              prompt: "Laquelle ?",
+              choices: ["Alpha", "Bravo", "Charlie", "Delta"],
+              correctIndex: 3,
+              points: 1,
+            },
+          ],
+        },
+      ],
+    };
+    const packs = new Map<string, QuizPack>([[quiz.basename, quiz]]);
+    store.hostAppendManche(party, {
+      kind: "pack_quiz",
+      title: quiz.title,
+      packBasename: quiz.basename,
+      iframeUrl: null,
+      youtubeEmbedUrl: null,
+      directVideoUrl: null,
+      savedRoundIndex: 0,
+      savedQuestionIndex: 0,
+      transitionKind: null,
+      transitionDurationMs: null,
+    });
+    store.hostLaunchManche(party, party.mancheScript[0]!.id, "normal", false, packs);
+    const style = document.createElement("style");
+    style.textContent = sheet;
+    document.head.appendChild(style);
+    const phone = await show(`/party/${party.id}/play`, snapsOf(party, packs));
+    const answers = phone.querySelector(".bz-qna-answers");
+    const rows = [...(answers?.children ?? [])].filter((node) => node.tagName === "LI");
+    expect(rows).toHaveLength(4);
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Alpha"),
+      expect.stringContaining("Bravo"),
+      expect.stringContaining("Charlie"),
+      expect.stringContaining("Delta"),
+    ]);
+    expect(getComputedStyle(answers as Element).paddingTop).toBe("3px");
+    expect(getComputedStyle(answers as Element).paddingRight).toBe("3px");
+    expect(getComputedStyle(rows[3] as Element).marginBottom).toBe("0px");
+    const play = phone.querySelector(".bz-play-screen") as HTMLElement;
+    play.style.width = "390px";
+    play.style.height = "844px";
+    expect(play.scrollWidth).toBeLessThanOrEqual(390);
+  });
+
+  it("gives the ready block the same box as the question and the answers", async () => {
+    beginClock();
+    const sheet = readFileSync("client/src/styles/buzzy.css", "utf8");
+    expect(sheet).toMatch(/\.bz-app \.bz-play-rest > \.bz-qna \{[^}]*margin:\s*0/);
+    const style = document.createElement("style");
+    style.textContent = sheet;
+    document.head.appendChild(style);
+    const { store, party, quiz, packs } = answeredParty(pauseOpts);
+    const startedAt = party.nextQuestionCountdownStartedAt ?? 0;
+    store.maybeFinishNextQuestionCountdown(party, quiz, startedAt + 5_000);
+    const phone = await show(`/party/${party.id}/play`, snapsOf(party, packs));
+    const ready = phone.querySelector(".bz-play-rest > .bz-qna");
+    expect(ready?.classList.contains("bz-ready-hold")).toBe(true);
+    const margin = getComputedStyle(ready as Element);
+    expect(margin.marginTop).toBe("0px");
+    expect(margin.marginBottom).toBe("0px");
+  });
+
+  it("staggers the phone podium with the same rank heights as the broadcast", () => {
+    const sheet = readFileSync("client/src/styles/buzzy.css", "utf8");
+    expect(sheet).toMatch(/\.bz-podium-steps \{[^}]*align-items:\s*flex-end/);
+    expect(sheet).toContain("min-height: 46%");
+    expect(sheet).toContain("min-height: 34%");
+    expect(sheet).toContain("min-height: 26%");
+    expect(sheet).not.toMatch(/\.bz-podium--phone \.bz-podium-steps \{[^}]*align-items:\s*stretch/);
+    expect(sheet).not.toMatch(/\.bz-podium--phone \.bz-podium-step \{[^}]*min-height:\s*0/);
+  });
+
+  it("disables Question suivante on the last question and leaves it active before that", async () => {
+    beginClock();
+    const last = launchNormalQuiz(1);
+    expect(last.snaps.host.gameBoard).toMatchObject({
+      kind: "quiz",
+      questionIndexInRound: 0,
+      questionCount: 1,
+    });
+    const host = await show(`/party/${last.party.id}/admin`, last.snaps);
+    const button = cueAdvanceButton(host);
+    expect(button).not.toBeNull();
+    expect(button?.disabled).toBe(true);
+    expect(host.textContent).toContain("Dernière question — ce bouton est inactif");
+    const posts: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        if (init?.method === "POST") posts.push(requestUrl(input));
+        return Promise.resolve(
+          new Response(JSON.stringify(last.snaps.host), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    await act(async () => {
+      button?.click();
+    });
+    await flush();
+    expect(posts.some((url) => url.includes("/host/cue/next"))).toBe(false);
+    expect(last.party.mancheResultOpen).not.toBe(true);
+
+    const earlier = launchNormalQuiz(2);
+    expect(earlier.snaps.host.gameBoard).toMatchObject({
+      kind: "quiz",
+      questionIndexInRound: 0,
+      questionCount: 2,
+    });
+    const open = await show(`/party/${earlier.party.id}/admin`, earlier.snaps);
+    const next = cueAdvanceButton(open);
+    expect(next?.disabled).toBe(false);
+    expect(open.textContent).not.toContain("Dernière question — ce bouton est inactif");
+  });
+
+  it("keeps a typed settings number while a snapshot still says 20", async () => {
+    beginClock();
+    const { party, packs } = answeredParty({ ...pauseOpts, pauseSec: 20 });
+    const snaps = snapsOf(party, packs);
+    expect(snaps.host.nextQuestionCountdownSec).toBe(20);
+    localStorage.removeItem(`partygames:hostPartySettings:${party.id}`);
+    const host = await show(`/party/${party.id}/admin`, snaps);
+    const toggle = host.querySelector<HTMLButtonElement>(".bz-party-settings-toggle");
+    await act(async () => {
+      toggle?.click();
+    });
+    const next = host.querySelector<HTMLInputElement>(`#bz-next-${party.id}`);
+    const ready = host.querySelector<HTMLInputElement>(`#bz-ready-max-${party.id}`);
+    expect(next?.value).toBe("20");
+    expect(ready?.value).toBe("15");
+    const posts: Array<{ url: string; body: string }> = [];
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = requestUrl(input);
+        if (init?.method === "POST") posts.push({ url, body: typeof init.body === "string" ? init.body : "" });
+        // * A stale snapshot still says 20. It must not replace the digits being typed.
+        return Promise.resolve(
+          new Response(JSON.stringify(snaps.host), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    await act(async () => {
+      next?.focus();
+      if (next) setNativeValue(next, "3");
+    });
+    await flush();
+    expect(next?.value).toBe("3");
+    await act(async () => {
+      if (next) setNativeValue(next, "30");
+    });
+    await flush();
+    expect(next?.value).toBe("30");
+    expect(posts.some((post) => post.url.includes("/host/next-question-countdown"))).toBe(false);
+    await act(async () => {
+      next?.blur();
+    });
+    await flush();
+    await act(async () => {
+      ready?.focus();
+      if (ready) setNativeValue(ready, "30");
+    });
+    await flush();
+    expect(ready?.value).toBe("30");
+    await act(async () => {
+      ready?.blur();
+    });
+    await flush();
+    const countdown = posts.find((post) => post.url.includes("/host/next-question-countdown"));
+    const readyPost = posts.find((post) => post.url.includes("/host/ready-timeout"));
+    expect(countdown?.body).toContain('"seconds":30');
+    expect(readyPost?.body).toContain('"seconds":30');
   });
 });

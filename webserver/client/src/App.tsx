@@ -60,6 +60,8 @@ interface PartyGameBoardQuiz {
   roundTitle: string;
   roundNumberHuman: number;
   questionIndexInRound: number;
+  /** * Questions in this round. Used to disable « suivant » on the last cue. */
+  questionCount: number;
   prompt: string;
   choices: string[];
   points: number;
@@ -3211,10 +3213,76 @@ function hostPartySettingsSummary(snap: PartySnapshot): string {
   return `${ready} · buzzer ${buzzer} s · suivante ${next} s`;
 }
 
+/**
+ * * Numeric party setting. The typed text stays local until blur.
+ */
+// INCERTAIN: Coding Agent, 2026-10-22, sinon un snapshot encore à 20 remplace un 30 en cours de saisie, à confirmer par Minipen
+function HostNumberField(props: {
+  id: string;
+  label: string;
+  unit: string;
+  min: number;
+  max: number;
+  step?: number;
+  value: number;
+  accept: (value: number) => boolean;
+  onCommit: (value: number) => void;
+}): JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <div className="bz-party-field">
+      <label htmlFor={props.id}>{props.label}</label>
+      <span className="bz-party-value">
+        <input
+          id={props.id}
+          type="number"
+          min={props.min}
+          max={props.max}
+          step={props.step}
+          value={draft ?? String(props.value)}
+          onFocus={() => {
+            setDraft((current) => current ?? String(props.value));
+          }}
+          onChange={(e) => {
+            setDraft(e.target.value);
+          }}
+          onBlur={() => {
+            const raw = draft;
+            setDraft(null);
+            if (raw === null) return;
+            const val = Number.parseInt(raw, 10);
+            if (props.accept(val) && val !== props.value) props.onCommit(val);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+        />
+        <span>{props.unit}</span>
+      </span>
+    </div>
+  );
+}
+
 function buzzSoundModeLabel(mode: "players" | "animation" | "both" | undefined): string {
   if (mode === "players") return "Joueurs";
   if (mode === "animation") return "Animation";
   return "Joueurs + animation";
+}
+
+/**
+ * * True when « suivant » would only raise ROUND_EXHAUSTED.
+ *   The round stays open: it does not end by itself.
+ */
+// INCERTAIN: Coding Agent, 2026-10-22, bouton désactivé avec une indication, plutôt que relié à « Afficher gagnant », à confirmer par Minipen
+function cueAdvanceWouldExhaust(board: PartyGameBoardSurface | null): boolean {
+  if (board === null) return false;
+  if (board.kind === "quiz") return board.questionIndexInRound + 1 >= board.questionCount;
+  if (board.kind === "audio_blind") return board.trackIndexHuman >= board.trackCount;
+  if (board.kind === "image_buzz") return board.slideIndexHuman >= board.slideCount;
+  if (board.kind === "progressive_guess") {
+    return board.phase === "reveal" && board.puzzleIndexHuman >= board.puzzleCount;
+  }
+  return false;
 }
 
 /**
@@ -3226,6 +3294,7 @@ function HostMomentActions(props: {
   snap: PartySnapshot;
   showCueAdvance: boolean;
   cueAdvanceLabel: string;
+  cueAdvanceDisabled: boolean;
   showMediaReplay: boolean;
   loose?: boolean;
   onCloseBuzz: () => void;
@@ -3261,9 +3330,26 @@ function HostMomentActions(props: {
         </button>
       ) : null}
       {props.showCueAdvance ? (
-        <button type="button" onClick={props.onCueNext}>
+        <button
+          type="button"
+          disabled={props.cueAdvanceDisabled}
+          title={
+            props.cueAdvanceDisabled
+              ? "Dernière question — utilisez « Afficher gagnant »"
+              : undefined
+          }
+          onClick={() => {
+            if (props.cueAdvanceDisabled) return;
+            props.onCueNext();
+          }}
+        >
           {props.cueAdvanceLabel}
         </button>
+      ) : null}
+      {props.cueAdvanceDisabled ? (
+        <p className="bz-manche-moment-hint">
+          Dernière question — ce bouton est inactif. Utilisez « Afficher gagnant ».
+        </p>
       ) : null}
       {props.showMediaReplay ? (
         <button type="button" title="Même média" onClick={props.onCueReplay}>
@@ -3355,44 +3441,30 @@ function HostPartySettings(props: {
                 </span>
               </span>
             </label>
-            <div className="bz-party-field">
-              <label htmlFor={`bz-grace-${props.partyId}`}>Fenêtre d&apos;attente buzz</label>
-              <span className="bz-party-value">
-                <input
-                  id={`bz-grace-${props.partyId}`}
-                  type="number"
-                  min={0}
-                  max={1000}
-                  step={50}
-                  value={props.snap.buzzGraceWindowMs ?? 500}
-                  onChange={(e) => {
-                    const val = Number.parseInt(e.target.value, 10);
-                    if (val >= 0 && val <= 1000) props.onGrace(val);
-                  }}
-                />
-                <span>ms</span>
-              </span>
-            </div>
+            <HostNumberField
+              id={`bz-grace-${props.partyId}`}
+              label="Fenêtre d'attente buzz"
+              unit="ms"
+              min={0}
+              max={1000}
+              step={50}
+              value={props.snap.buzzGraceWindowMs ?? 500}
+              accept={(val) => val >= 0 && val <= 1000}
+              onCommit={props.onGrace}
+            />
           </section>
           <section className="bz-party-group">
             <h3>Comptes à rebours</h3>
-            <div className="bz-party-field">
-              <label htmlFor={`bz-next-${props.partyId}`}>Avant la question suivante</label>
-              <span className="bz-party-value">
-                <input
-                  id={`bz-next-${props.partyId}`}
-                  type="number"
-                  min={0}
-                  max={30}
-                  value={props.snap.nextQuestionCountdownSec ?? 5}
-                  onChange={(e) => {
-                    const val = Number.parseInt(e.target.value, 10);
-                    if (val >= 0 && val <= 30) props.onNextSec(val);
-                  }}
-                />
-                <span>s</span>
-              </span>
-            </div>
+            <HostNumberField
+              id={`bz-next-${props.partyId}`}
+              label="Avant la question suivante"
+              unit="s"
+              min={0}
+              max={30}
+              value={props.snap.nextQuestionCountdownSec ?? 5}
+              accept={(val) => val >= 0 && val <= 30}
+              onCommit={props.onNextSec}
+            />
             <label className="bz-switch">
               <input
                 type="checkbox"
@@ -3402,40 +3474,26 @@ function HostPartySettings(props: {
               <span className="bz-switch-ui" aria-hidden="true" />
               <span>Mode « Prêt ? »</span>
             </label>
-            <div className="bz-party-field">
-              <label htmlFor={`bz-ready-max-${props.partyId}`}>Délai maximum « Prêt ? »</label>
-              <span className="bz-party-value">
-                <input
-                  id={`bz-ready-max-${props.partyId}`}
-                  type="number"
-                  min={0}
-                  max={READY_TIMEOUT_MAX_SEC}
-                  value={props.snap.readyTimeoutSec ?? READY_TIMEOUT_DEFAULT_SEC}
-                  onChange={(e) => {
-                    const val = Number.parseInt(e.target.value, 10);
-                    if (isValidReadyTimeoutSec(val)) props.onReadyTimeout(val);
-                  }}
-                />
-                <span>s</span>
-              </span>
-            </div>
-            <div className="bz-party-field">
-              <label htmlFor={`bz-buzzer-sec-${props.partyId}`}>Avant le buzzer</label>
-              <span className="bz-party-value">
-                <input
-                  id={`bz-buzzer-sec-${props.partyId}`}
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={props.snap.countdownDurationSec ?? 5}
-                  onChange={(e) => {
-                    const val = Number.parseInt(e.target.value, 10);
-                    if (val >= 0 && val <= 10) props.onBuzzerSec(val);
-                  }}
-                />
-                <span>s</span>
-              </span>
-            </div>
+            <HostNumberField
+              id={`bz-ready-max-${props.partyId}`}
+              label="Délai maximum « Prêt ? »"
+              unit="s"
+              min={0}
+              max={READY_TIMEOUT_MAX_SEC}
+              value={props.snap.readyTimeoutSec ?? READY_TIMEOUT_DEFAULT_SEC}
+              accept={isValidReadyTimeoutSec}
+              onCommit={props.onReadyTimeout}
+            />
+            <HostNumberField
+              id={`bz-buzzer-sec-${props.partyId}`}
+              label="Avant le buzzer"
+              unit="s"
+              min={0}
+              max={10}
+              value={props.snap.countdownDurationSec ?? 5}
+              accept={(val) => val >= 0 && val <= 10}
+              onCommit={props.onBuzzerSec}
+            />
           </section>
           <section className="bz-party-group">
             <h3>Sons et affichage</h3>
@@ -4540,6 +4598,7 @@ function Admin(): JSX.Element {
       loose={loose}
       showCueAdvance={showCueAdvanceButton}
       cueAdvanceLabel={cueAdvanceLabel}
+      cueAdvanceDisabled={showCueAdvanceButton && cueAdvanceWouldExhaust(hostGameBoard)}
       showMediaReplay={showMediaReplayCue}
       onCloseBuzz={() => void onHostBuzzWindow(false)}
       onLaunchQuestion={() => void onHostLaunchQuestion()}

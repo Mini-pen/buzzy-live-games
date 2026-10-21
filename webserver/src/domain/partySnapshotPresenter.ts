@@ -295,6 +295,7 @@ function deriveGameBoard(
     roundTitle: round.title,
     roundNumberHuman: ri + 1,
     questionIndexInRound: qi,
+    questionCount: round.questions.length,
     prompt: question.prompt,
     choices: [...question.choices],
     points: question.points,

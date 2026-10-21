@@ -119,6 +119,9 @@ export const PREVIEW_CHROME = {
   qnaGapPx: 6,
   kickerPx: 16,
   answerGapPx: 6,
+  /** * Inset so the 3 px selected outline is not clipped by the answers list. */
+  answerListPadPx: 3,
+  answerOutlinePx: 3,
   choicePadYPx: 8,
   choicePadXPx: 16,
   choiceColumnGapPx: 8,
@@ -142,7 +145,11 @@ export function previewFieldBoxes(choiceCount: number): { prompt: PreviewBox; ch
   const innerH = Math.max(0, zone - PREVIEW_CHROME.qnaPadTopPx);
   const innerW = Math.max(0, PLAY_REFERENCE_SCREEN.widthPx - PREVIEW_CHROME.qnaPadXPx * 2);
   const questionTrack = innerH * PLAY_LAYOUT.questionShareOfZone;
-  const answersTrack = Math.max(0, innerH - questionTrack - PREVIEW_CHROME.qnaGapPx);
+  const answersTrack = Math.max(
+    0,
+    innerH - questionTrack - PREVIEW_CHROME.qnaGapPx - PREVIEW_CHROME.answerListPadPx * 2,
+  );
+  const answersW = Math.max(0, innerW - PREVIEW_CHROME.answerListPadPx * 2);
   const prompt: PreviewBox = {
     widthPx: innerW,
     heightPx: Math.max(0, questionTrack - PREVIEW_CHROME.kickerPx),
@@ -151,7 +158,7 @@ export function previewFieldBoxes(choiceCount: number): { prompt: PreviewBox; ch
   const rowGaps = Math.max(0, grid.rows - 1) * PREVIEW_CHROME.answerGapPx;
   const rowH = grid.rows > 0 ? Math.max(0, (answersTrack - rowGaps) / grid.rows) : 0;
   const colGaps = Math.max(0, grid.columns - 1) * PREVIEW_CHROME.answerGapPx;
-  const cellW = grid.columns > 0 ? Math.max(0, (innerW - colGaps) / grid.columns) : 0;
+  const cellW = grid.columns > 0 ? Math.max(0, (answersW - colGaps) / grid.columns) : 0;
   const textW = Math.max(
     0,
     cellW -
@@ -167,6 +174,55 @@ export function previewFieldBoxes(choiceCount: number): { prompt: PreviewBox; ch
       widthPx: textW,
       heightPx: Math.max(0, rowH - PREVIEW_CHROME.choicePadYPx),
     },
+  };
+}
+
+/** * CSS size of `.bz-choice-letter`. The text model uses a narrower column. */
+const CHOICE_LETTER_BOX_PX = 30;
+
+export interface PhoneQuizAnswerFrame {
+  rowPx: number;
+  textWidthPx: number;
+  /** * The yellow outline sits in the answers padding and does not pass the screen edge. */
+  outlineInside: boolean;
+  /** * Four rows leave room for the letter and the choice padding, so D is not pushed out. */
+  fourthAnswerInside: boolean;
+}
+
+/**
+ * * Four answers on a phone, including the selected outline.
+ *   The same chrome as the play screen: header, 50 % zone, 35 % question, list padding.
+ */
+export function phoneQuizAnswerFrame(screenWidthPx: number, screenHeightPx: number): PhoneQuizAnswerFrame {
+  const listPad = PREVIEW_CHROME.answerListPadPx;
+  const outline = PREVIEW_CHROME.answerOutlinePx;
+  const rest = Math.max(0, screenHeightPx - PLAY_LAYOUT.headerHeightPx);
+  const zone = rest * PLAY_LAYOUT.questionAnswersRatio;
+  const innerH = Math.max(0, zone - PREVIEW_CHROME.qnaPadTopPx);
+  const contentW = Math.max(0, screenWidthPx - PREVIEW_CHROME.qnaPadXPx * 2);
+  const answersW = Math.max(0, contentW - listPad * 2);
+  const questionTrack = innerH * PLAY_LAYOUT.questionShareOfZone;
+  const answersTrack = Math.max(
+    0,
+    innerH - questionTrack - PREVIEW_CHROME.qnaGapPx - listPad * 2,
+  );
+  const rows = PLAY_LAYOUT.answerSlotCount;
+  const rowGaps = Math.max(0, rows - 1) * PREVIEW_CHROME.answerGapPx;
+  const rowPx = rows > 0 ? (answersTrack - rowGaps) / rows : 0;
+  const textWidthPx = Math.max(
+    0,
+    answersW -
+      PREVIEW_CHROME.choicePadXPx -
+      PREVIEW_CHROME.choiceColumnGapPx * 3 -
+      PREVIEW_CHROME.letterPx -
+      PREVIEW_CHROME.checkPx -
+      PREVIEW_CHROME.votesPx,
+  );
+  return {
+    rowPx,
+    textWidthPx,
+    outlineInside: listPad >= outline && PREVIEW_CHROME.qnaPadXPx * 2 + contentW <= screenWidthPx + 0.01,
+    fourthAnswerInside: rowPx >= CHOICE_LETTER_BOX_PX + PREVIEW_CHROME.choicePadYPx && textWidthPx > 0,
   };
 }
 

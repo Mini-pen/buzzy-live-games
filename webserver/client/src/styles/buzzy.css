@@ -2684,6 +2684,10 @@ html, body {
   padding: 4px 12px 0;
   gap: 6px;
 }
+/* * « Prêt ? » and the question share this cell. An extra margin made the waiting block taller. */
+.bz-app .bz-play-rest > .bz-qna {
+  margin: 0;
+}
 .bz-qna-question,
 .bz-qna-answers,
 .bz-qna-prompt,
@@ -2711,14 +2715,20 @@ html, body {
 }
 /* INCERTAIN: Specs Writer, 2026-10-21, coupure « … » en dernier recours, à confirmer par Minipen */
 .bz-qna-prompt--overflow { outline: 2px solid var(--bz-bad); border-radius: 8px; }
-.bz-qna-answers {
+/* * 3 px of padding keeps the yellow outline inside the clipped answers zone. */
+.bz-app .bz-qna-answers {
   display: grid;
   gap: 6px;
   margin: 0;
-  padding: 0;
+  padding: 3px;
   list-style: none;
 }
-.bz-qna-answers > li { min-height: 0; height: 100%; }
+/* * The shared `li` margin would push answer D out of this fixed track. */
+.bz-app .bz-qna-answers > li {
+  margin: 0;
+  min-height: 0;
+  height: 100%;
+}
 .bz-app .bz-qna-answers .bz-choice {
   height: 100%;
   width: 100%;
@@ -2743,6 +2753,7 @@ html, body {
 .bz-app .bz-choice--selected,
 .bz-app .bz-qna-answers .bz-choice--selected {
   outline: 3px solid #ffca28;
+  outline-offset: 0;
   border-color: #ffca28;
 }
 .bz-app .bz-choice--selected .bz-choice-letter { color: #ffca28; }
@@ -2755,6 +2766,7 @@ html, body {
 /* INCERTAIN: Coding Agent, 2026-10-21, cas bonne réponse choisie (proposition Design UI), à confirmer par Minipen */
 .bz-app .bz-choice--correct.bz-choice--selected {
   outline: 3px solid #ffca28;
+  outline-offset: 0;
 }
 .bz-app .bz-choice--correct.bz-choice--selected .bz-choice-letter { color: #ffca28; }
 .bz-choice-check { width: 1.1em; text-align: center; font-weight: 800; }
@@ -3044,8 +3056,8 @@ html, body {
 .bz-podium-others { margin: 0; color: #c9c9d6; }
 .bz-podium--phone { padding: 8px 12px 12px; }
 .bz-podium--phone .bz-podium-head h1 { font-size: 22px; }
-.bz-podium--phone .bz-podium-steps { align-items: stretch; }
-.bz-podium--phone .bz-podium-step { min-height: 0; padding: 8px; }
+/* * Same stagger as the broadcast: rank min-heights and flex-end. */
+.bz-podium--phone .bz-podium-step { padding: 8px; }
 .bz-podium-you {
   overflow: hidden;
   background: #ffca28;

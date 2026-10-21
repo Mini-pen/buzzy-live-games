@@ -268,6 +268,8 @@ export interface PartyGameBoardQuiz {
   roundTitle: string;
   roundNumberHuman: number;
   questionIndexInRound: number;
+  /** * Questions in this round. The host uses it to know the last cue. */
+  questionCount: number;
   prompt: string;
   choices: string[];
   points: number;
