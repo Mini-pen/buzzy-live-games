@@ -193,3 +193,11 @@ Session 2026-10-21 — Question suivante à l'ouverture du buzzer (commits dbfee
 - CA-60 : Décidé (Minipen, 21/10/2026, réponse transmise par Coding Agent). « la nouvelle question s'affiche seulement quand le buzzer s'ouvre », en privé à 22h52.
 - CA-61 : envoi avant l'ouverture, encore incertain. Phrase du §4.5 non réécrite.
 - Écart `5fd119a` : `commitCueAdvance` avance l'index trop tôt. `state` jamais "ended", écran noir de `WinnerScreen`. Correctifs non choisis.
+
+================================================================================
+Session 2026-10-21 — Podium de fin de manche (commit d16a5cc)
+================================================================================
+- CA-73 : podium à trois places sur le téléphone et la diffusion, à la place de `WinnerScreen`.
+- Maquettes hors dépôt : `podium_diffusion_v1.png` et `podium_joueur_v1.png`.
+- Choix incertains : ex æquo, marches vides, mode équipes. Écart 1, 1, 2, 3 face à 1, 1, 3, encore à trancher.
+- Passage de `state` à "ended" non choisi. Place d'un joueur déconnecté non décidée à ce moment-là.

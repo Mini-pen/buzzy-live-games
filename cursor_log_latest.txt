@@ -1,30 +1,24 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Écran de résultat en fin de manche. Documentation seule, poussée sur `main`.
+**Contexte** : Complément du podium, joueur déconnecté et marches. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Décider un podium à trois places sur le téléphone et la diffusion, à la place de l'écran noir `WinnerScreen`.
-- Relier cet écran à l'écart « state jamais ended », sans choisir le passage de `state`.
-- Laisser les cinq choix de Specs Writer en incertain.
+- Noter le choix incertain de Coding Agent sur le joueur déconnecté.
+- Préciser l'écart entre un podium plein (1, 1, 2, 3) et une 2e marche vide (1, 1, 3), sans le trancher.
 
 ## Réalisations
 
-- CA-73 : Décidé par Minipen, « oui, écran de résultat sur le tel et sur l'écran de diffusion, avec un podium à 3 places ». Le téléphone de chaque joueur et la diffusion affichent ce podium. Il remplace `WinnerScreen`.
-- CA-44 et CA-55 : la phrase « écran de remplacement non décrit » est conservée et remplacée par ce podium, pour le téléphone et la diffusion. La page animateur n'est pas dans la décision.
-- Le serveur qui ne passe jamais `state` à "ended" reste l'écart de Test Writer (`5fd119a`). Le passage à "ended" n'est pas choisi.
-- Choix incertains de Specs Writer : équipes ou joueurs selon le mode, ex aequo sur la même marche, marches vides masquées, place et score hors podium, écran jusqu'au lancement de la suite.
-- Maquettes hors dépôt, ordinateur partagé : `podium_diffusion_v1.png` (1600×900) et `podium_joueur_v1.png` (390×844, sans défilement). Choix incertains de Design UI : badge « Ex æquo », classement dense 1, 1, 2, 3. Écart possible avec 1, 1, 3, à trancher. Mode équipes : nombre de joueurs. « Votre apport : N points » et le meilleur joueur sont une proposition.
-- Cas limites notés : ex aequo, 1 ou 2 joueurs, joueur déconnecté (place non décidée), tout le monde à 0 point.
-- Le CA-20 (écran de fin de partie, score ou rang, bouton « Suivant ») n'est pas tranché par cette fin de manche.
+- CA-73 : choix incertain (Coding Agent, 21/10/2026). Un joueur déconnecté pendant la manche garde ses points et reste classé. Il code aussi les égalités en 1, 1, 2, 3.
+- Le choix entre 1, 1, 2, 3 et 1, 1, 3 reste à trancher par Minipen.
+- Précision de Design UI : avec 1, 1, 3, la 2e marche reste vide. Avec 1, 1, 2, 3, le podium est toujours plein.
 
 ## Prochain focus suggéré
 
-- Confirmer les cinq choix du podium.
-- Dire si un joueur déconnecté pendant la manche figure sur le podium.
-- Choisir ou non le passage de `state` à "ended".
+- Trancher 1, 1, 2, 3 ou 1, 1, 3.
+- Confirmer que le joueur déconnecté garde ses points et reste classé.
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-44, CA-55, CA-73.
+- `cahier-des-charges.md` §4.6, CA-73.
