@@ -305,6 +305,7 @@ export class PartyStore {
       readyPhaseStartedAt: null,
       countdownStartedAt: null,
       winnerDisplay: null,
+      mancheResultOpen: false,
       buzzGraceWindowMs: 500,
       clockSync: new Map(),
       pendingBuzzQueue: [],
@@ -1132,6 +1133,8 @@ export class PartyStore {
 
   /** * Round is over: keep the §4.5 screen and cancel a pause so it cannot cover that screen. */
   private markRoundExhausted(party: Party): void {
+    // INCERTAIN: Specs Writer, 2026-10-21, l'écran reste jusqu'à l'action de l'animateur, à confirmer par Minipen
+    party.mancheResultOpen = true;
     this.maybeAutoShowWinnerEndOfRound(party);
     this.clearNextQuestionPause(party);
   }
@@ -1386,6 +1389,7 @@ export class PartyStore {
     party.questionHold = null;
     party.quizResult = null;
     party.questionRevealed = false;
+    party.mancheResultOpen = false;
     party.quizPicksThisQuestion = new Map();
     this.lockCountdownSettingsForQuestion(party);
     const pk = quizPackFromLoadedId(packs, party.loadedPackId);
@@ -1413,6 +1417,7 @@ export class PartyStore {
     party.state = "lobby";
     party.buzzWindowOpen = false;
     clearBuzzQueue(party);
+    party.mancheResultOpen = false;
     this.clearNextQuestionPause(party);
     this.touch(party);
     this.broadcast(party);
@@ -1639,6 +1644,7 @@ export class PartyStore {
 
   adminDismissWinnerScreen(party: Party): void {
     party.winnerDisplay = null;
+    party.mancheResultOpen = false;
     this.touch(party);
     this.broadcast(party);
   }

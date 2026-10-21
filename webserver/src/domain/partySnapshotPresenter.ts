@@ -1,4 +1,4 @@
-import type { QuizPack } from "../games/pack.js";
+import type { PackRound, QuizPack } from "../games/pack.js";
 import {
   isAudioBlindRound,
   isFreeBuzzRound,
@@ -11,6 +11,7 @@ import {
 import { withBasePath } from "../basePath.js";
 import { canonicalYoutubeEmbedIframeSrc } from "./youtubeEmbed.js";
 import { visibleBuzzGapMs } from "./broadcastDisplay.js";
+import { buildManchePodium } from "./manchePodium.js";
 import { publicSnapshotForParty } from "./partyLogic.js";
 import {
   isQuestionRevealed,
@@ -72,6 +73,14 @@ export function findPackByKeyOrId(packs: Map<string, QuizPack>, key: string): Qu
   const direct = packs.get(key);
   if (direct !== undefined) return direct;
   return quizPackFromLoadedId(packs, key);
+}
+
+function questionCountForRound(round: PackRound | undefined): number {
+  if (round === undefined) return 1;
+  if (isQuizRound(round)) return Math.max(1, round.questions.length);
+  if (isAudioBlindRound(round)) return Math.max(1, round.tracks.length);
+  if (isImageBuzzRound(round)) return Math.max(1, round.slides.length);
+  return 1;
 }
 
 function deriveGameBoard(
@@ -336,6 +345,23 @@ export function partySnapshotWithGame(
   const pack = quizPackFromLoadedId(packs, party.loadedPackId);
   const base = publicSnapshotForParty(party);
   const gameBoard = deriveGameBoard(party, pack, audience);
+  const roundIndex = party.currentRoundIndex;
+  const manchePodium =
+    party.mancheResultOpen === true
+      ? buildManchePodium({
+          players: [...party.players.values()].map((player) => ({
+            id: player.id,
+            displayName: player.displayName,
+            score: player.score,
+            teamId: player.teamId,
+          })),
+          maxTeams: party.maxTeams,
+          mancheNumber: (roundIndex ?? 0) + 1,
+          questionCount: questionCountForRound(
+            pack !== null && roundIndex !== null ? pack.rounds[roundIndex] : undefined,
+          ),
+        })
+      : undefined;
   const hostSound =
     audience === "host"
       ? {
@@ -382,6 +408,7 @@ export function partySnapshotWithGame(
     ...hostExtraFields,
     ...broadcastGap,
     gameBoard,
+    ...(manchePodium !== undefined ? { manchePodium } : {}),
     ...(buzzQuizQueueDetail !== undefined ? { buzzQuizQueueDetail } : {}),
   };
 }

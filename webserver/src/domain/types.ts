@@ -1,3 +1,5 @@
+import type { ManchePodium } from "./manchePodium.js";
+
 /** * Lifecycle of a party from the server's perspective. */
 export type PartyState = "lobby" | "round_active" | "between_rounds" | "ended";
 
@@ -208,6 +210,8 @@ export interface Party {
   countdownStartedAt: number | null;
   /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
   winnerDisplay: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
+  /** * End-of-manche podium stays up until the host continues. Absent means closed. */
+  mancheResultOpen?: boolean;
   /** * Grace window duration (ms) after first buzz before final decision (0–1000 ms, default 500). */
   buzzGraceWindowMs: number;
   /** * Clock sync state per player (for latency compensation). */
@@ -510,6 +514,8 @@ export interface PartyPublicSnapshot {
   countdownStartedAt?: number | null;
   /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
   winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
+  /** * Present only while the end-of-manche podium is on player and broadcast screens. */
+  manchePodium?: ManchePodium;
 }
 
 /** * One scored player, shown on the point modal during the next-question pause. */

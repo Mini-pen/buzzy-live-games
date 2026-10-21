@@ -238,10 +238,10 @@ function screenReady(container: HTMLElement, route: string): boolean {
   const text = container.textContent ?? "";
   if (text.includes("Partie indisponible") || text.includes("Partie introuvable")) return false;
   if (route.includes("/broadcast")) {
-    return container.querySelector(".bz-bc-prompt, .bz-bc-end, .bz-point-modal, .bz-winner-screen") !== null;
+    return container.querySelector(".bz-bc-prompt, .bz-bc-end, .bz-point-modal, .bz-winner-screen, .bz-podium") !== null;
   }
   if (route.includes("/admin")) return container.querySelector(".bz-board, .bz-projected-card") !== null;
-  return container.querySelector(".bz-buzz-btn, .bz-buzz-closed, .bz-board, .bz-winner-screen") !== null;
+  return container.querySelector(".bz-buzz-btn, .bz-buzz-closed, .bz-board, .bz-winner-screen, .bz-podium") !== null;
 }
 
 async function show(route: string, snaps: ScreenSnaps, playerId = "alice"): Promise<HTMLElement> {
@@ -654,10 +654,13 @@ describe("end screens stay readable", () => {
       winnerMode: "question",
     });
     expect(party.winnerDisplay).toBeNull();
+    expect(party.mancheResultOpen).toBe(true);
     expect(party.nextQuestionCountdownStartedAt).toBeNull();
     expect(party.state).toBe("round_active");
     const container = await show(`/party/${party.id}/broadcast`, snapsOf(party, packs));
-    expect(container.textContent).toContain(PREV_PROMPT);
+    expect(container.querySelector(".bz-podium")).not.toBeNull();
+    expect(container.textContent).toContain("Fin de la manche");
+    expect(container.textContent).not.toContain(PREV_PROMPT);
     expect(container.querySelector(".bz-winner-screen, .bz-point-modal")).toBeNull();
     expect((container.textContent ?? "").trim().length).toBeGreaterThan(0);
   });
@@ -672,16 +675,18 @@ describe("end screens stay readable", () => {
       winnerMode: "round",
     });
     expect(party.winnerDisplay).not.toBeNull();
+    expect(party.mancheResultOpen).toBe(true);
     expect(party.nextQuestionCountdownStartedAt).toBeNull();
     expect(party.state).toBe("round_active");
     const snaps = snapsOf(party, packs);
     const broadcast = await show(`/party/${party.id}/broadcast`, snaps);
     await settle(5_000);
-    const broadcastStuck = broadcast.querySelector(".bz-winner-screen") !== null;
+    expect(broadcast.querySelector(".bz-podium")).not.toBeNull();
+    expect(broadcast.querySelector(".bz-winner-screen")).toBeNull();
     const player = await show(`/party/${party.id}/play`, snaps);
     await settle(5_000);
-    const playerStuck = player.querySelector(".bz-winner-screen") !== null;
-    expect(broadcastStuck || playerStuck).toBe(false);
+    expect(player.querySelector(".bz-podium")).not.toBeNull();
+    expect(player.querySelector(".bz-winner-screen")).toBeNull();
   });
 
   it("keeps the winner overlay out of the host preview", async () => {
@@ -696,6 +701,7 @@ describe("end screens stay readable", () => {
     expect(party.winnerDisplay).not.toBeNull();
     const container = await show(`/party/${party.id}/admin`, snapsOf(party, packs));
     expect(container.querySelector(".bz-winner-screen")).toBeNull();
+    expect(container.querySelector(".bz-podium")).toBeNull();
     expect(container.querySelector(".bz-bc-preview-frame")).not.toBeNull();
     expect((container.textContent ?? "").trim().length).toBeGreaterThan(0);
   });

@@ -37,7 +37,9 @@ import {
   READY_TIMEOUT_MAX_SEC,
   readyStatusLabel,
 } from "../../src/domain/nextQuestionCountdown";
+import type { ManchePodium } from "../../src/domain/manchePodium";
 import { quizChoiceVoteLabel } from "../../src/domain/questionReveal";
+import { ManchePodiumView } from "./manchePodiumView";
 import { PlayFrame } from "./questionSurface";
 import {
   PackPreviewMeasure,
@@ -260,6 +262,7 @@ interface PartySnapshot {
   readyPhaseStartedAt?: number | null;
   countdownStartedAt?: number | null;
   winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
+  manchePodium?: ManchePodium;
   broadcastShowRanking?: boolean;
   broadcastShowScores?: boolean;
   playerShowScores?: boolean;
@@ -2819,6 +2822,18 @@ function Play(): JSX.Element {
     </>
   );
 
+  if (phoneStage && snap.manchePodium != null) {
+    return (
+      <div className="bz-app bz-play-screen">
+        <header className="bz-play-header">
+          <span className="bz-logo">buzzy</span>
+          {snap.playerShowScores === false ? null : <span>Mon score : {rowMe?.score ?? 0}</span>}
+        </header>
+        <ManchePodiumView podium={snap.manchePodium} surface="phone" playerId={myId} />
+      </div>
+    );
+  }
+
   if (phoneStage) {
     const board = snap.gameBoard;
     const quiz = board !== null && board.kind === "quiz" ? board : null;
@@ -5323,7 +5338,7 @@ function Admin(): JSX.Element {
 
 /** * Host preview never shows the point modal or the §4.5 winner screen. */
 function snapshotForBroadcastPreview(snap: PartySnapshot): PartySnapshot {
-  const stripped: PartySnapshot = { ...snap, winnerDisplay: null, pointAward: null };
+  const stripped: PartySnapshot = { ...snap, winnerDisplay: null, pointAward: null, manchePodium: undefined };
   const board = stripped.gameBoard;
   if (board === undefined || board === null) return stripped;
   if (board.kind === "quiz") {
@@ -5648,9 +5663,10 @@ function BroadcastSurface(props: {
       : undefined;
   const showBuzzWinner = highlightOn && winnerPlayer !== undefined;
   const gapMs = visibleBuzzGapMs(highlightOn, snap.buzzTimeGapMs);
+  const podiumLive = !preview && snap.state === "round_active" && snap.manchePodium != null ? snap.manchePodium : null;
 
   return (
-    <div className={preview ? "bz-broadcast bz-broadcast--preview" : "bz-broadcast"}>
+    <div className={preview ? "bz-broadcast bz-broadcast--preview" : podiumLive !== null ? "bz-broadcast bz-broadcast--podium" : "bz-broadcast"}>
       {preview || props.showHostReturn !== true ? null : (
         <button
           type="button"
@@ -5683,6 +5699,10 @@ function BroadcastSurface(props: {
       </header>
 
       <main className="bz-bc-stage">
+        {podiumLive !== null ? (
+          <ManchePodiumView podium={podiumLive} surface="broadcast" />
+        ) : (
+        <>
         {showBuzzWinner && winnerPlayer !== undefined ? (
           <div className="bz-bc-buzz-winner">
             <span className="bz-bc-buzz-winner-kicker">Gagnant du buzz</span>
@@ -5842,9 +5862,11 @@ function BroadcastSurface(props: {
             {showRanking ? <BroadcastStandingBlock snap={snap} showScores={showScores} /> : null}
           </div>
         ) : null}
+        </>
+        )}
       </main>
 
-      {snap.state === "round_active" && showRanking ? (
+      {snap.state === "round_active" && showRanking && podiumLive === null ? (
         <footer className="bz-bc-footer">
           <div className="bz-bc-queue">
             <h3>
