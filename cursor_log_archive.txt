@@ -116,3 +116,16 @@ Session 2026-10-21 — Correctifs écran noir et pause (commit 3bebe40)
 - `nextQuestionCountdownSec` (défaut 5, bornes alors 3–30), distinct de `countdownDurationSec`. Modale 4 s joueur / 3 s diffusion.
 - Jeton aussi dans `localStorage` (`partygames:hostToken:<partyId>`), `sessionStorage` encore gardé par le code.
 - Vitest webserver 364/364. `tsc` client encore en échec sur des erreurs préexistantes.
+
+================================================================================
+Session 2026-10-21 — Six écarts résolus (commit aed6c03)
+================================================================================
+- Minipen a tranché les six écarts du §4.6. Documentation seule, sur main à jour de 3bebe40.
+- §2.5 : localStorage, une entrée par partie, effacée à la fin. L'avance automatique attend le décompte entre les questions.
+- §2.9 : « Retour tableau » est le seul lien animateur admis sur la diffusion, sans jeton dans l'URL ni dans la page.
+- §4.3 et CA-15 du §4.8 : le décompte entre les questions vaut aussi en mode autonome. 0 = pas de décompte.
+- §4.5 : deux décomptes. countdownDurationSec (défaut 5, minimum 0) dans le buzzer après la question. nextQuestionCountdownSec (défaut 5) entre les questions.
+- CA-30, CA-20, CA-5, CA-6, CA-19 réécrits en indiquant le remplacement. CA-48 sans « choix incertain ». CA-50 : min(3 s, décompte), pas de modale si 0.
+- CA-47 : même fermeture, encore un choix incertain.
+- Maquette buzzer_decompte_joueur_v1.png : gris inactif, chiffre au centre, anneau jaune, puis rouge « BUZZ ! ». resultat_diffusion_v3.png non inscrit.
+- Points alors ouverts : panneau sous l'aperçu, localStorage des blocs pliables, maxima 10 s / 30 s, changement à la question suivante, grands chiffres du buzzer sur la diffusion, CA-20 fin de partie, fermeture diffusion, sort du bouton « Prêt », libellé autre que +1.

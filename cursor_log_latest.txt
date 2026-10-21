@@ -1,30 +1,32 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Minipen a tranché les six écarts du §4.6. Documentation seule, sur `main` à jour de `3bebe40`.
+**Contexte** : Minipen a tranché le mode « Prêt ? », les libellés « + N points » et l'écart CA-33. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Aligner le cahier des charges sur les décisions, sans supprimer les anciens critères.
-- Marquer chaque écart « Résolu par Minipen le 21/10/2026 ».
-- Citer `buzzer_decompte_joueur_v1.png` pour le décompte dans le bouton buzzer. Ne pas ajouter `resultat_diffusion_v3.png`.
+- Inscrire le mode optionnel « Prêt ? » au §4.5, sans effacer les phrases remplacées.
+- Remplacer « +1 point » par « + N points » ou « + N points pour l'équipe <nom> ».
+- Confirmer le CA-33 : la miniature animateur n'affiche pas la modale du gagnant.
+- Remplacer le choix incertain sur le joueur qui rejoint par la règle orange / prêt.
 
 ## Réalisations
 
-- §2.5 : localStorage, une entrée par partie, effacée à la fin. L'avance automatique attend le décompte entre les questions.
-- §2.9 : « Retour tableau » est le seul lien animateur admis sur la diffusion, sans jeton dans l'URL ni dans la page.
-- §4.3 et CA-15 du §4.8 : le décompte entre les questions vaut aussi en mode autonome. 0 = pas de décompte.
-- §4.5 : deux décomptes. `countdownDurationSec` (défaut 5, minimum 0) s'affiche dans le buzzer après la question. `nextQuestionCountdownSec` (défaut 5) est l'entre-questions.
-- CA-30, CA-20, CA-5, CA-6, CA-19 réécrits en indiquant le remplacement. CA-48 sans « choix incertain ». CA-50 résolu : min(3 s, décompte), pas de modale si 0.
-- CA-47 : même fermeture, encore un choix incertain.
-- Maquette buzzer : gris inactif, chiffre au centre, anneau jaune qui se vide, puis rouge « BUZZ ! ».
+- §4.5 : si le mode est actif, ordre décompte entre les questions, puis « Prêt ? » sur le bouton (orange / vert, bascule au clic), puis décompte du buzzer quand tous sont au vert. S'il est inactif, le décompte du buzzer suit l'affichage de la question.
+- Arrivée décidée : pendant le décompte entre les questions ou l'attente « Prêt ? », le joueur arrive en orange et on l'attend. Pendant une question, il est prêt et peut répondre tout de suite. Cela remplace le choix incertain (Coding Agent et Specs Writer) « il doit aussi passer au vert ».
+- Maquette `buzzer_pret_joueur_v1.png` citée (hors dépôt). Contrastes et compteur « 3 / 5 joueurs prêts » en proposition. Le compteur diffusion « 3/5 prêts » reste un choix incertain, distinct.
+- CA-6, CA-19, CA-20, CA-46, CA-47 : « +1 point » conservé puis remplacé par les libellés N points.
+- CA-33 résolu. Explication de Coding Agent conservée : la fenêtre du gagnant dans la miniature débordait et noircissait la page animateur. Elle reste sur la vraie diffusion.
+- §2.5, §4.3 et CA-15 du §4.8 : « Prêt ? » vient après l'affichage de la question et ne retarde pas l'avance automatique.
 
 ## Prochain focus suggéré
 
-- Confirmer les choix incertains : panneau sous l'aperçu, localStorage des blocs pliables, maxima 10 s / 30 s, changement à la question suivante, grands chiffres du buzzer sur la diffusion, CA-20 pour la fin de partie, fermeture diffusion, sort du bouton « Prêt ».
-- Libellé d'un delta autre que +1 et d'une équipe gagnante.
+- Confirmer les choix incertains du mode « Prêt ? » : réglage animateur, changement à la question suivante, joueurs connectés seulement, buzzer à 0, compteur diffusion, délai de 30 s (sans fondre les deux phrases), arrivée pendant le décompte du buzzer.
+- À décider par Minipen : bouton animateur pour forcer le départ. Pas prévu.
+- Toujours ouverts : CA-34, CA-41, maxima 10 s / 30 s, grands chiffres du buzzer sur la diffusion, CA-20 fin de partie, fermeture CA-47, singulier « + 1 point ».
 - `resultat_diffusion_v3.png` attend toujours l'avis de Minipen. Non inscrit au CDC.
+- La maquette `buzzer_pret_joueur_v1.png` n'était pas sur cette machine. Les contrastes viennent du message, pas d'une mesure sur le fichier.
 
 ## Références
 
-- `cahier-des-charges.md` §2.5, §2.9, §4.3, §4.5, §4.6 (CA-5, CA-6, CA-19, CA-20, CA-30, CA-33, CA-34, CA-40 à CA-51), §4.8 CA-15.
+- `cahier-des-charges.md` §2.5, §4.3, §4.5, §4.6 (CA-6, CA-19, CA-20, CA-33, CA-46, CA-47, CA-49), §4.8 (prose et CA-15).
