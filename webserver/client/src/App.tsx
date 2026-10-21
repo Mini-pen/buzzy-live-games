@@ -1,5 +1,6 @@
 import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { createPortal, flushSync } from "react-dom";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import { io, type Socket } from "socket.io-client";
@@ -736,8 +737,33 @@ function canonicalPartyIdFromRoute(param: string | undefined): string {
 }
 
 /**
+ * * Removes `#token=` after the bearer is stored.
+ *   Other hash keys stay. The broadcast return link never receives the token.
+ */
+function stripAdminTokenFromAddressBar(): void {
+  if (typeof globalThis.window === "undefined") return;
+  const rawHash = window.location.hash;
+  if (rawHash === "" || rawHash === "#") return;
+  const frag = rawHash.startsWith("#") ? rawHash.slice(1) : rawHash;
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(frag);
+  } catch {
+    return;
+  }
+  if (!params.has("token")) return;
+  params.delete("token");
+  const next = params.toString();
+  window.history.replaceState(
+    {},
+    "",
+    `${window.location.pathname}${window.location.search}${next === "" ? "" : `#${next}`}`,
+  );
+}
+
+/**
  * * Browser-only: restores admin Bearer from `#token=` or localStorage on first paint.
- *   The hash stays so a reload of this tab still has the token if storage is empty.
+ *   The hash is removed once the same token can be read back from localStorage.
  */
 function peekAdminBearer(routePartyIdRaw: string): string | null {
   if (routePartyIdRaw.trim() === "" || typeof globalThis.window === "undefined") return null;
@@ -748,15 +774,16 @@ function peekAdminBearer(routePartyIdRaw: string): string | null {
   const frag = new URLSearchParams(h).get("token");
   if (frag !== null && frag.length > 0) {
     rememberSharedHostToken(pidNorm, frag);
+    // * Keep the hash when storage did not keep the token (private mode, full disk).
+    if (findAdminBearerForPartyRouteId(pidNorm) === frag.trim()) stripAdminTokenFromAddressBar();
     return frag;
   }
   return findAdminBearerForPartyRouteId(routePartyIdRaw);
 }
 
 /**
- * * Stores the host token in localStorage, one entry per party.
- *   The admin tab also keeps `#token=` so a reload does not depend on storage alone.
- *   The broadcast return link still omits the token.
+ * * Stores the host token in localStorage, one entry per party id (the UUID, not the join code).
+ *   A reload of `/party/<uuid>/admin` reads that entry. The address bar does not keep the token.
  */
 function rememberSharedHostToken(partyId: string, token: string): void {
   if (typeof globalThis.localStorage === "undefined") return;
@@ -769,12 +796,9 @@ function peekPlayerJwt(routePartyIdRaw: string): string | null {
   return findPlayerJwtForPartyRouteId(routePartyIdRaw);
 }
 
-/** * Build admin path + optional `#token=` from session (reliable resume even when storage is read after first paint). */
+/** * Admin path with no credential. The stored bearer is enough for a reload. */
 function adminTableResumeTo(partyIdCanon: string): string {
-  const base = `/party/${encodeURIComponent(partyIdCanon)}/admin`;
-  const t = findAdminBearerForPartyRouteId(partyIdCanon);
-  if (t === null || t === "") return base;
-  return `${base}#token=${encodeURIComponent(t)}`;
+  return `/party/${encodeURIComponent(partyIdCanon)}/admin`;
 }
 
 const STORAGE_LAST_PLAYER_PARTY = "partygames:lastPlayerPartyId";
@@ -1214,8 +1238,11 @@ function Home(): JSX.Element {
           const outA = await loadPartySnapshot(pidA, { bearer: bearerA });
           if (outA.kind === "ok") {
             aRes = { partyId: pidA, joinCode: outA.snapshot.joinCode };
-          } else if (outA.kind === "not_found" || outA.kind === "bad_token") {
+          } else if (outA.kind === "bad_token") {
             purgeAdminSessionForPartyRouteId(pidA);
+            aRes = null;
+          } else if (outA.kind === "not_found") {
+            // * The party is gone from memory. The stored host token stays for the next reload.
             aRes = null;
           } else {
             aRes = { partyId: pidA, joinCode: "" };
@@ -1718,15 +1745,43 @@ interface GameTutorial {
   slides: TutorialSlide[];
 }
 
-/** * Tutorial overlay shown before the first round of a game type. */
+const BROADCAST_TUTORIAL_CLOSED_PREFIX = "partygames:broadcastTutorialClosed:";
+
+function broadcastTutorialClosedKey(partyId: string): string {
+  return `${BROADCAST_TUTORIAL_CLOSED_PREFIX}${partyId.trim().toLowerCase()}`;
+}
+
+function isBroadcastTutorialClosed(partyId: string): boolean {
+  try {
+    return window.localStorage.getItem(broadcastTutorialClosedKey(partyId)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function rememberBroadcastTutorialClosed(partyId: string): void {
+  try {
+    window.localStorage.setItem(broadcastTutorialClosedKey(partyId), "1");
+  } catch {
+    /* * Private mode can reject storage. The overlay still closes for this view. */
+  }
+}
+
+/**
+ * * Tutorial overlay shown before the first round of a game type.
+ */
+// INCERTAIN: Design UI, 2026-10-22, fermeture par « Compris », croix d'au moins 44 px, Échap ou clic sur le fond, puis masqué pour cette partie, à confirmer par Minipen
 function TutorialOverlay(props: {
   gameKind: string;
   canSkip: boolean;
   onClose: () => void;
+  /** * User dismiss. Distinct from `onClose`, which also runs when the tutorial has no slides. */
+  onDismiss?: () => void;
 }): JSX.Element {
   const [tutorials, setTutorials] = useState<Record<string, GameTutorial>>({});
   const [currentSlide, setCurrentSlide] = useState(0);
   const [loading, setLoading] = useState(true);
+  const dismiss = props.onDismiss ?? props.onClose;
 
   useEffect(() => {
     void fetchJson<{ tutorials: Record<string, GameTutorial> }>("/api/tutorials")
@@ -1739,9 +1794,71 @@ function TutorialOverlay(props: {
       });
   }, []);
 
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return (): void => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [dismiss]);
+
+  const closeButton = (
+    <button
+      type="button"
+      className="bz-tutorial-close"
+      aria-label="Fermer"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={dismiss}
+      style={{
+        position: "absolute",
+        top: 12,
+        right: 12,
+        width: 44,
+        height: 44,
+        minWidth: 44,
+        minHeight: 44,
+        padding: 0,
+        fontSize: 28,
+        lineHeight: 1,
+        borderRadius: 8,
+        cursor: "pointer",
+      }}
+    >
+      ×
+    </button>
+  );
+  const comprisButton = (
+    <button
+      type="button"
+      className="bz-tutorial-done"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={dismiss}
+      style={{
+        padding: "16px 40px",
+        fontSize: 22,
+        minHeight: 56,
+        minWidth: 220,
+        backgroundColor: "#4CAF50",
+        color: "white",
+        border: "none",
+        borderRadius: 8,
+        cursor: "pointer",
+        fontWeight: 800,
+      }}
+    >
+      Compris
+    </button>
+  );
+
   if (loading) {
     return (
       <div
+        className="bz-tutorial-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) dismiss();
+        }}
         style={{
           position: "fixed",
           top: 0,
@@ -1750,13 +1867,17 @@ function TutorialOverlay(props: {
           bottom: 0,
           backgroundColor: "rgba(0, 0, 0, 0.95)",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
+          gap: 24,
           zIndex: 10000,
           color: "white",
         }}
       >
+        {closeButton}
         <p>Chargement du tutoriel…</p>
+        {comprisButton}
       </div>
     );
   }
@@ -1777,6 +1898,10 @@ function TutorialOverlay(props: {
 
   return (
     <div
+      className="bz-tutorial-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) dismiss();
+      }}
       style={{
         position: "fixed",
         top: 0,
@@ -1792,7 +1917,9 @@ function TutorialOverlay(props: {
         padding: 20,
       }}
     >
+      {closeButton}
       <div
+        onMouseDown={(event) => event.stopPropagation()}
         style={{
           maxWidth: 800,
           width: "100%",
@@ -1823,7 +1950,7 @@ function TutorialOverlay(props: {
           {props.canSkip ? (
             <button
               type="button"
-              onClick={props.onClose}
+              onClick={dismiss}
               style={{
                 padding: "12px 24px",
                 fontSize: 16,
@@ -1854,28 +1981,12 @@ function TutorialOverlay(props: {
             >
               Suivant
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={props.onClose}
-              style={{
-                padding: "12px 24px",
-                fontSize: 16,
-                backgroundColor: "#4CAF50",
-                color: "white",
-                border: "none",
-                borderRadius: 8,
-                cursor: "pointer",
-                fontWeight: "bold",
-              }}
-            >
-              C'est parti !
-            </button>
-          )}
+          ) : null}
         </div>
         <div style={{ marginTop: 24, fontSize: 14, opacity: 0.7 }}>
           {currentSlide + 1} / {tutorial.slides.length}
         </div>
+        <div style={{ marginTop: 28, display: "flex", justifyContent: "center" }}>{comprisButton}</div>
       </div>
     </div>
   );
@@ -3255,7 +3366,13 @@ function hostPartySettingsSummary(snap: PartySnapshot): string {
 }
 
 /**
- * * Numeric party setting. The typed text stays local until blur.
+ * * Number kept on screen after Enter until the server snapshot echoes it.
+ *   Survives a remount: the field reads this map on every render.
+ */
+const optimisticHostNumbers = new Map<string, number>();
+
+/**
+ * * Numeric party setting. The typed text stays local until Enter or blur.
  */
 // INCERTAIN: Coding Agent, 2026-10-22, sinon un snapshot encore à 20 remplace un 30 en cours de saisie, à confirmer par Minipen
 function HostNumberField(props: {
@@ -3272,9 +3389,39 @@ function HostNumberField(props: {
   const [draft, setDraft] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   useEffect(() => {
-    if (pending !== null && props.value === pending) setPending(null);
-  }, [props.value, pending]);
-  const shown = draft !== null ? draft : pending !== null ? String(pending) : String(props.value);
+    const held = optimisticHostNumbers.get(props.id);
+    if (held !== undefined && props.value === held) {
+      optimisticHostNumbers.delete(props.id);
+      setPending(null);
+    }
+  }, [props.id, props.value, pending]);
+  const held = optimisticHostNumbers.get(props.id);
+  const shown = draft !== null ? draft : held !== undefined ? String(held) : String(props.value);
+
+  function applyCommit(raw: string): void {
+    const val = Number.parseInt(raw, 10);
+    if (!props.accept(val) || val === props.value) {
+      optimisticHostNumbers.delete(props.id);
+      setPending(null);
+      setDraft(null);
+      return;
+    }
+    const already = optimisticHostNumbers.get(props.id);
+    optimisticHostNumbers.set(props.id, val);
+    setPending(val);
+    setDraft(null);
+    if (already === val) return;
+    const committed = props.onCommit(val);
+    if (committed instanceof Promise) {
+      void committed.catch(() => {
+        if (optimisticHostNumbers.get(props.id) === val) {
+          optimisticHostNumbers.delete(props.id);
+          setPending(null);
+        }
+      });
+    }
+  }
+
   return (
     <div className="bz-party-field">
       <label htmlFor={props.id}>{props.label}</label>
@@ -3290,26 +3437,27 @@ function HostNumberField(props: {
             setDraft((current) => current ?? shown);
           }}
           onChange={(e) => {
-            setDraft(e.target.value);
+            const next = e.target.value;
+            const kept = optimisticHostNumbers.get(props.id);
+            // * Enter can make the number input emit the previous server value for one frame.
+            if (kept !== undefined && next === String(props.value) && next !== String(kept)) return;
+            setDraft(next);
           }}
-          onBlur={() => {
-            const raw = draft;
-            if (raw === null) return;
-            const val = Number.parseInt(raw, 10);
-            if (!props.accept(val) || val === props.value) {
+          onBlur={(e) => {
+            if (optimisticHostNumbers.has(props.id)) {
               setDraft(null);
-              setPending(null);
               return;
             }
-            setPending(val);
-            setDraft(null);
-            const committed = props.onCommit(val);
-            if (committed instanceof Promise) {
-              void committed.catch(() => setPending(null));
-            }
+            applyCommit(draft ?? e.currentTarget.value);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            const raw = draft ?? e.currentTarget.value;
+            flushSync(() => {
+              applyCommit(raw);
+            });
+            e.currentTarget.blur();
           }}
         />
         <span>{props.unit}</span>
@@ -3665,6 +3813,11 @@ function Admin(): JSX.Element {
   /** * Launch dialog for choosing mode (normal/autonomous) */
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
   const [launchDialogMancheId, setLaunchDialogMancheId] = useState<string | null>(null);
+  const launchDialogRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!launchDialogOpen) return;
+    launchDialogRef.current?.focus();
+  }, [launchDialogOpen, launchDialogMancheId]);
   const [importZipUploading, setImportZipUploading] = useState(false);
   const [importZipError, setImportZipError] = useState<string | null>(null);
   const [teamViewToast, setTeamViewToast] = useState(false);
@@ -3732,7 +3885,7 @@ function Admin(): JSX.Element {
       }
       setSnap(null);
       if (outcome.kind === "not_found") {
-        purgeAdminSessionForPartyRouteId(pid);
+        // * NOT_FOUND means this process no longer has the party. The stored token is still valid.
         setAdminUnavailableKind("gone");
       } else if (outcome.kind === "bad_token") {
         purgeAdminSessionForPartyRouteId(pid);
@@ -4603,7 +4756,9 @@ function Admin(): JSX.Element {
               ? "Jeton refusé"
               : adminUnavailableKind === "network"
                 ? "Connexion impossible"
-                : "Partie indisponible"}
+                : adminUnavailableKind === "gone"
+                  ? "Partie introuvable"
+                  : "Partie indisponible"}
           </h2>
           <p>
             {adminUnavailableKind === "bad_token"
@@ -4615,7 +4770,7 @@ function Admin(): JSX.Element {
           <button
             type="button"
             onClick={() => {
-              purgeAdminSessionForPartyRouteId(pid);
+              if (adminUnavailableKind !== "gone") purgeAdminSessionForPartyRouteId(pid);
               setToken(null);
               nav("/", { replace: true });
             }}
@@ -5391,67 +5546,62 @@ function Admin(): JSX.Element {
           </div>
         ) : null}
 
-        {launchDialogOpen && launchDialogMancheId !== null ? (
-          <div
-            role="presentation"
-            className="bz-modal-overlay"
-            onMouseDown={(evt) => {
-              if (evt.target === evt.currentTarget) setLaunchDialogOpen(false);
-            }}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="launch-dialog-title"
-              className="bz-modal-dialog bz-launch-dialog"
-              onMouseDown={(evt) => {
-                evt.stopPropagation();
-              }}
-            >
-              <h2 id="launch-dialog-title">Choisir le mode de lancement</h2>
-              <p className="bz-launch-sub">Sélectionnez comment vous souhaitez lancer cette manche.</p>
-              <div className="bz-launch-cards">
-                <button
-                  type="button"
-                  className="bz-launch-card"
-                  onClick={() => {
-                    void onHostMancheLaunch(launchDialogMancheId, "normal", false);
-                    setLaunchDialogOpen(false);
+        {launchDialogOpen && launchDialogMancheId !== null
+          ? createPortal(
+              // INCERTAIN: Design UI, 2026-10-22, fond sombre sur tout l'écran, dialogue centré « Comment lancer la manche ? », boutons « Mode normal » et « Mode autonome », à confirmer par Minipen
+              <div
+                role="presentation"
+                className="bz-launch-overlay"
+                onMouseDown={(evt) => {
+                  if (evt.target === evt.currentTarget) setLaunchDialogOpen(false);
+                }}
+              >
+                <div
+                  ref={launchDialogRef}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="launch-dialog-title"
+                  tabIndex={-1}
+                  className="bz-modal-dialog bz-launch-dialog"
+                  onMouseDown={(evt) => {
+                    evt.stopPropagation();
                   }}
                 >
-                  <span className="bz-launch-icon" aria-hidden="true">▶</span>
-                  <span className="bz-launch-copy">
-                    <span className="bz-launch-card-title">Lancer en mode normal</span>
-                    <span className="bz-launch-card-desc">
-                      Affiche le tutoriel (si premier lancement de ce type de jeu), puis contrôle manuel par l&apos;hôte
-                    </span>
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="bz-launch-card bz-launch-card--auto"
-                  onClick={() => {
-                    void onHostMancheLaunch(launchDialogMancheId, "autonomous", false);
-                    setLaunchDialogOpen(false);
-                  }}
-                >
-                  <span className="bz-launch-icon" aria-hidden="true">⚡</span>
-                  <span className="bz-launch-copy">
-                    <span className="bz-launch-card-title">Lancer en mode autonome</span>
-                    <span className="bz-launch-card-desc">
-                      Pas de tutoriel, enchaînement automatique des questions/rounds
-                    </span>
-                  </span>
-                </button>
-              </div>
-              <div className="bz-launch-footer">
-                <button type="button" className="bz-launch-cancel" onClick={() => setLaunchDialogOpen(false)}>
-                  Annuler
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+                  <h2 id="launch-dialog-title">Comment lancer la manche ?</h2>
+                  <div className="bz-launch-cards">
+                    <button
+                      type="button"
+                      className="bz-launch-card"
+                      onClick={() => {
+                        void onHostMancheLaunch(launchDialogMancheId, "normal", false);
+                        setLaunchDialogOpen(false);
+                      }}
+                    >
+                      <span className="bz-launch-icon" aria-hidden="true">▶</span>
+                      <span className="bz-launch-card-title">Mode normal</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="bz-launch-card bz-launch-card--auto"
+                      onClick={() => {
+                        void onHostMancheLaunch(launchDialogMancheId, "autonomous", false);
+                        setLaunchDialogOpen(false);
+                      }}
+                    >
+                      <span className="bz-launch-icon" aria-hidden="true">⚡</span>
+                      <span className="bz-launch-card-title">Mode autonome</span>
+                    </button>
+                  </div>
+                  <div className="bz-launch-footer">
+                    <button type="button" className="bz-launch-cancel" onClick={() => setLaunchDialogOpen(false)}>
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.querySelector(".bz-app") ?? document.body,
+            )
+          : null}
       </div>
       {teamViewToast ? (
         <div className="bz-team-view-toast" role="status">
@@ -5719,10 +5869,10 @@ function Broadcast(): JSX.Element {
       playSfxUrl(payload.url);
     };
     const onTutorial = (payload: { gameKind?: string; canSkip?: boolean }): void => {
-      if (!cancelled && typeof payload.gameKind === "string") {
-        setTutorialGameKind(payload.gameKind);
-        setTutorialCanSkip(payload.canSkip === true);
-      }
+      if (cancelled || typeof payload.gameKind !== "string") return;
+      if (isBroadcastTutorialClosed(pid)) return;
+      setTutorialGameKind(payload.gameKind);
+      setTutorialCanSkip(payload.canSkip === true);
     };
     const onTerminated = (): void => {
       if (typeof localStorage !== "undefined") forgetHostToken(localStorage, pid);
@@ -5770,6 +5920,10 @@ function Broadcast(): JSX.Element {
               gameKind: tutorialGameKind,
               canSkip: tutorialCanSkip,
               onClose: () => setTutorialGameKind(null),
+              onDismiss: () => {
+                rememberBroadcastTutorialClosed(pid);
+                setTutorialGameKind(null);
+              },
             }
       }
     />
@@ -5782,7 +5936,12 @@ function BroadcastSurface(props: {
   partyId: string;
   mode: "live" | "preview";
   showHostReturn?: boolean;
-  tutorial?: { gameKind: string; canSkip: boolean; onClose: () => void } | null;
+  tutorial?: {
+    gameKind: string;
+    canSkip: boolean;
+    onClose: () => void;
+    onDismiss?: () => void;
+  } | null;
 }): JSX.Element {
   const { snap, partyId, mode } = props;
   const preview = mode === "preview";
@@ -6045,6 +6204,7 @@ function BroadcastSurface(props: {
           gameKind={props.tutorial.gameKind}
           canSkip={props.tutorial.canSkip}
           onClose={props.tutorial.onClose}
+          onDismiss={props.tutorial.onDismiss}
         />
       ) : null}
     </div>

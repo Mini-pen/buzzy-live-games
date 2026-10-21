@@ -21,14 +21,32 @@ import type { Party, PartyPublicSnapshot } from "./types.js";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+const socketBox = vi.hoisted(() => {
+  const sockets: Array<Record<string, (payload: unknown) => void>> = [];
+  return { sockets };
+});
+
 vi.mock("socket.io-client", () => ({
-  io: () => ({
-    on: () => undefined,
-    off: () => undefined,
-    disconnect: () => undefined,
-    emit: () => undefined,
-  }),
+  io: () => {
+    const handlers: Record<string, (payload: unknown) => void> = {};
+    socketBox.sockets.push(handlers);
+    return {
+      on: (event: string, cb: (payload: unknown) => void) => {
+        handlers[event] = cb;
+      },
+      off: (event: string) => {
+        delete handlers[event];
+      },
+      disconnect: () => undefined,
+      emit: () => undefined,
+    };
+  },
 }));
+
+function emitSocket(event: string, payload: unknown): void {
+  const found = [...socketBox.sockets].reverse().find((handlers) => typeof handlers[event] === "function");
+  found?.[event]?.(payload);
+}
 
 const PREV_PROMPT = "ENONCE_DEJA_JOUE";
 const PREV_A = "REPONSE_DEJA_A";
@@ -233,6 +251,34 @@ function requestUrl(input: RequestInfo | URL): string {
 
 const recordedPosts: Array<{ url: string; body: string }> = [];
 
+function installMissingPartyFetch(): void {
+  vi.stubGlobal(
+    "fetch",
+    (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = requestUrl(input);
+      let body: unknown = {};
+      if (url.includes("/api/parties/") && (init?.method === undefined || init.method === "GET")) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "NOT_FOUND", message: "NOT_FOUND" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }
+      if (url.includes("/me/time-sync")) body = { clientTimestamp: 0, serverTimestamp: Date.now() };
+      else if (url.includes("/api/sounds")) body = { defaultBuzzerKey: "good1", sounds: [] };
+      else if (url.includes("/api/packs")) body = { packs: [] };
+      else if (url.includes("/api/avatars")) body = { avatars: [] };
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    },
+  );
+}
+
 function installFetch(snaps: ScreenSnaps): void {
   vi.stubGlobal(
     "fetch",
@@ -304,9 +350,10 @@ async function show(
   route: string,
   snaps: ScreenSnaps,
   playerId = "alice",
-  options?: { seedHostToken?: boolean },
+  options?: { seedHostToken?: boolean; allowUnavailable?: boolean; partyMissing?: boolean },
 ): Promise<HTMLElement> {
-  installFetch(snaps);
+  if (options?.partyMissing === true) installMissingPartyFetch();
+  else installFetch(snaps);
   if (route.includes("/play")) rememberPlayer(snaps.player.id, playerId);
   if (route.includes("/admin") && options?.seedHostToken !== false) rememberHost(snaps.host.id);
   const container = document.createElement("div");
@@ -326,6 +373,16 @@ async function show(
   });
   for (let i = 0; i < 8; i += 1) {
     await flush();
+    if (options?.allowUnavailable === true) {
+      const text = container.textContent ?? "";
+      if (
+        text.includes("Partie introuvable") ||
+        text.includes("Jeton animateur absent") ||
+        text.includes("Partie indisponible")
+      ) {
+        return container;
+      }
+    }
     if (screenReady(container, route)) {
       if (renderErrors.length > 0) throw renderErrors[0];
       return container;
@@ -367,6 +424,7 @@ afterEach(async () => {
   document.body.replaceChildren();
   localStorage.clear();
   sessionStorage.clear();
+  socketBox.sockets.length = 0;
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -1293,6 +1351,72 @@ describe("normal launch", () => {
     expect(ready?.value).toBe("30");
   });
 
+  it("keeps 30 after Enter until the server snapshot confirms it", async () => {
+    beginClock();
+    const { party, packs } = answeredParty({ ...pauseOpts, pauseSec: 12 });
+    const snaps = snapsOf(party, packs);
+    expect(snaps.host.nextQuestionCountdownSec).toBe(12);
+    localStorage.removeItem(`partygames:hostPartySettings:${party.id}`);
+    const host = await show(`/party/${party.id}/admin`, snaps);
+    const toggle = host.querySelector<HTMLButtonElement>(".bz-party-settings-toggle");
+    await act(async () => {
+      toggle?.click();
+    });
+    const next = host.querySelector<HTMLInputElement>(`#bz-next-${party.id}`);
+    expect(next?.value).toBe("12");
+    let releasePost: (response: Response) => void = () => undefined;
+    const pendingPost = new Promise<Response>((resolve) => {
+      releasePost = resolve;
+    });
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = requestUrl(input);
+        if (init?.method === "POST" && url.includes("/host/next-question-countdown")) return pendingPost;
+        return Promise.resolve(
+          new Response(JSON.stringify(snaps.host), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    await act(async () => {
+      next?.focus();
+      if (next) setNativeValue(next, "30");
+    });
+    await flush();
+    expect(next?.value).toBe("30");
+    await act(async () => {
+      next?.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    });
+    await flush();
+    expect(next?.value).toBe("30");
+    const stale = { ...snaps.host, nextQuestionCountdownSec: 12 };
+    await act(async () => {
+      releasePost(
+        new Response(JSON.stringify(stale), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    });
+    await flush();
+    expect(next?.value).toBe("30");
+    const confirmed = { ...snaps.host, nextQuestionCountdownSec: 30 };
+    await act(async () => {
+      emitSocket("party:patch", confirmed);
+    });
+    await flush();
+    expect(next?.value).toBe("30");
+    const later = { ...snaps.host, nextQuestionCountdownSec: 8 };
+    await act(async () => {
+      emitSocket("party:patch", later);
+    });
+    await flush();
+    expect(next?.value).toBe("8");
+  });
+
   it("keeps Afficher gagnant enabled in Fin de manche until the podium is open", async () => {
     beginClock();
     const playing = launchNormalQuiz(2);
@@ -1324,7 +1448,7 @@ describe("normal launch", () => {
     expect(blocked?.disabled).toBe(true);
   });
 
-  it("keeps the host token in the url and in localStorage across a reload", async () => {
+  it("stores the host token and drops the hash, then reloads from localStorage", async () => {
     beginClock();
     const playing = launchNormalQuiz(2);
     const id = playing.party.id.toLowerCase();
@@ -1332,13 +1456,29 @@ describe("normal launch", () => {
     window.location.hash = "#token=secret-host-token";
     const first = await show(`/party/${id}/admin`, playing.snaps, "alice", { seedHostToken: false });
     expect(first.textContent).not.toContain("Jeton animateur absent");
-    expect(window.location.hash).toContain("token=secret-host-token");
+    expect(window.location.hash).not.toContain("token=");
     expect(localStorage.getItem(`partygames:hostToken:${id}`)).toBe("secret-host-token");
 
     window.location.hash = "";
     const second = await show(`/party/${id}/admin`, playing.snaps, "alice", { seedHostToken: false });
     expect(second.textContent).not.toContain("Jeton animateur absent");
+    expect(window.location.hash).not.toContain("token=");
+  });
+
+  it("keeps the stored host token when the party GET is 404", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    const id = playing.party.id.toLowerCase();
+    localStorage.setItem(`partygames:hostToken:${id}`, "secret-host-token");
     window.location.hash = "";
+    const host = await show(`/party/${id}/admin`, playing.snaps, "alice", {
+      seedHostToken: false,
+      partyMissing: true,
+      allowUnavailable: true,
+    });
+    expect(host.textContent).toContain("Partie introuvable");
+    expect(host.textContent).not.toContain("Jeton animateur absent");
+    expect(localStorage.getItem(`partygames:hostToken:${id}`)).toBe("secret-host-token");
   });
 
   it("shows a French sentence when Question suivante returns 404", async () => {
@@ -1424,5 +1564,121 @@ describe("normal launch", () => {
     expect(host.textContent).toContain("Pause");
     expect(host.textContent).toContain(prompt);
     expect(host.textContent).not.toContain("En attente des joueurs");
+  });
+
+  it("opens the launch choice as a centered dialog on the app root", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    recordedPosts.length = 0;
+    const host = await show(`/party/${playing.party.id}/admin`, playing.snaps);
+    const launch = [...host.querySelectorAll<HTMLButtonElement>(".bz-host-controls button")].find((item) =>
+      (item.textContent ?? "").includes("Lancer la manche"),
+    );
+    await act(async () => {
+      launch?.click();
+    });
+    await flush();
+    const overlay = document.querySelector(".bz-launch-overlay");
+    expect(overlay).not.toBeNull();
+    expect(overlay?.parentElement?.classList.contains("bz-app")).toBe(true);
+    expect(overlay?.closest(".bz-host-layout")).toBeNull();
+    expect(document.getElementById("launch-dialog-title")?.textContent).toBe("Comment lancer la manche ?");
+    expect(overlay?.textContent).toContain("Mode normal");
+    expect(overlay?.textContent).toContain("Mode autonome");
+    const dialog = overlay?.querySelector<HTMLElement>("[role='dialog']");
+    expect(dialog).not.toBeNull();
+    expect(dialog === document.activeElement || dialog?.contains(document.activeElement)).toBe(true);
+    const normal = [...(overlay?.querySelectorAll("button") ?? [])].find((button) =>
+      (button.textContent ?? "").includes("Mode normal"),
+    );
+    await act(async () => {
+      normal?.click();
+    });
+    await flush();
+    expect(
+      recordedPosts.some((post) => post.url.includes("/host/manche/launch") && post.body.includes('"mode":"normal"')),
+    ).toBe(true);
+    expect(document.querySelector(".bz-launch-overlay")).toBeNull();
+  });
+
+  it("closes the broadcast tutorial from Compris, Escape, the cross, or the backdrop, once per party", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    const id = playing.party.id.toLowerCase();
+    const storageKey = `partygames:broadcastTutorialClosed:${id}`;
+    localStorage.removeItem(storageKey);
+    const broadcast = await show(`/party/${id}/broadcast`, playing.snaps);
+    const tutorials = {
+      tutorials: {
+        quiz: {
+          gameKind: "quiz",
+          title: "Quiz QCM",
+          slides: [
+            { title: "Bienvenue au Quiz !", description: "Répondez.", icon: "📝" },
+            { title: "Comment jouer ?", description: "Buzz.", icon: "🎯" },
+          ],
+        },
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL): Promise<Response> => {
+        const url = requestUrl(input);
+        const body = url.includes("/api/tutorials")
+          ? tutorials
+          : url.includes("/api/parties/")
+            ? playing.snaps.player
+            : {};
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    async function openTutorial(): Promise<void> {
+      await act(async () => {
+        emitSocket("party:tutorial", { gameKind: "quiz", canSkip: true });
+      });
+      await flush();
+    }
+    await openTutorial();
+    expect(broadcast.textContent).toContain("Bienvenue au Quiz !");
+    const close = broadcast.querySelector<HTMLButtonElement>(".bz-tutorial-close");
+    expect(close?.textContent).toBe("×");
+    expect(close?.style.minWidth).toBe("44px");
+    expect(close?.style.minHeight).toBe("44px");
+    const compris = [...broadcast.querySelectorAll("button")].find((button) => button.textContent === "Compris");
+    expect(compris).toBeDefined();
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    await flush();
+    expect(broadcast.textContent).not.toContain("Bienvenue au Quiz !");
+    expect(localStorage.getItem(storageKey)).toBe("1");
+    await openTutorial();
+    expect(broadcast.textContent).not.toContain("Bienvenue au Quiz !");
+
+    localStorage.removeItem(storageKey);
+    await openTutorial();
+    expect(broadcast.textContent).toContain("Bienvenue au Quiz !");
+    const backdrop = broadcast.querySelector(".bz-tutorial-backdrop");
+    await act(async () => {
+      backdrop?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    });
+    await flush();
+    expect(broadcast.textContent).not.toContain("Bienvenue au Quiz !");
+    expect(localStorage.getItem(storageKey)).toBe("1");
+
+    localStorage.removeItem(storageKey);
+    await openTutorial();
+    const done = [...broadcast.querySelectorAll("button")].find((button) => button.textContent === "Compris");
+    await act(async () => {
+      done?.click();
+    });
+    await flush();
+    expect(broadcast.textContent).not.toContain("Bienvenue au Quiz !");
+    expect(localStorage.getItem(storageKey)).toBe("1");
   });
 });
