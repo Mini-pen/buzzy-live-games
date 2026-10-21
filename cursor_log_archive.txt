@@ -108,3 +108,11 @@ Session 2026-10-21 — Recette Minipen documentée (CA-39 à CA-51)
 ================================================================================
 - Documentation seule, commits `edfae9b`, `baeba2b`, `311f488`.
 - Sous-section §4.6 « Recette Minipen du 21/10/2026 ». Modale de lancement décidée. Décompte v2. CA-48 : localStorage par partie, à confirmer.
+
+================================================================================
+Session 2026-10-21 — Correctifs écran noir et pause (commit 3bebe40)
+================================================================================
+- Écran noir : `.bz-winner-screen` en `position: fixed` couvrait la miniature. Miniature sans modale de point ni écran §4.5.
+- `nextQuestionCountdownSec` (défaut 5, bornes alors 3–30), distinct de `countdownDurationSec`. Modale 4 s joueur / 3 s diffusion.
+- Jeton aussi dans `localStorage` (`partygames:hostToken:<partyId>`), `sessionStorage` encore gardé par le code.
+- Vitest webserver 364/364. `tsc` client encore en échec sur des erreurs préexistantes.

@@ -1,30 +1,30 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : retours de test manuel (12 points), rebasé sur `main` `311f488` (CA-39 à CA-51). Travail direct sur `main`, sans PR.
+**Contexte** : Minipen a tranché les six écarts du §4.6. Documentation seule, sur `main` à jour de `3bebe40`.
 
 ## Objectifs
 
-- Corriger l'écran noir (animateur, joueur, diffusion) après une réponse collective ou un compte à rebours.
-- « Retour tableau » ouvre l'animateur dans un nouvel onglet, jeton hors de l'URL et du DOM de la diffusion (CA-48).
-- Sélection QCM visible dès le relâchement, cartes de lancement lisibles, code de partie plus petit, aperçu à droite et blocs repliables, photo ronde, pause avant la question suivante.
+- Aligner le cahier des charges sur les décisions, sans supprimer les anciens critères.
+- Marquer chaque écart « Résolu par Minipen le 21/10/2026 ».
+- Citer `buzzer_decompte_joueur_v1.png` pour le décompte dans le bouton buzzer. Ne pas ajouter `resultat_diffusion_v3.png`.
 
 ## Réalisations
 
-- Cause de l'écran noir : `.bz-winner-screen` est `position: fixed` avec `backdrop-filter: blur(20px)`. La miniature (`.bz-bc-preview-frame`) ne contient pas le `fixed`, le calque couvre la page animateur et Chromium le peint en noir. Le même calque noircit le joueur et la diffusion. Le `countdownDurationSec` (3–10 s, souvent 10 chez l'animateur) laissait cet écran jusqu'à l'ouverture du buzzer.
-- La miniature ne rend plus l'écran §4.5 ni la modale de point. `backdrop-filter` retiré de l'écran de fin. `contain: paint` sur le cadre d'aperçu.
-- Nouvelle pause `nextQuestionCountdownSec` (défaut 5, bornes 3–30), distincte de `countdownDurationSec`. Horloge serveur `nextQuestionCountdownStartedAt`. Modale de point (4 s joueur, 3 s diffusion, ou la fin de la pause si elle est plus courte), puis bannière jaune et barre de progression. Pas de modale gagnant sur la page animateur.
-- Jeton animateur aussi dans `localStorage` (`partygames:hostToken:<partyId>`), `sessionStorage` inchangé, effacé à la fin de partie. Le bouton n'a pas de `href`. Masqué s'il n'y a pas de jeton sur ce navigateur.
-- QCM : la classe sélectionnée gagne sur `:hover`. Cartes de lancement en hauteur automatique. Code à 28 px avec « Copier ». Aperçu en tête de la colonne de droite, quatre blocs repliables. Avatars ronds, anneau or sur la modale de point.
-- CA-30 aligné sur la recette (aperçu à droite, blocs repliables). Les écarts 1 et 2 du cahier le notent ; Minipen peut revenir en arrière.
-- Vitest `webserver/` : 364/364. `tsc` serveur vert. Le `tsc` client échoue encore sur des erreurs déjà présentes (`React` UMD, `snap` possiblement nul).
+- §2.5 : localStorage, une entrée par partie, effacée à la fin. L'avance automatique attend le décompte entre les questions.
+- §2.9 : « Retour tableau » est le seul lien animateur admis sur la diffusion, sans jeton dans l'URL ni dans la page.
+- §4.3 et CA-15 du §4.8 : le décompte entre les questions vaut aussi en mode autonome. 0 = pas de décompte.
+- §4.5 : deux décomptes. `countdownDurationSec` (défaut 5, minimum 0) s'affiche dans le buzzer après la question. `nextQuestionCountdownSec` (défaut 5) est l'entre-questions.
+- CA-30, CA-20, CA-5, CA-6, CA-19 réécrits en indiquant le remplacement. CA-48 sans « choix incertain ». CA-50 résolu : min(3 s, décompte), pas de modale si 0.
+- CA-47 : même fermeture, encore un choix incertain.
+- Maquette buzzer : gris inactif, chiffre au centre, anneau jaune qui se vide, puis rouge « BUZZ ! ».
 
 ## Prochain focus suggéré
 
-- Confirmer avec Minipen les points INCERTAIN (bornes 3–30, 4 s / 3 s, pause aussi en autonome, édition du délai après création, 28 px, anneau or, libellé `+N points`, jeton partagé via localStorage).
-- Brancher `updatePlayerClockSync` sans double compensation (note de la session du 2026-10-07).
-- Le client envoie encore `{ durationSec }` à `/host/countdown-duration` alors que le schéma attend `{ seconds }` (préexistant, non corrigé).
+- Confirmer les choix incertains : panneau sous l'aperçu, localStorage des blocs pliables, maxima 10 s / 30 s, changement à la question suivante, grands chiffres du buzzer sur la diffusion, CA-20 pour la fin de partie, fermeture diffusion, sort du bouton « Prêt ».
+- Libellé d'un delta autre que +1 et d'une équipe gagnante.
+- `resultat_diffusion_v3.png` attend toujours l'avis de Minipen. Non inscrit au CDC.
 
 ## Références
 
-- `webserver/src/domain/nextQuestionCountdown.ts`, `hostReturnLink.ts`, `store.ts`, `webserver/client/src/App.tsx`, `buzzy.css`, `cahier-des-charges.md` §4.5, CA-30, CA-33, CA-48.
+- `cahier-des-charges.md` §2.5, §2.9, §4.3, §4.5, §4.6 (CA-5, CA-6, CA-19, CA-20, CA-30, CA-33, CA-34, CA-40 à CA-51), §4.8 CA-15.
