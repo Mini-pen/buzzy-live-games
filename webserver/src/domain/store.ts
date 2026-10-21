@@ -29,6 +29,7 @@ import {
   isValidNextQuestionCountdownSec,
   isValidReadyTimeoutSec,
   NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC,
+  pointTeamLabel,
   READY_TIMEOUT_DEFAULT_SEC,
 } from "./nextQuestionCountdown.js";
 import { evaluateJoin, normalizeTeamChoice, publicSnapshotForParty } from "./partyLogic.js";
@@ -1734,7 +1735,7 @@ export class PartyStore {
       playerName: player.displayName,
       avatarKey: player.avatarKey,
       points,
-      teamName: teamsOn ? String(player.teamId) : null,
+      teamName: teamsOn && player.teamId !== null ? pointTeamLabel(player.teamId, null) : null,
     };
   }
 

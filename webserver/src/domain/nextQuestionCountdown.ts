@@ -108,9 +108,20 @@ export function isPointModalVisible(input: {
 }
 
 /**
+ * * Team token inside « pour l'équipe <nom> ».
+ *   A non-empty `name` wins. Otherwise the 1-based index is used.
+ *   INCERTAIN: Party and Player store only `teamId`, so the index fallback is what the pill shows today.
+ */
+export function pointTeamLabel(teamId: number, name?: string | null): string {
+  const trimmed = typeof name === "string" ? name.trim() : "";
+  if (trimmed !== "") return trimmed;
+  return String(teamId);
+}
+
+/**
  * * Pill under the winner name.
  *   INCERTAIN: the singular form is « + 1 point ».
- *   A team score appends « pour l'équipe <nom> ». Parties have no custom team name, so `<nom>` is the team index.
+ *   A team score appends « pour l'équipe <nom> », where `<nom>` comes from `pointTeamLabel`.
  */
 export function pointAwardLabel(points: number, teamName?: string | null): string {
   const n = Number.isInteger(points) && points > 0 ? points : 1;

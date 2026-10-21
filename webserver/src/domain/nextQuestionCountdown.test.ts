@@ -26,6 +26,7 @@ import {
   nextQuestionCountdownRemainingSec,
   POINT_MODAL_CLOSE_MS,
   pointAwardLabel,
+  pointTeamLabel,
   readyStatusLabel,
 } from "./nextQuestionCountdown.js";
 import { PartyStore } from "./store.js";
@@ -327,6 +328,13 @@ describe("next-question countdown", () => {
     );
     expect(pointAwardLabel(1)).toBe("+ 1 point");
     expect(pointAwardLabel(10)).toBe("+ 10 points");
+    expect(pointTeamLabel(2, "Les Rapides")).toBe("Les Rapides");
+    expect(pointTeamLabel(2, "  ")).toBe("2");
+    expect(pointTeamLabel(2, null)).toBe("2");
+    expect(pointAwardLabel(1, pointTeamLabel(2, "Les Rapides"))).toBe(
+      "+ 1 point pour l'équipe Les Rapides",
+    );
+    expect(pointAwardLabel(10, pointTeamLabel(2, null))).toBe("+ 10 points pour l'équipe 2");
     expect(pointAwardLabel(1, "2")).toBe("+ 1 point pour l'équipe 2");
     expect(pointAwardLabel(10, "2")).toBe("+ 10 points pour l'équipe 2");
     expect(readyStatusLabel(3, 5, "player")).toBe("3 / 5 joueurs prêts");
