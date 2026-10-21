@@ -567,6 +567,9 @@ export class PartyStore {
   }
 
   buzz(party: Party, playerId: string, clientTimestamp: number | undefined, quizChoice?: QuizBuzzChoiceOpts): void {
+    if (party.liveRoundPausedAt != null) {
+      throw Object.assign(new Error("La manche est en pause."), { code: "BAD_PHASE" });
+    }
     if (party.state === "round_active" && !party.buzzWindowOpen) {
       this.maybeOpenBuzzAfterCountdown(party);
     }
@@ -703,6 +706,7 @@ export class PartyStore {
    */
   tickLiveRound(party: Party, pack: QuizPack | null): void {
     if (party.state !== "round_active") return;
+    if (party.liveRoundPausedAt != null) return;
     if (party.nextQuestionCountdownStartedAt !== null) {
       this.maybeFinishNextQuestionCountdown(party, pack);
     }
@@ -748,6 +752,7 @@ export class PartyStore {
     const wasOpen = party.buzzWindowOpen;
     party.buzzWindowOpen = open;
     if (open) {
+      if (party.mancheResultOpen !== true) party.winnerDisplay = null;
       this.revealHeldQuestion(party);
       party.buzzWindowOpenedAt = Date.now();
       // * Reopening the buzzer ends the previous winner highlight. Closing keeps it.
@@ -989,7 +994,9 @@ export class PartyStore {
   private openBuzzPolicyAfterGap(party: Party, pack: QuizPack | null): void {
     party.nextQuestionCountdownStartedAt = null;
     party.pointAward = null;
-    if (party.winnerScreenMode === "question") party.winnerDisplay = null;
+    // * A winner flag left over from « Fin de question » must not stick once the
+    //   setting is « Fin de manche »: the podium is `mancheResultOpen`, not this flag.
+    if (party.mancheResultOpen !== true) party.winnerDisplay = null;
     const canBuzz = pack !== null && this.surfaceSupportsBuzz(party, pack);
     if (party.readyCheckEnabled && canBuzz) {
       this.beginReadyPhase(party);
@@ -1412,6 +1419,37 @@ export class PartyStore {
     this.hostLaunchManche(party, mancheId, "normal", false, packs);
   }
 
+  /**
+   * * Freezes the live round on the screen that is already showing, then resumes it.
+   *   Countdown clocks shift forward by the time spent paused so the remaining time is unchanged.
+   */
+  // INCERTAIN: Coding Agent, 2026-10-22, la pause gèle l'écran et les comptes à rebours au lieu de revenir au lobby, à confirmer par Minipen
+  adminToggleLivePause(party: Party): void {
+    if (party.state !== "round_active") return;
+    const pausedAt = party.liveRoundPausedAt ?? null;
+    if (pausedAt === null) {
+      party.liveRoundPausedAt = Date.now();
+      this.touch(party);
+      this.broadcast(party);
+      return;
+    }
+    const heldMs = Math.max(0, Date.now() - pausedAt);
+    party.liveRoundPausedAt = null;
+    this.shiftLiveClocks(party, heldMs);
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Adds `deltaMs` to every running server clock so a pause does not consume them. */
+  private shiftLiveClocks(party: Party, deltaMs: number): void {
+    if (deltaMs <= 0) return;
+    if (party.nextQuestionCountdownStartedAt !== null) party.nextQuestionCountdownStartedAt += deltaMs;
+    if (party.countdownStartedAt !== null) party.countdownStartedAt += deltaMs;
+    if (party.readyPhaseStartedAt !== null) party.readyPhaseStartedAt += deltaMs;
+    if (party.buzzWindowOpenedAt !== null) party.buzzWindowOpenedAt += deltaMs;
+    if (party.buzzWindowFirstBuzzAt !== null) party.buzzWindowFirstBuzzAt += deltaMs;
+  }
+
   adminPauseToLobby(party: Party): void {
     this.syncActiveQuizProgressIntoScriptItem(party);
     party.state = "lobby";
@@ -1601,6 +1639,7 @@ export class PartyStore {
    *   Returns false while the pause is still running or was not started.
    */
   maybeFinishNextQuestionCountdown(party: Party, pack: QuizPack | null, now = Date.now()): boolean {
+    if (party.liveRoundPausedAt != null) return false;
     if (party.nextQuestionCountdownStartedAt === null) return false;
     if (party.state !== "round_active") return false;
     const elapsed = now - party.nextQuestionCountdownStartedAt;
@@ -1613,6 +1652,7 @@ export class PartyStore {
 
   adminSetWinnerScreenMode(party: Party, mode: "question" | "round"): void {
     party.winnerScreenMode = mode;
+    if (mode === "round" && party.mancheResultOpen !== true) party.winnerDisplay = null;
     this.touch(party);
     this.broadcast(party);
   }
@@ -1640,6 +1680,65 @@ export class PartyStore {
       this.touch(party);
       this.broadcast(party);
     }
+  }
+
+  /**
+   * * Host « Afficher gagnant »: the phone and the broadcast show the manche podium.
+   *   The single-player overlay is no longer drawn; the podium is the screen the host can open.
+   */
+  // INCERTAIN: Coding Agent, 2026-10-22, le bouton ouvre le podium de manche plutôt que l'ancien écran d'un seul joueur, à confirmer par Minipen
+  adminShowWinner(party: Party): void {
+    party.mancheResultOpen = true;
+    this.computeAndShowWinner(party);
+    if (party.players.size === 0) {
+      party.winnerDisplay = null;
+      this.touch(party);
+      this.broadcast(party);
+    }
+  }
+
+  /**
+   * * Host-only jump to a 1-based quiz question. Not shown in the host bar.
+   *   The admin page calls it from `?question=70`.
+   */
+  // INCERTAIN: Coding Agent, 2026-10-22, saut par ?question= sur le tableau animateur, hors de la barre, à confirmer par Minipen
+  adminJumpToQuestion(party: Party, pack: QuizPack, questionHuman: number): void {
+    if (party.state !== "round_active") {
+      throw Object.assign(new Error("Lancez la manche avant d'aller à cette question."), {
+        code: "BAD_PHASE",
+      });
+    }
+    if (!Number.isInteger(questionHuman) || questionHuman < 1) {
+      throw Object.assign(new Error("Numéro de question invalide."), { code: "BAD_QUESTION" });
+    }
+    const ri = party.currentRoundIndex;
+    if (ri === null || ri < 0 || ri >= pack.rounds.length) {
+      throw Object.assign(new Error("BAD_ROUND"), { code: "BAD_ROUND" });
+    }
+    const round = pack.rounds[ri];
+    if (round === undefined || !isQuizRound(round)) {
+      throw Object.assign(new Error("Le saut de question ne concerne qu'un quiz."), { code: "BAD_ROUND" });
+    }
+    const index = questionHuman - 1;
+    if (index >= round.questions.length) {
+      throw Object.assign(
+        new Error(`Cette manche n'a que ${round.questions.length} questions.`),
+        { code: "BAD_QUESTION" },
+      );
+    }
+    party.currentQuestionIndex = index;
+    party.questionHold = null;
+    party.quizResult = null;
+    party.quizPicksThisQuestion = new Map();
+    party.questionRevealed = true;
+    party.mancheResultOpen = false;
+    party.winnerDisplay = null;
+    party.liveRoundPausedAt = null;
+    this.lockCountdownSettingsForQuestion(party);
+    this.reopenBuzzAccordingToCueAdvancePolicy(party, pack, { gap: false });
+    this.syncActiveQuizProgressIntoScriptItem(party);
+    this.touch(party);
+    this.broadcast(party);
   }
 
   adminDismissWinnerScreen(party: Party): void {
@@ -1738,6 +1837,7 @@ export class PartyStore {
   }
 
   maybeStartCountdownIfReady(party: Party): boolean {
+    if (party.liveRoundPausedAt != null) return false;
     if (party.state !== "round_active") return false;
     if (!party.readyCheckEnabled) return false;
     if (party.nextQuestionCountdownStartedAt !== null) return false;
@@ -1758,6 +1858,7 @@ export class PartyStore {
   }
   
   maybeOpenBuzzAfterCountdown(party: Party): boolean {
+    if (party.liveRoundPausedAt != null) return false;
     if (party.nextQuestionCountdownStartedAt !== null) return false;
     if (party.countdownStartedAt === null) return false;
     if (party.buzzWindowOpen) return false;

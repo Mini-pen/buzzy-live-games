@@ -391,6 +391,7 @@ export function partySnapshotWithGame(
     readyCheckEnabled: party.readyCheckEnabled === true,
     readyTimeoutSec: party.readyTimeoutSec,
     winnerDisplay: party.winnerDisplay,
+    liveRoundPausedAt: party.liveRoundPausedAt ?? null,
   };
   const hostExtraFields =
     audience === "host"

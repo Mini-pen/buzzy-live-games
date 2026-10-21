@@ -15,6 +15,7 @@ import {
   visibleBuzzGapMs,
   type BroadcastViewMode,
 } from "../../src/domain/broadcastDisplay";
+import { frenchHostFailure } from "../../src/domain/hostActionError";
 import {
   forgetHostToken,
   forgetLegacyHostToken,
@@ -265,6 +266,7 @@ interface PartySnapshot {
   countdownStartedAt?: number | null;
   winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
   manchePodium?: ManchePodium;
+  liveRoundPausedAt?: number | null;
   broadcastShowRanking?: boolean;
   broadcastShowScores?: boolean;
   playerShowScores?: boolean;
@@ -311,24 +313,39 @@ function mancheKindShort(kind: MancheCatalogItemView["kind"]): string {
 function CountdownDisplay(props: {
   countdownStartedAt: number;
   durationSec: number;
+  frozenAt?: number | null;
   onComplete: () => void;
 }): JSX.Element {
+  const clockNow = (): number => (typeof props.frozenAt === "number" ? props.frozenAt : Date.now());
   const computeRemaining = (): number =>
-    nextQuestionCountdownRemainingSec(props.countdownStartedAt, props.durationSec, Date.now()) ?? 0;
+    nextQuestionCountdownRemainingSec(props.countdownStartedAt, props.durationSec, clockNow()) ?? 0;
 
   const [remaining, setRemaining] = useState(computeRemaining);
 
   useEffect(() => {
-    const interval = setInterval(() => {
+    let interval = 0;
+    const onVis = (): void => {
+      if (document.visibilityState === "visible") tick();
+    };
+    const tick = (): void => {
       const newRemaining = computeRemaining();
       setRemaining(newRemaining);
+      if (props.frozenAt != null) return;
       if (newRemaining <= 0) {
-        clearInterval(interval);
+        window.clearInterval(interval);
+        document.removeEventListener("visibilitychange", onVis);
         props.onComplete();
       }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [props.countdownStartedAt, props.durationSec]);
+    };
+    tick();
+    if (props.frozenAt != null || computeRemaining() <= 0) return undefined;
+    interval = window.setInterval(tick, 100);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [props.countdownStartedAt, props.durationSec, props.frozenAt]);
 
   if (remaining === 0) {
     return (
@@ -383,15 +400,32 @@ function AvatarFigure(props: { src: string; sizePx: number }): JSX.Element {
   );
 }
 
-/** * One clock for every countdown on the page, driven by the server start timestamp. */
-function useServerCountdownNow(startedAt: number | null): number {
-  const [now, setNow] = useState(() => Date.now());
+/**
+ * * One clock for every countdown on the page, driven by the server start timestamp.
+ *   A hidden tab throttles `setInterval`; becoming visible reads `Date.now()` at once.
+ *   `frozenAt` is the server pause instant: the digit stays on the remaining time.
+ */
+function useServerCountdownNow(startedAt: number | null, frozenAt: number | null = null): number {
+  const [now, setNow] = useState(() => frozenAt ?? Date.now());
   useEffect(() => {
+    if (frozenAt !== null) {
+      setNow(frozenAt);
+      return undefined;
+    }
     if (startedAt === null) return undefined;
-    const id = window.setInterval(() => setNow(Date.now()), 100);
-    return () => window.clearInterval(id);
-  }, [startedAt]);
-  return now;
+    const tick = (): void => setNow(Date.now());
+    tick();
+    const id = window.setInterval(tick, 100);
+    const onVis = (): void => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [startedAt, frozenAt]);
+  return frozenAt ?? now;
 }
 
 function DrainingCircle(props: {
@@ -701,7 +735,10 @@ function canonicalPartyIdFromRoute(param: string | undefined): string {
   return (param ?? "").trim().toLowerCase();
 }
 
-/** * Browser-only: restores admin Bearer from `#token=` or localStorage synchronously on first paint. */
+/**
+ * * Browser-only: restores admin Bearer from `#token=` or localStorage on first paint.
+ *   The hash stays so a reload of this tab still has the token if storage is empty.
+ */
 function peekAdminBearer(routePartyIdRaw: string): string | null {
   if (routePartyIdRaw.trim() === "" || typeof globalThis.window === "undefined") return null;
   const pidNorm = canonicalPartyIdFromRoute(routePartyIdRaw);
@@ -711,7 +748,6 @@ function peekAdminBearer(routePartyIdRaw: string): string | null {
   const frag = new URLSearchParams(h).get("token");
   if (frag !== null && frag.length > 0) {
     rememberSharedHostToken(pidNorm, frag);
-    window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
     return frag;
   }
   return findAdminBearerForPartyRouteId(routePartyIdRaw);
@@ -719,7 +755,8 @@ function peekAdminBearer(routePartyIdRaw: string): string | null {
 
 /**
  * * Stores the host token in localStorage, one entry per party.
- *   The token is never written into a URL. There is no sessionStorage copy.
+ *   The admin tab also keeps `#token=` so a reload does not depend on storage alone.
+ *   The broadcast return link still omits the token.
  */
 function rememberSharedHostToken(partyId: string, token: string): void {
   if (typeof globalThis.localStorage === "undefined") return;
@@ -2445,7 +2482,8 @@ function Play(): JSX.Element {
     typeof snap?.countdownStartedAt === "number" ? snap.countdownStartedAt : null;
   const gapSec = appliedNextQuestionSec(snap);
   const buzzerSec = appliedBuzzerCountdownSec(snap);
-  const countdownNow = useServerCountdownNow(pauseStartedAt ?? preBuzzClock);
+  const livePausedAt = typeof snap?.liveRoundPausedAt === "number" ? snap.liveRoundPausedAt : null;
+  const countdownNow = useServerCountdownNow(pauseStartedAt ?? preBuzzClock, livePausedAt);
   const pointDismissKey =
     snap?.pointAward != null && pauseStartedAt !== null
       ? `${snap.pointAward.playerId}:${pauseStartedAt}`
@@ -2831,6 +2869,7 @@ function Play(): JSX.Element {
           <span className="bz-logo">buzzy</span>
           {snap.playerShowScores === false ? null : <span>Mon score : {rowMe?.score ?? 0}</span>}
         </header>
+        {livePausedAt !== null ? <p className="bz-live-pause">Pause</p> : null}
         <ManchePodiumView podium={snap.manchePodium} surface="phone" playerId={myId} />
       </div>
     );
@@ -2864,6 +2903,7 @@ function Play(): JSX.Element {
           <>
             <span className="bz-logo">buzzy</span>
             {snap.playerShowScores === false ? null : <span>Mon score : {rowMe?.score ?? 0}</span>}
+            {livePausedAt !== null ? <span className="bz-live-pause">Pause</span> : null}
           </>
         }
         buzzer={buzzerControl}
@@ -2923,6 +2963,7 @@ function Play(): JSX.Element {
       </section>
 
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
+      {livePausedAt !== null ? <p className="bz-live-pause">Pause</p> : null}
 
       <QuestionCountdownFrame
         startedAt={gapSec > 0 ? pauseStartedAt : null}
@@ -3226,9 +3267,14 @@ function HostNumberField(props: {
   step?: number;
   value: number;
   accept: (value: number) => boolean;
-  onCommit: (value: number) => void;
+  onCommit: (value: number) => void | Promise<void>;
 }): JSX.Element {
   const [draft, setDraft] = useState<string | null>(null);
+  const [pending, setPending] = useState<number | null>(null);
+  useEffect(() => {
+    if (pending !== null && props.value === pending) setPending(null);
+  }, [props.value, pending]);
+  const shown = draft !== null ? draft : pending !== null ? String(pending) : String(props.value);
   return (
     <div className="bz-party-field">
       <label htmlFor={props.id}>{props.label}</label>
@@ -3239,19 +3285,28 @@ function HostNumberField(props: {
           min={props.min}
           max={props.max}
           step={props.step}
-          value={draft ?? String(props.value)}
+          value={shown}
           onFocus={() => {
-            setDraft((current) => current ?? String(props.value));
+            setDraft((current) => current ?? shown);
           }}
           onChange={(e) => {
             setDraft(e.target.value);
           }}
           onBlur={() => {
             const raw = draft;
-            setDraft(null);
             if (raw === null) return;
             const val = Number.parseInt(raw, 10);
-            if (props.accept(val) && val !== props.value) props.onCommit(val);
+            if (!props.accept(val) || val === props.value) {
+              setDraft(null);
+              setPending(null);
+              return;
+            }
+            setPending(val);
+            setDraft(null);
+            const committed = props.onCommit(val);
+            if (committed instanceof Promise) {
+              void committed.catch(() => setPending(null));
+            }
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") e.currentTarget.blur();
@@ -3305,7 +3360,7 @@ function HostMomentActions(props: {
 }): JSX.Element | null {
   const roundOn = props.snap.state === "round_active";
   const ready = readyPhaseOnScreen(props.snap);
-  const winner = props.snap.winnerDisplay != null;
+  const winner = props.snap.winnerDisplay != null || props.snap.manchePodium != null;
   if (!roundOn && !ready && !winner && !props.showCueAdvance && !props.showMediaReplay) return null;
   return (
     <div className={props.loose ? "bz-manche-moment bz-manche-moment--loose" : "bz-manche-moment"}>
@@ -3370,11 +3425,11 @@ function HostPartySettings(props: {
   snap: PartySnapshot;
   onAutoOpen: (enabled: boolean) => void;
   onQuizAuto: (enabled: boolean) => void;
-  onGrace: (ms: number) => void;
-  onBuzzerSec: (sec: number) => void;
+  onGrace: (ms: number) => void | Promise<void>;
+  onBuzzerSec: (sec: number) => void | Promise<void>;
   onReady: (enabled: boolean) => void;
-  onReadyTimeout: (sec: number) => void;
-  onNextSec: (sec: number) => void;
+  onReadyTimeout: (sec: number) => void | Promise<void>;
+  onNextSec: (sec: number) => void | Promise<void>;
   onVerdict: (enabled: boolean) => void;
   onCycleBuzz: () => void;
   onWinnerMode: (mode: "question" | "round") => void;
@@ -3450,7 +3505,7 @@ function HostPartySettings(props: {
               step={50}
               value={props.snap.buzzGraceWindowMs ?? 500}
               accept={(val) => val >= 0 && val <= 1000}
-              onCommit={props.onGrace}
+              onCommit={(ms) => props.onGrace(ms)}
             />
           </section>
           <section className="bz-party-group">
@@ -3463,7 +3518,7 @@ function HostPartySettings(props: {
               max={30}
               value={props.snap.nextQuestionCountdownSec ?? 5}
               accept={(val) => val >= 0 && val <= 30}
-              onCommit={props.onNextSec}
+              onCommit={(sec) => props.onNextSec(sec)}
             />
             <label className="bz-switch">
               <input
@@ -3482,7 +3537,7 @@ function HostPartySettings(props: {
               max={READY_TIMEOUT_MAX_SEC}
               value={props.snap.readyTimeoutSec ?? READY_TIMEOUT_DEFAULT_SEC}
               accept={isValidReadyTimeoutSec}
-              onCommit={props.onReadyTimeout}
+              onCommit={(sec) => props.onReadyTimeout(sec)}
             />
             <HostNumberField
               id={`bz-buzzer-sec-${props.partyId}`}
@@ -3492,7 +3547,7 @@ function HostPartySettings(props: {
               max={10}
               value={props.snap.countdownDurationSec ?? 5}
               accept={(val) => val >= 0 && val <= 10}
-              onCommit={props.onBuzzerSec}
+              onCommit={(sec) => props.onBuzzerSec(sec)}
             />
           </section>
           <section className="bz-party-group">
@@ -3556,6 +3611,7 @@ function HostPartySettings(props: {
 
 function Admin(): JSX.Element {
   const { partyId } = useParams<{ partyId: string }>();
+  const [searchParams] = useSearchParams();
   const pid = canonicalPartyIdFromRoute(partyId);
   const nav = useNavigate();
   const [token, setToken] = useState<string | null>(() => peekAdminBearer(pid));
@@ -3677,11 +3733,9 @@ function Admin(): JSX.Element {
       setSnap(null);
       if (outcome.kind === "not_found") {
         purgeAdminSessionForPartyRouteId(pid);
-        setToken(null);
         setAdminUnavailableKind("gone");
       } else if (outcome.kind === "bad_token") {
         purgeAdminSessionForPartyRouteId(pid);
-        setToken(null);
         setAdminUnavailableKind("bad_token");
       } else if (outcome.kind === "network") setAdminUnavailableKind("network");
       else setAdminUnavailableKind("http");
@@ -3741,9 +3795,6 @@ function Admin(): JSX.Element {
       if (!pid || bearer === "")
         throw new Error("auth:Session animateur incomplète (recharger la page).");
       const rBody = body === undefined ? undefined : JSON.stringify(body);
-      interface ErrBody {
-        error?: string;
-      }
       const res = await fetch(withBase(path), {
         method,
         credentials: "same-origin",
@@ -3755,15 +3806,7 @@ function Admin(): JSX.Element {
       });
       const text = await res.text();
       if (!res.ok) {
-        let detail = text.slice(0, 200);
-        if (text !== "") {
-          try {
-            detail = (JSON.parse(text) as ErrBody).error ?? text;
-          } catch {
-            /* noop */
-          }
-        }
-        throw new Error(`${res.status}:${detail}`);
+        throw new Error(frenchHostFailure(res.status, text));
       }
       try {
         return JSON.parse(text) as PartySnapshot;
@@ -3775,6 +3818,27 @@ function Admin(): JSX.Element {
   );
 
   const hostBasePath = `/api/parties/${encodeURIComponent(pid)}`;
+  const jumpRequest = useRef<string | null>(null);
+
+  // INCERTAIN: Coding Agent, 2026-10-22, ?question=70 sur le tableau animateur, sans bouton dans la barre, à confirmer par Minipen
+  useEffect(() => {
+    if (adminBootstrap !== "ready" || bearer === "" || !pid) return;
+    const raw = searchParams.get("question");
+    if (raw === null || raw.trim() === "") return;
+    const question = Number.parseInt(raw, 10);
+    if (!Number.isInteger(question)) return;
+    const key = `${pid}:${question}`;
+    if (jumpRequest.current === key) return;
+    jumpRequest.current = key;
+    void (async (): Promise<void> => {
+      try {
+        const next = await callHostSnapshot(`${hostBasePath}/host/jump-question`, "POST", { question });
+        setSnap(next);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+  }, [adminBootstrap, bearer, pid, searchParams, callHostSnapshot, hostBasePath]);
 
   const onHostBuzzResolve = useCallback(
     async (playerId: string, verdict: "good" | "bad"): Promise<void> => {
@@ -4287,6 +4351,7 @@ function Admin(): JSX.Element {
         setSnap(n);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
+        throw e;
       }
     },
     [callHostSnapshot, hostBasePath],
@@ -4300,6 +4365,7 @@ function Admin(): JSX.Element {
         setSnap(n);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
+        throw e;
       }
     },
     [callHostSnapshot, hostBasePath],
@@ -4338,6 +4404,7 @@ function Admin(): JSX.Element {
         setSnap(n);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
+        throw e;
       }
     },
     [callHostSnapshot, hostBasePath],
@@ -4353,6 +4420,7 @@ function Admin(): JSX.Element {
         setSnap(n);
       } catch (e) {
         setErr(e instanceof Error ? e.message : String(e));
+        throw e;
       }
     },
     [callHostSnapshot, hostBasePath],
@@ -4530,11 +4598,19 @@ function Admin(): JSX.Element {
     return (
       <Shell title="Animateur">
         <div className="bz-card" style={{ marginTop: 24 }}>
-          <h2 style={{ marginTop: 0, fontSize: 22 }}>Partie indisponible</h2>
+          <h2 style={{ marginTop: 0, fontSize: 22 }}>
+            {adminUnavailableKind === "bad_token"
+              ? "Jeton refusé"
+              : adminUnavailableKind === "network"
+                ? "Connexion impossible"
+                : "Partie indisponible"}
+          </h2>
           <p>
-            Cette partie n'existe plus côté serveur (inactivité ou
-            redémarrage). Le lien "Reprendre" sur l'accueil ne peut pas
-            restaurer une partie effacée.
+            {adminUnavailableKind === "bad_token"
+              ? "Jeton animateur refusé. Rouvrez le lien reçu à la création de la partie."
+              : adminUnavailableKind === "network"
+                ? "Connexion impossible. Réessayez dans un instant."
+                : "Cette partie n'existe plus côté serveur (inactivité ou redémarrage). Le lien « Reprendre » sur l'accueil ne peut pas restaurer une partie effacée."}
           </p>
           <button
             type="button"
@@ -4849,17 +4925,18 @@ function Admin(): JSX.Element {
             snap={snap}
             onAutoOpen={(enabled) => void onHostBuzzAutoCueAdvance(enabled)}
             onQuizAuto={(enabled) => void onHostQuizAutoAllBuzzed(enabled)}
-            onGrace={(ms) => void onHostBuzzGraceWindowChange(ms)}
-            onBuzzerSec={(sec) => void onHostCountdownDurationChange(sec)}
+            onGrace={(ms) => onHostBuzzGraceWindowChange(ms)}
+            onBuzzerSec={(sec) => onHostCountdownDurationChange(sec)}
             onReady={(enabled) => void onHostReadyCheckChange(enabled)}
-            onReadyTimeout={(sec) => void onHostReadyTimeoutChange(sec)}
-            onNextSec={(sec) => void onHostNextQuestionCountdownChange(sec)}
+            onReadyTimeout={(sec) => onHostReadyTimeoutChange(sec)}
+            onNextSec={(sec) => onHostNextQuestionCountdownChange(sec)}
             onVerdict={(enabled) => void onHostVerdictSoundsToggle(enabled)}
             onCycleBuzz={() => void onCycleBuzzSoundMode()}
             onWinnerMode={(mode) => void onHostWinnerScreenModeChange(mode)}
             onPlayerAudio={(enabled) => void onHostPlayerAudioAllowed(enabled)}
           />
 
+          {snap.liveRoundPausedAt != null ? <p className="bz-live-pause">Pause</p> : null}
           <div className="bz-host-controls">
             <button type="button" className="bz-primary" onClick={() => void onHostRoundStart()}>
               ▶ Lancer la manche
@@ -4867,13 +4944,18 @@ function Admin(): JSX.Element {
             <button type="button" onClick={() => void onHostBuzzWindow(true)}>
               🔔 Ouvrir buzzer
             </button>
-            <button type="button" title="Pause (lobby)" onClick={() => void onHostRoundPause()}>
-              ⏸ Pause
+            <button
+              type="button"
+              title={snap.liveRoundPausedAt != null ? "Reprendre la manche" : "Geler l'écran et les comptes à rebours"}
+              onClick={() => void onHostRoundPause()}
+            >
+              {snap.liveRoundPausedAt != null ? "▶ Reprendre" : "⏸ Pause"}
             </button>
             <button
               type="button"
               onClick={() => void onHostShowWinner()}
-              disabled={snap.winnerDisplay !== null}
+              disabled={snap.manchePodium != null}
+              title={snap.manchePodium != null ? "Le podium est déjà affiché" : "Afficher le podium"}
             >
               🏆 Afficher gagnant
             </button>
@@ -5706,7 +5788,8 @@ function BroadcastSurface(props: {
   const preview = mode === "preview";
   const pauseStartedAt =
     typeof snap.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
-  const countdownNow = useServerCountdownNow(pauseStartedAt);
+  const livePausedAt = typeof snap.liveRoundPausedAt === "number" ? snap.liveRoundPausedAt : null;
+  const countdownNow = useServerCountdownNow(pauseStartedAt ?? snap.countdownStartedAt ?? null, livePausedAt);
   const gapSec = appliedNextQuestionSec(snap);
   const buzzerSec = appliedBuzzerCountdownSec(snap);
   const joinUrl = `${window.location.origin}${BASE_PATH}/join?code=${encodeURIComponent(snap.joinCode)}`;
@@ -5758,6 +5841,7 @@ function BroadcastSurface(props: {
       </header>
 
       <main className="bz-bc-stage">
+        {livePausedAt !== null ? <p className="bz-live-pause">Pause</p> : null}
         {podiumLive !== null ? (
           <ManchePodiumView podium={podiumLive} surface="broadcast" />
         ) : (
@@ -5797,6 +5881,7 @@ function BroadcastSurface(props: {
           <CountdownDisplay
             countdownStartedAt={snap.countdownStartedAt}
             durationSec={buzzerSec}
+            frozenAt={livePausedAt}
             onComplete={() => {
               /* * Countdown completes when server opens buzz; no client action needed. */
             }}

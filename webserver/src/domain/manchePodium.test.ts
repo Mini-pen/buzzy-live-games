@@ -235,11 +235,12 @@ describe("manche podium on the party", () => {
     expect(party.state).toBe("round_active");
   });
 
-  it("closes when the host pauses or launches another manche", () => {
+  it("keeps the podium when the host pauses, and closes it when another manche starts", () => {
     const paused = play(1);
-    paused.store.adminPauseToLobby(paused.party);
-    expect(paused.party.mancheResultOpen).toBe(false);
-    expect(paused.party.state).toBe("lobby");
+    paused.store.adminToggleLivePause(paused.party);
+    expect(paused.party.mancheResultOpen).toBe(true);
+    expect(paused.party.state).toBe("round_active");
+    expect(paused.party.liveRoundPausedAt).not.toBeNull();
 
     const launched = play(1);
     const pack = launched.pack;

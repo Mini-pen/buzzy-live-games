@@ -1194,6 +1194,16 @@ html, body {
 .bz-app .bz-host-pack-row { display: flex; gap: 8px; align-items: center; }
 .bz-app .bz-host-pack-row select { flex: 1; }
 
+.bz-live-pause {
+  margin: 8px 0;
+  padding: 8px 12px;
+  background: #ffca28;
+  color: #1a1a1a;
+  font-weight: 800;
+  text-align: center;
+  border-radius: 8px;
+}
+
 /* Sticky controls bar */
 .bz-app .bz-host-controls {
   display: flex;

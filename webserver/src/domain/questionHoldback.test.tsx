@@ -231,11 +231,16 @@ function requestUrl(input: RequestInfo | URL): string {
   return input.url;
 }
 
+const recordedPosts: Array<{ url: string; body: string }> = [];
+
 function installFetch(snaps: ScreenSnaps): void {
   vi.stubGlobal(
     "fetch",
     (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = requestUrl(input);
+      if (init?.method === "POST") {
+        recordedPosts.push({ url, body: typeof init.body === "string" ? init.body : "" });
+      }
       const auth = new Headers(init?.headers).get("authorization") ?? "";
       let body: unknown = {};
       if (url.includes("/me/time-sync")) {
@@ -295,10 +300,15 @@ function screenReady(container: HTMLElement, route: string): boolean {
   return container.querySelector(".bz-buzz-btn, .bz-buzz-closed, .bz-board, .bz-winner-screen, .bz-podium") !== null;
 }
 
-async function show(route: string, snaps: ScreenSnaps, playerId = "alice"): Promise<HTMLElement> {
+async function show(
+  route: string,
+  snaps: ScreenSnaps,
+  playerId = "alice",
+  options?: { seedHostToken?: boolean },
+): Promise<HTMLElement> {
   installFetch(snaps);
   if (route.includes("/play")) rememberPlayer(snaps.player.id, playerId);
-  if (route.includes("/admin")) rememberHost(snaps.host.id);
+  if (route.includes("/admin") && options?.seedHostToken !== false) rememberHost(snaps.host.id);
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container, {
@@ -1279,5 +1289,140 @@ describe("normal launch", () => {
     const readyPost = posts.find((post) => post.url.includes("/host/ready-timeout"));
     expect(countdown?.body).toContain('"seconds":30');
     expect(readyPost?.body).toContain('"seconds":30');
+    expect(next?.value).toBe("30");
+    expect(ready?.value).toBe("30");
+  });
+
+  it("keeps Afficher gagnant enabled in Fin de manche until the podium is open", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    playing.snaps.host.winnerScreenMode = "round";
+    playing.snaps.host.winnerDisplay = {
+      playerId: "alice",
+      playerName: "Alice",
+      avatarKey: "a.png",
+      score: 4,
+    };
+    const host = await show(`/party/${playing.party.id}/admin`, playing.snaps);
+    const button = [...host.querySelectorAll<HTMLButtonElement>(".bz-host-controls button")].find((item) =>
+      (item.textContent ?? "").includes("Afficher gagnant"),
+    );
+    expect(button?.disabled).toBe(false);
+
+    playing.snaps.host.manchePodium = {
+      title: "Fin de la manche 1",
+      subtitle: "2 questions",
+      kind: "players",
+      participantCount: 1,
+      steps: [],
+      ranked: [],
+    };
+    const duringPodium = await show(`/party/${playing.party.id}/admin`, playing.snaps);
+    const blocked = [...duringPodium.querySelectorAll<HTMLButtonElement>(".bz-host-controls button")].find((item) =>
+      (item.textContent ?? "").includes("Afficher gagnant"),
+    );
+    expect(blocked?.disabled).toBe(true);
+  });
+
+  it("keeps the host token in the url and in localStorage across a reload", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    const id = playing.party.id.toLowerCase();
+    localStorage.removeItem(`partygames:hostToken:${id}`);
+    window.location.hash = "#token=secret-host-token";
+    const first = await show(`/party/${id}/admin`, playing.snaps, "alice", { seedHostToken: false });
+    expect(first.textContent).not.toContain("Jeton animateur absent");
+    expect(window.location.hash).toContain("token=secret-host-token");
+    expect(localStorage.getItem(`partygames:hostToken:${id}`)).toBe("secret-host-token");
+
+    window.location.hash = "";
+    const second = await show(`/party/${id}/admin`, playing.snaps, "alice", { seedHostToken: false });
+    expect(second.textContent).not.toContain("Jeton animateur absent");
+    window.location.hash = "";
+  });
+
+  it("shows a French sentence when Question suivante returns 404", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    const host = await show(`/party/${playing.party.id}/admin`, playing.snaps);
+    vi.stubGlobal(
+      "fetch",
+      (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = requestUrl(input);
+        if (init?.method === "POST" && url.includes("/host/cue/next")) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "NOT_FOUND", message: "NOT_FOUND" }), {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "POST" && url.includes("/host/dismiss-winner")) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ error: "NOT_FOUND", message: "NOT_FOUND" }), {
+              status: 404,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify(playing.snaps.host), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    const button = cueAdvanceButton(host);
+    await act(async () => {
+      button?.click();
+    });
+    await flush();
+    expect(host.textContent).toContain("Partie introuvable. Cette partie n'est plus sur le serveur.");
+    expect(host.textContent).not.toContain("404:NOT_FOUND");
+  });
+
+  it("jumps when the admin url asks for question 70", async () => {
+    beginClock();
+    recordedPosts.length = 0;
+    const playing = launchNormalQuiz(2);
+    const host = await show(`/party/${playing.party.id}/admin?question=70`, playing.snaps);
+    expect(host.querySelector(".bz-host-controls")?.textContent).not.toContain("question 70");
+    expect(
+      recordedPosts.some((post) => post.url.includes("/host/jump-question") && post.body.includes('"question":70')),
+    ).toBe(true);
+  });
+
+  it("moves the broadcast countdown when the tab becomes visible, without waiting on the tutorial", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    const startedAt = Date.now();
+    playing.snaps.player.countdownStartedAt = startedAt;
+    playing.snaps.player.appliedCountdownDurationSec = 5;
+    playing.snaps.player.buzzWindowOpen = false;
+    playing.snaps.player.state = "round_active";
+    const broadcast = await show(`/party/${playing.party.id}/broadcast`, playing.snaps);
+    expect(broadcast.querySelector(".bz-countdown-digit")?.textContent).toBe("5");
+    vi.setSystemTime(startedAt + 3_000);
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(broadcast.querySelector(".bz-countdown-digit")?.textContent).toBe("2");
+  });
+
+  it("labels pause as a freeze and keeps the question on the host", async () => {
+    beginClock();
+    const playing = launchNormalQuiz(2);
+    const prompt =
+      playing.snaps.host.gameBoard?.kind === "quiz" ? playing.snaps.host.gameBoard.prompt : "";
+    playing.snaps.host.liveRoundPausedAt = Date.now();
+    const host = await show(`/party/${playing.party.id}/admin`, playing.snaps);
+    const bar = host.querySelector(".bz-host-controls");
+    expect(bar?.textContent).toContain("▶ Reprendre");
+    expect(bar?.textContent).not.toContain("Pause (lobby)");
+    expect(host.textContent).toContain("Pause");
+    expect(host.textContent).toContain(prompt);
+    expect(host.textContent).not.toContain("En attente des joueurs");
   });
 });

@@ -212,6 +212,11 @@ export interface Party {
   winnerDisplay: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
   /** * End-of-manche podium stays up until the host continues. Absent means closed. */
   mancheResultOpen?: boolean;
+  /**
+   * * Server time when the host froze the live round.
+   *   Null or absent means the countdowns run. The question on screen does not change.
+   */
+  liveRoundPausedAt?: number | null;
   /** * Grace window duration (ms) after first buzz before final decision (0–1000 ms, default 500). */
   buzzGraceWindowMs: number;
   /** * Clock sync state per player (for latency compensation). */
@@ -518,6 +523,8 @@ export interface PartyPublicSnapshot {
   winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
   /** * Present only while the end-of-manche podium is on player and broadcast screens. */
   manchePodium?: ManchePodium;
+  /** * Server time when the live round is frozen. Null when countdowns run. */
+  liveRoundPausedAt?: number | null;
 }
 
 /** * One scored player, shown on the point modal during the next-question pause. */

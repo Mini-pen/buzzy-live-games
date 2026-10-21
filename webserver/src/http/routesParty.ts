@@ -176,6 +176,10 @@ const winnerScreenModeSchema = z.object({
   mode: z.enum(["question", "round"]),
 });
 
+const jumpQuestionSchema = z.object({
+  question: z.number().int().min(1).max(100_000),
+});
+
 const broadcastDisplaySchema = z
   .object({
     broadcastShowRanking: z.boolean().optional(),
@@ -729,7 +733,7 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        store.adminPauseToLobby(party);
+        store.adminToggleLivePause(party);
         return snapHost(party);
       } catch (err) {
         return replyDomain(reply, err);
@@ -1110,9 +1114,32 @@ export async function registerPartyRoutes(
         const token = readBearer(req.headers.authorization);
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
-        store.computeAndShowWinner(party);
+        store.adminShowWinner(party);
         return snapHost(party);
       } catch (err) {
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/jump-question",
+    async (req, reply) => {
+      try {
+        const body = jumpQuestionSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        const loaded = quizPackFromLoadedId(allPacks(), party.loadedPackId);
+        if (!loaded)
+          throw Object.assign(new Error("PACK_NOT_FOUND"), { code: "PACK_NOT_FOUND" });
+        store.adminJumpToQuestion(party, loaded, body.question);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
         return replyDomain(reply, err);
       }
     },
