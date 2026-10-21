@@ -2854,6 +2854,20 @@ function Play(): JSX.Element {
           </>
         }
         buzzer={buzzerControl}
+        roster={
+          ready !== null && readyPhaseOnScreen(snap) ? (
+            <ul className="bz-ready-roster" aria-label="Joueurs">
+              {snap.players.map((player) => (
+                <li key={player.id}>
+                  <span className="bz-player-name-line">
+                    <ReadyListMark snap={snap} playerId={player.id} />
+                    <span>{player.displayName}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : undefined
+        }
       />
     );
   }
@@ -3169,6 +3183,302 @@ function PlayerScoreDock(props: {
               ))}
             </div>
           )}
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * * Collapsed settings line.
+ *   INCERTAIN: Design UI, 2026-10-21, résumé « Prêt ? activé · buzzer 5 s · suivante 5 s », à confirmer par Minipen.
+ */
+function hostPartySettingsSummary(snap: PartySnapshot): string {
+  const ready = snap.readyCheckEnabled === true ? "Prêt ? activé" : "Prêt ? désactivé";
+  const buzzer = snap.countdownDurationSec ?? 5;
+  const next = snap.nextQuestionCountdownSec ?? 5;
+  return `${ready} · buzzer ${buzzer} s · suivante ${next} s`;
+}
+
+function buzzSoundModeLabel(mode: "players" | "animation" | "both" | undefined): string {
+  if (mode === "players") return "Joueurs";
+  if (mode === "animation") return "Animation";
+  return "Joueurs + animation";
+}
+
+/**
+ * * Actions that only matter for the question on screen.
+ *   INCERTAIN: Design UI, 2026-10-21, ces boutons sont sous la question en cours plutôt que dans la barre, à confirmer par Minipen.
+ *   Fermer & purger, Lancer la question pendant « Prêt ? », Suivant après le gagnant, Extrait suivant, Rejouer l'extrait.
+ */
+function HostMomentActions(props: {
+  snap: PartySnapshot;
+  showCueAdvance: boolean;
+  cueAdvanceLabel: string;
+  showMediaReplay: boolean;
+  loose?: boolean;
+  onCloseBuzz: () => void;
+  onLaunchQuestion: () => void;
+  onDismissWinner: () => void;
+  onCueNext: () => void;
+  onCueReplay: () => void;
+}): JSX.Element | null {
+  const roundOn = props.snap.state === "round_active";
+  const ready = readyPhaseOnScreen(props.snap);
+  const winner = props.snap.winnerDisplay != null;
+  if (!roundOn && !ready && !winner && !props.showCueAdvance && !props.showMediaReplay) return null;
+  return (
+    <div className={props.loose ? "bz-manche-moment bz-manche-moment--loose" : "bz-manche-moment"}>
+      {roundOn ? (
+        <button type="button" onClick={props.onCloseBuzz}>
+          Fermer & purger
+        </button>
+      ) : null}
+      {ready ? (
+        <>
+          <p className="bz-host-ready-count">
+            {readyStatusLabel(props.snap.readyPlayers?.length ?? 0, props.snap.players.length, "summary")}
+          </p>
+          <button type="button" onClick={props.onLaunchQuestion}>
+            Lancer la question
+          </button>
+        </>
+      ) : null}
+      {winner ? (
+        <button type="button" onClick={props.onDismissWinner}>
+          Suivant
+        </button>
+      ) : null}
+      {props.showCueAdvance ? (
+        <button type="button" onClick={props.onCueNext}>
+          {props.cueAdvanceLabel}
+        </button>
+      ) : null}
+      {props.showMediaReplay ? (
+        <button type="button" title="Même média" onClick={props.onCueReplay}>
+          Rejouer l&apos;extrait
+        </button>
+      ) : null}
+      <p className="bz-manche-moment-note">Actions du moment, affichées seulement quand elles servent</p>
+    </div>
+  );
+}
+
+/**
+ * * Host party settings, under the scenario.
+ *   INCERTAIN: Design UI, 2026-10-21, mémoriser replié/déplié dans localStorage (absent = replié), à confirmer par Minipen.
+ */
+function HostPartySettings(props: {
+  partyId: string;
+  snap: PartySnapshot;
+  onAutoOpen: (enabled: boolean) => void;
+  onQuizAuto: (enabled: boolean) => void;
+  onGrace: (ms: number) => void;
+  onBuzzerSec: (sec: number) => void;
+  onReady: (enabled: boolean) => void;
+  onReadyTimeout: (sec: number) => void;
+  onNextSec: (sec: number) => void;
+  onVerdict: (enabled: boolean) => void;
+  onCycleBuzz: () => void;
+  onWinnerMode: (mode: "question" | "round") => void;
+  onPlayerAudio: (enabled: boolean) => void;
+}): JSX.Element {
+  const storageKey = `partygames:hostPartySettings:${props.partyId}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) === "1";
+    } catch {
+      return false;
+    }
+  });
+  function toggle(): void {
+    const next = !open;
+    setOpen(next);
+    try {
+      localStorage.setItem(storageKey, next ? "1" : "0");
+    } catch {
+      /* * Private mode can reject storage writes. */
+    }
+  }
+  const blind = props.snap.gameBoard?.kind === "audio_blind";
+  return (
+    <section className="bz-party-settings">
+      <button type="button" className="bz-party-settings-toggle" aria-expanded={open} onClick={toggle}>
+        <span className="bz-party-settings-title">
+          <span aria-hidden="true">⚙</span>
+          Paramètres de la partie
+        </span>
+        {open ? null : <span className="bz-party-settings-summary">{hostPartySettingsSummary(props.snap)}</span>}
+        <span className="bz-party-settings-action">{open ? "Replier" : "Déplier"}</span>
+      </button>
+      {open ? (
+        <div className="bz-party-settings-body bz-party-settings-grid">
+          <section className="bz-party-group">
+            <h3>Buzzer</h3>
+            <label className="bz-switch">
+              <input
+                type="checkbox"
+                checked={props.snap.autoOpenBuzzOnCueAdvance === true}
+                onChange={(e) => props.onAutoOpen(e.target.checked)}
+              />
+              <span className="bz-switch-ui" aria-hidden="true" />
+              <span>
+                Ouverture auto après « suivant »
+                <span className="bz-party-help">
+                  QCM, oral, blind, images, indices progressifs — pas après un simple rejoué média.
+                </span>
+              </span>
+            </label>
+            <label className="bz-switch">
+              <input
+                type="checkbox"
+                checked={props.snap.autoAdvanceQuizWhenAllBuzzed === true}
+                onChange={(e) => props.onQuizAuto(e.target.checked)}
+              />
+              <span className="bz-switch-ui" aria-hidden="true" />
+              <span>
+                QCM : passer seul quand tous ont buzzé
+                <span className="bz-party-help">
+                  Attribue les points, affiche un court message sur chaque téléphone, puis passe à la question
+                  suivante.
+                </span>
+              </span>
+            </label>
+            <div className="bz-party-field">
+              <label htmlFor={`bz-grace-${props.partyId}`}>Fenêtre d&apos;attente buzz</label>
+              <span className="bz-party-value">
+                <input
+                  id={`bz-grace-${props.partyId}`}
+                  type="number"
+                  min={0}
+                  max={1000}
+                  step={50}
+                  value={props.snap.buzzGraceWindowMs ?? 500}
+                  onChange={(e) => {
+                    const val = Number.parseInt(e.target.value, 10);
+                    if (val >= 0 && val <= 1000) props.onGrace(val);
+                  }}
+                />
+                <span>ms</span>
+              </span>
+            </div>
+          </section>
+          <section className="bz-party-group">
+            <h3>Comptes à rebours</h3>
+            <div className="bz-party-field">
+              <label htmlFor={`bz-next-${props.partyId}`}>Avant la question suivante</label>
+              <span className="bz-party-value">
+                <input
+                  id={`bz-next-${props.partyId}`}
+                  type="number"
+                  min={0}
+                  max={30}
+                  value={props.snap.nextQuestionCountdownSec ?? 5}
+                  onChange={(e) => {
+                    const val = Number.parseInt(e.target.value, 10);
+                    if (val >= 0 && val <= 30) props.onNextSec(val);
+                  }}
+                />
+                <span>s</span>
+              </span>
+            </div>
+            <label className="bz-switch">
+              <input
+                type="checkbox"
+                checked={props.snap.readyCheckEnabled === true}
+                onChange={(e) => props.onReady(e.target.checked)}
+              />
+              <span className="bz-switch-ui" aria-hidden="true" />
+              <span>Mode « Prêt ? »</span>
+            </label>
+            <div className="bz-party-field">
+              <label htmlFor={`bz-ready-max-${props.partyId}`}>Délai maximum « Prêt ? »</label>
+              <span className="bz-party-value">
+                <input
+                  id={`bz-ready-max-${props.partyId}`}
+                  type="number"
+                  min={0}
+                  max={READY_TIMEOUT_MAX_SEC}
+                  value={props.snap.readyTimeoutSec ?? READY_TIMEOUT_DEFAULT_SEC}
+                  onChange={(e) => {
+                    const val = Number.parseInt(e.target.value, 10);
+                    if (isValidReadyTimeoutSec(val)) props.onReadyTimeout(val);
+                  }}
+                />
+                <span>s</span>
+              </span>
+            </div>
+            <div className="bz-party-field">
+              <label htmlFor={`bz-buzzer-sec-${props.partyId}`}>Avant le buzzer</label>
+              <span className="bz-party-value">
+                <input
+                  id={`bz-buzzer-sec-${props.partyId}`}
+                  type="number"
+                  min={0}
+                  max={10}
+                  value={props.snap.countdownDurationSec ?? 5}
+                  onChange={(e) => {
+                    const val = Number.parseInt(e.target.value, 10);
+                    if (val >= 0 && val <= 10) props.onBuzzerSec(val);
+                  }}
+                />
+                <span>s</span>
+              </span>
+            </div>
+          </section>
+          <section className="bz-party-group">
+            <h3>Sons et affichage</h3>
+            <label className="bz-switch">
+              <input
+                type="checkbox"
+                checked={props.snap.playVerdictSounds === true}
+                onChange={(e) => props.onVerdict(e.target.checked)}
+              />
+              <span className="bz-switch-ui" aria-hidden="true" />
+              <span>
+                Sons bon / mauvais
+                <span className="bz-party-help">Après jugement de buzz.</span>
+              </span>
+            </label>
+            <div className="bz-party-field">
+              <span>Sons de buzz</span>
+              <button type="button" onClick={props.onCycleBuzz} title="Cliquez pour changer">
+                {buzzSoundModeLabel(props.snap.soundBuzzerPublic?.buzzSoundMode)} ▾
+              </button>
+            </div>
+            <div className="bz-party-field">
+              <label htmlFor={`bz-winner-mode-${props.partyId}`}>Écran de gagnant</label>
+              <span className="bz-party-value">
+                <select
+                  id={`bz-winner-mode-${props.partyId}`}
+                  value={props.snap.winnerScreenMode ?? "question"}
+                  onChange={(e) => props.onWinnerMode(e.target.value as "question" | "round")}
+                >
+                  <option value="question">Fin de question</option>
+                  <option value="round">Fin de manche</option>
+                </select>
+              </span>
+            </div>
+            {blind ? (
+              <label className="bz-switch">
+                <input
+                  type="checkbox"
+                  checked={props.snap.allowPlayerAudioControl === true}
+                  onChange={(e) => props.onPlayerAudio(e.target.checked)}
+                />
+                <span className="bz-switch-ui" aria-hidden="true" />
+                <span>
+                  Lecture sur les téléphones
+                  <span className="bz-party-help">
+                    Blind test : les joueurs et la diffusion peuvent lancer l&apos;extrait. Sinon tout le monde
+                    écoute le poste animateur.
+                  </span>
+                </span>
+              </label>
+            ) : (
+              <p className="bz-party-note">Blind test : lecture sur les téléphones (si la manche est un blind test).</p>
+            )}
+          </section>
         </div>
       ) : null}
     </section>
@@ -4209,6 +4519,24 @@ function Admin(): JSX.Element {
             : "Question suivante →";
 
   const goodPts = hostGoodPointsHint(hostGameBoard);
+  const manchePlaying =
+    snap.activeMancheId !== null &&
+    snap.state === "round_active" &&
+    snap.mancheScript.some((row) => row.id === snap.activeMancheId);
+  const momentActions = (loose: boolean): JSX.Element => (
+    <HostMomentActions
+      snap={snap}
+      loose={loose}
+      showCueAdvance={showCueAdvanceButton}
+      cueAdvanceLabel={cueAdvanceLabel}
+      showMediaReplay={showMediaReplayCue}
+      onCloseBuzz={() => void onHostBuzzWindow(false)}
+      onLaunchQuestion={() => void onHostLaunchQuestion()}
+      onDismissWinner={() => void onHostDismissWinner()}
+      onCueNext={() => void onHostCueNext()}
+      onCueReplay={() => void onHostCueReplay()}
+    />
+  );
 
   return (
     <Shell title={`Animateur · ${snap.joinCode}`} wide>
@@ -4422,11 +4750,13 @@ function Admin(): JSX.Element {
                       >
                         🗑
                       </button>
+                      {playing ? momentActions(false) : null}
                     </li>
                   );
                 })}
               </ul>
             )}
+            {manchePlaying ? null : momentActions(true)}
             {editorSession !== null ? (
               <QuestionEditor
                 pack={editorSession.pack}
@@ -4444,215 +4774,39 @@ function Admin(): JSX.Element {
             <PackPreviewMeasure pack={importJob.pack} onReady={onImportMeasured} />
           ) : null}
 
-          {/* Sticky controls */}
+          <HostPartySettings
+            partyId={pid ?? snap.id}
+            snap={snap}
+            onAutoOpen={(enabled) => void onHostBuzzAutoCueAdvance(enabled)}
+            onQuizAuto={(enabled) => void onHostQuizAutoAllBuzzed(enabled)}
+            onGrace={(ms) => void onHostBuzzGraceWindowChange(ms)}
+            onBuzzerSec={(sec) => void onHostCountdownDurationChange(sec)}
+            onReady={(enabled) => void onHostReadyCheckChange(enabled)}
+            onReadyTimeout={(sec) => void onHostReadyTimeoutChange(sec)}
+            onNextSec={(sec) => void onHostNextQuestionCountdownChange(sec)}
+            onVerdict={(enabled) => void onHostVerdictSoundsToggle(enabled)}
+            onCycleBuzz={() => void onCycleBuzzSoundMode()}
+            onWinnerMode={(mode) => void onHostWinnerScreenModeChange(mode)}
+            onPlayerAudio={(enabled) => void onHostPlayerAudioAllowed(enabled)}
+          />
+
           <div className="bz-host-controls">
-            <button
-              type="button"
-              className="bz-primary"
-              onClick={() => void onHostRoundStart()}
-            >
+            <button type="button" className="bz-primary" onClick={() => void onHostRoundStart()}>
               ▶ Lancer la manche
             </button>
-            <button type="button" onClick={() => void onHostRoundPause()}>
-              ⏸ Pause (lobby)
+            <button type="button" onClick={() => void onHostBuzzWindow(true)}>
+              🔔 Ouvrir buzzer
             </button>
-            <div className="bz-host-buzz-tools">
-              {readyPhaseOnScreen(snap) ? (
-                <div className="bz-host-ready-launch">
-                  <p className="bz-host-ready-count">
-                    {readyStatusLabel(snap.readyPlayers?.length ?? 0, snap.players.length, "summary")}
-                  </p>
-                  <button type="button" onClick={() => void onHostLaunchQuestion()}>
-                    Lancer la question
-                  </button>
-                </div>
-              ) : null}
-              <div className="bz-host-buzz-buttons">
-                <button
-                  type="button"
-                  onClick={() => void onHostBuzzWindow(true)}
-                >
-                  🔔 Ouvrir buzzer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void onHostBuzzWindow(false)}
-                >
-                  ⏹ Fermer & purger
-                </button>
-              </div>
-              <label className="bz-host-buzz-auto">
-                <input
-                  type="checkbox"
-                  checked={snap.autoOpenBuzzOnCueAdvance === true}
-                  onChange={(e) => void onHostBuzzAutoCueAdvance(e.target.checked)}
-                />
-                <span>
-                  <strong>Ouverture buzz auto</strong> après chaque « suivant » (QCM, oral, blind, images,
-                  indices progressifs — pas après un simple rejoué média).
-                </span>
-              </label>
-              <label className="bz-host-buzz-auto bz-host-buzz-auto--quiz-all">
-                <input
-                  type="checkbox"
-                  checked={snap.autoAdvanceQuizWhenAllBuzzed === true}
-                  onChange={(e) => void onHostQuizAutoAllBuzzed(e.target.checked)}
-                />
-                <span>
-                  <strong>QCM uniquement</strong> : dès que <em>tous</em> les joueurs ont buzzé, attribuer les
-                  points (bonne / mauvaise selon la réponse attendue), afficher un court message sur chaque
-                  téléphone, puis passer à la question suivante automatiquement.
-                </span>
-              </label>
-              <div className="bz-settings" style={{ marginTop: 16, padding: 16, background: "var(--bz-surface)", borderRadius: "var(--bz-r-md)" }}>
-                <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>Sons et compte à rebours</h3>
-                <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                  <input
-                    type="checkbox"
-                    checked={snap.playVerdictSounds === true}
-                    onChange={(e) => void onHostVerdictSoundsToggle(e.target.checked)}
-                  />
-                  <span>Jouer les sons bon/mauvais après jugement de buzz</span>
-                </label>
-                <div style={{ marginBottom: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => void onCycleBuzzSoundMode()}
-                    style={{ padding: "8px 12px", cursor: "pointer" }}
-                  >
-                    {(() => {
-                      const mode = snap.soundBuzzerPublic?.buzzSoundMode ?? "both";
-                      if (mode === "players") return "Sons de buzz : joueurs";
-                      if (mode === "animation") return "Sons de buzz : animation";
-                      return "Sons de buzz : joueurs + animation";
-                    })()}
-                  </button>
-                  <div style={{ fontSize: 12, color: "var(--bz-text-dim)", marginTop: 4 }}>
-                    Cliquez pour changer
-                  </div>
-                </div>
-                <label className="bz-settings-label">
-                  Fenêtre d'attente buzz (0–1000 ms)
-                  <input
-                    type="number"
-                    min={0}
-                    max={1000}
-                    step={50}
-                    value={snap.buzzGraceWindowMs ?? 500}
-                    onChange={(e) => {
-                      const val = Number.parseInt(e.target.value, 10);
-                      if (val >= 0 && val <= 1000) void onHostBuzzGraceWindowChange(val);
-                    }}
-                  />
-                </label>
-                <label className="bz-settings-label">
-                  Compte à rebours avant le buzzer (0–10 secondes, 0 = aucun)
-                  <input
-                    type="number"
-                    min={0}
-                    max={10}
-                    value={snap.countdownDurationSec ?? 5}
-                    onChange={(e) => {
-                      const val = Number.parseInt(e.target.value, 10);
-                      if (val >= 0 && val <= 10) void onHostCountdownDurationChange(val);
-                    }}
-                  />
-                </label>
-                <label className="bz-settings-label">
-                  <input
-                    type="checkbox"
-                    checked={snap.readyCheckEnabled === true}
-                    onChange={(e) => void onHostReadyCheckChange(e.target.checked)}
-                  />{" "}
-                  Mode « Prêt ? » avant le buzzer
-                </label>
-                <label className="bz-settings-label">
-                  Délai maximum « Prêt ? » (0 ou 5–60 secondes, 0 = aucun)
-                  <input
-                    type="number"
-                    min={0}
-                    max={READY_TIMEOUT_MAX_SEC}
-                    value={snap.readyTimeoutSec ?? READY_TIMEOUT_DEFAULT_SEC}
-                    onChange={(e) => {
-                      const val = Number.parseInt(e.target.value, 10);
-                      if (isValidReadyTimeoutSec(val)) void onHostReadyTimeoutChange(val);
-                    }}
-                  />
-                </label>
-                <label className="bz-settings-label">
-                  Délai avant la question suivante (0–30 secondes, 0 = aucun)
-                  <input
-                    type="number"
-                    min={0}
-                    max={30}
-                    value={snap.nextQuestionCountdownSec ?? 5}
-                    onChange={(e) => {
-                      const val = Number.parseInt(e.target.value, 10);
-                      if (val >= 0 && val <= 30) void onHostNextQuestionCountdownChange(val);
-                    }}
-                  />
-                </label>
-                <label className="bz-settings-label" style={{ marginTop: 12 }}>
-                  Écran de gagnant
-                  <select
-                    value={snap.winnerScreenMode ?? "question"}
-                    onChange={(e) => void onHostWinnerScreenModeChange(e.target.value as "question" | "round")}
-                  >
-                    <option value="question">Fin de question</option>
-                    <option value="round">Fin de manche</option>
-                  </select>
-                </label>
-                <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                  <button
-                    type="button"
-                    onClick={() => void onHostShowWinner()}
-                    disabled={snap.winnerDisplay !== null}
-                  >
-                    Afficher le gagnant
-                  </button>
-                  {snap.winnerDisplay && (
-                    <button
-                      type="button"
-                      onClick={() => void onHostDismissWinner()}
-                    >
-                      Suivant
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-            {snap.gameBoard?.kind === "audio_blind" ? (
-              <label
-                className="bz-host-blind-player-audio"
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  alignItems: "flex-start",
-                  width: "100%",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={snap.allowPlayerAudioControl === true}
-                  onChange={(e) => void onHostPlayerAudioAllowed(e.target.checked)}
-                />
-                <span style={{ flex: "1", textAlign: "left", fontSize: 13, lineHeight: 1.35 }}>
-                  Blind test&nbsp;: autoriser lecture / rejouer sur les téléphones joueurs et sur la page diffusion
-                  (sinon tout le monde écoute seulement la sortie de ton poste animateur ou la sono).
-                </span>
-              </label>
-            ) : null}
-            {showMediaReplayCue ? (
-              <button type="button" onClick={() => void onHostCueReplay()}>
-                ↻ Rejouer l&apos;extrait (même média)
-              </button>
-            ) : null}
-            {showCueAdvanceButton ? (
-              <button type="button" onClick={() => void onHostCueNext()}>
-                {cueAdvanceLabel}
-              </button>
-            ) : null}
+            <button type="button" title="Pause (lobby)" onClick={() => void onHostRoundPause()}>
+              ⏸ Pause
+            </button>
+            <button
+              type="button"
+              onClick={() => void onHostShowWinner()}
+              disabled={snap.winnerDisplay !== null}
+            >
+              🏆 Afficher gagnant
+            </button>
           </div>
         </main>
 

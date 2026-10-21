@@ -825,6 +825,80 @@ describe("ready marks and the host return tab", () => {
     expect(plain.querySelector(".bz-ready-mark")).toBeNull();
   });
 
+  it("shows the same ready checks and hourglasses on the phone during « Prêt ? »", async () => {
+    beginClock();
+    const { party, snaps } = readyScene(true);
+    const phone = await show(`/party/${party.id}/play`, snaps);
+    const roster = phone.querySelector(".bz-ready-hold .bz-ready-roster");
+    expect(roster).not.toBeNull();
+    expect(roster?.textContent).toContain("Alice");
+    expect(roster?.textContent).toContain("Bob");
+    expect(roster?.querySelectorAll('.bz-ready-mark.is-ready[aria-label="Prêt"]').length).toBe(1);
+    expect(roster?.querySelectorAll('.bz-ready-mark.is-waiting[aria-label="Pas encore prêt"]').length).toBe(1);
+    expect(phone.querySelector(".bz-buzz-slot .bz-buzz-ready")).not.toBeNull();
+    expect(phone.querySelector(".bz-buzz-slot .bz-ready-mark")).toBeNull();
+
+    const off = answeredParty({ ...pauseOpts, ready: false });
+    const plain = await show(`/party/${off.party.id}/play`, snapsOf(off.party, off.packs));
+    expect(plain.querySelector(".bz-ready-mark")).toBeNull();
+  });
+
+  it("keeps four buttons on the host bar and parks the other controls under the scenario", async () => {
+    beginClock();
+    const { party, snaps } = readyScene(true);
+    localStorage.removeItem(`partygames:hostPartySettings:${party.id}`);
+    const host = await show(`/party/${party.id}/admin`, snaps);
+    const bar = host.querySelector(".bz-host-controls");
+    const labels = [...(bar?.querySelectorAll("button") ?? [])].map((button) => button.textContent?.trim());
+    expect(labels).toEqual(["▶ Lancer la manche", "🔔 Ouvrir buzzer", "⏸ Pause", "🏆 Afficher gagnant"]);
+    expect(bar?.textContent).not.toContain("Fermer");
+    expect(bar?.textContent).not.toContain("Lancer la question");
+    expect(bar?.textContent).not.toContain("Ouverture auto");
+
+    const pack = host.querySelector(".bz-host-pack");
+    const settings = host.querySelector(".bz-party-settings");
+    expect(pack).not.toBeNull();
+    expect(settings).not.toBeNull();
+    expect(
+      pack !== null &&
+        settings !== null &&
+        (pack.compareDocumentPosition(settings) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+    ).toBe(true);
+    expect(
+      settings !== null &&
+        bar !== null &&
+        (settings.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+    ).toBe(true);
+    expect(settings?.textContent).toContain("Prêt ? activé · buzzer 0 s · suivante 5 s");
+    expect(settings?.querySelector(".bz-party-settings-body")).toBeNull();
+
+    const toggle = settings?.querySelector<HTMLButtonElement>(".bz-party-settings-toggle");
+    await act(async () => {
+      toggle?.click();
+    });
+    const body = host.querySelector(".bz-party-settings-body");
+    const headings = [...(body?.querySelectorAll("h3") ?? [])].map((node) => node.textContent?.trim());
+    expect(headings).toEqual(["Buzzer", "Comptes à rebours", "Sons et affichage"]);
+    expect(body?.textContent).toContain("Ouverture auto après « suivant »");
+    expect(body?.textContent).toContain("QCM : passer seul quand tous ont buzzé");
+    expect(body?.textContent).toContain("Fenêtre d'attente buzz");
+    expect(body?.textContent).toContain("Avant la question suivante");
+    expect(body?.textContent).toContain("Mode « Prêt ? »");
+    expect(body?.textContent).toContain("Délai maximum « Prêt ? »");
+    expect(body?.textContent).toContain("Avant le buzzer");
+    expect(body?.textContent).toContain("Sons bon / mauvais");
+    expect(body?.textContent).toContain("Joueurs + animation");
+    expect(body?.textContent).toContain("Écran de gagnant");
+    expect(body?.textContent).toContain("Fin de question");
+    expect(body?.textContent).toContain("Blind test");
+
+    const moment = host.querySelector(".bz-manche-row--playing .bz-manche-moment");
+    expect(moment?.textContent).toContain("Fermer & purger");
+    expect(moment?.textContent).toContain("Lancer la question");
+    expect(moment?.textContent).toContain("Question suivante");
+    expect(host.querySelector(".bz-host-controls .bz-manche-moment")).toBeNull();
+  });
+
   it("opens the host board in a new tab without putting the token in the url", async () => {
     beginClock();
     const { party, packs } = answeredParty(pauseOpts);

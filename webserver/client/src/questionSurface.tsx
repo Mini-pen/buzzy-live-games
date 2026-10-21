@@ -32,6 +32,8 @@ export function PlayFrame(props: {
   onFit?: (report: SurfaceFitReport) => void;
   header: ReactNode;
   buzzer: ReactNode;
+  /** * Names and ready marks, only while « Prêt ? » replaces the question. */
+  roster?: ReactNode;
 }): JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null);
   const questionRef = useRef<HTMLDivElement>(null);
@@ -157,9 +159,13 @@ export function PlayFrame(props: {
       <header className="bz-play-header">{props.header}</header>
       <div className="bz-play-rest">
         {ready ? (
-          <section className="bz-qna bz-ready-hold" aria-live="polite">
+          <section
+            className={props.roster ? "bz-qna bz-ready-hold bz-ready-hold--roster" : "bz-qna bz-ready-hold"}
+            aria-live="polite"
+          >
             <p className="bz-ready-hold-kicker">{props.kicker}</p>
             <p className="bz-ready-hold-phrase">{tagline}</p>
+            {props.roster ?? null}
           </section>
         ) : (
           <section className="bz-qna">
