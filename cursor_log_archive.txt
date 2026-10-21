@@ -129,3 +129,12 @@ Session 2026-10-21 — Six écarts résolus (commit aed6c03)
 - CA-47 : même fermeture, encore un choix incertain.
 - Maquette buzzer_decompte_joueur_v1.png : gris inactif, chiffre au centre, anneau jaune, puis rouge « BUZZ ! ». resultat_diffusion_v3.png non inscrit.
 - Points alors ouverts : panneau sous l'aperçu, localStorage des blocs pliables, maxima 10 s / 30 s, changement à la question suivante, grands chiffres du buzzer sur la diffusion, CA-20 fin de partie, fermeture diffusion, sort du bouton « Prêt », libellé autre que +1.
+
+================================================================================
+Session 2026-10-21 — Mode Prêt ?, + N points, CA-33 (commit c34c952)
+================================================================================
+- Mode « Prêt ? » optionnel : entre le décompte entre les questions et le décompte du buzzer. Orange / vert sur le bouton. Tous au vert : décompte du buzzer. Inactif : le décompte suit l'affichage de la question.
+- Arrivée : orange pendant le décompte entre les questions ou l'attente « Prêt ? ». Prêt et peut répondre pendant une question.
+- « +1 point » remplacé par « + N points » ou « + N points pour l'équipe <nom> ».
+- CA-33 confirmé : pas de modale du gagnant dans la miniature. Elle reste sur la vraie diffusion.
+- Encore ouverts alors : délai 30 s, forçage À décider, compteurs, couleurs des contrastes.

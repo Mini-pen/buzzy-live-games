@@ -1,32 +1,29 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Minipen a tranché le mode « Prêt ? », les libellés « + N points » et l'écart CA-33. Documentation seule, poussée sur `main`.
+**Contexte** : Minipen a tranché le délai qui passe outre « Prêt ? », le lancement manuel et les icônes de la liste. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Inscrire le mode optionnel « Prêt ? » au §4.5, sans effacer les phrases remplacées.
-- Remplacer « +1 point » par « + N points » ou « + N points pour l'équipe <nom> ».
-- Confirmer le CA-33 : la miniature animateur n'affiche pas la modale du gagnant.
-- Remplacer le choix incertain sur le joueur qui rejoint par la règle orange / prêt.
+- Remplacer le choix incertain de 30 s par un délai automatique de 15 s, réglable.
+- Remplacer l'« À décider » du forçage par le lancement manuel, même si tout le monde n'est pas prêt.
+- Remplacer la proposition d'emplacement vide par une coche verte et un sablier orange.
 
 ## Réalisations
 
-- §4.5 : si le mode est actif, ordre décompte entre les questions, puis « Prêt ? » sur le bouton (orange / vert, bascule au clic), puis décompte du buzzer quand tous sont au vert. S'il est inactif, le décompte du buzzer suit l'affichage de la question.
-- Arrivée décidée : pendant le décompte entre les questions ou l'attente « Prêt ? », le joueur arrive en orange et on l'attend. Pendant une question, il est prêt et peut répondre tout de suite. Cela remplace le choix incertain (Coding Agent et Specs Writer) « il doit aussi passer au vert ».
-- Maquette `buzzer_pret_joueur_v1.png` citée (hors dépôt). Contrastes et compteur « 3 / 5 joueurs prêts » en proposition. Le compteur diffusion « 3/5 prêts » reste un choix incertain, distinct.
-- CA-6, CA-19, CA-20, CA-46, CA-47 : « +1 point » conservé puis remplacé par les libellés N points.
-- CA-33 résolu. Explication de Coding Agent conservée : la fenêtre du gagnant dans la miniature débordait et noircissait la page animateur. Elle reste sur la vraie diffusion.
-- §2.5, §4.3 et CA-15 du §4.8 : « Prêt ? » vient après l'affichage de la question et ne retarde pas l'avance automatique.
+- §4.5 : délai automatique 15 s par défaut, dans l'interface animateur. Il déclenche le décompte du buzzer même si tout le monde n'est pas prêt. Les phrases « 30 secondes » et « majorité ou timeout » sont conservées, puis marquées remplacées.
+- L'animateur peut lancer manuellement la question pendant l'attente.
+- Liste des joueurs, animateur, joueur et diffusion : coche verte si prêt, petit sablier orange sinon, seulement si le mode est actif.
+- Critères et cas limites : départ à 15 s, départ anticipé si tous sont verts, un seul départ, lancement manuel, absence d'icônes si le mode est inactif.
+- Proposition de Design UI : `#1E7A3C`, `#F07800`, icônes de la hauteur du nom. Compteur « 3 / 5 joueurs prêts » toujours en proposition, en plus des icônes.
 
 ## Prochain focus suggéré
 
-- Confirmer les choix incertains du mode « Prêt ? » : réglage animateur, changement à la question suivante, joueurs connectés seulement, buzzer à 0, compteur diffusion, délai de 30 s (sans fondre les deux phrases), arrivée pendant le décompte du buzzer.
-- À décider par Minipen : bouton animateur pour forcer le départ. Pas prévu.
+- Confirmer : bornes 5 à 60 s, et 0 = pas de délai automatique. Sens du lancement manuel (décompte du buzzer, ou buzzer ouvert si ce décompte vaut 0).
+- Autres choix incertains du mode : réglage du mode, changement à la question suivante, joueurs connectés, buzzer à 0, compteur diffusion, arrivée pendant le décompte du buzzer.
 - Toujours ouverts : CA-34, CA-41, maxima 10 s / 30 s, grands chiffres du buzzer sur la diffusion, CA-20 fin de partie, fermeture CA-47, singulier « + 1 point ».
 - `resultat_diffusion_v3.png` attend toujours l'avis de Minipen. Non inscrit au CDC.
-- La maquette `buzzer_pret_joueur_v1.png` n'était pas sur cette machine. Les contrastes viennent du message, pas d'une mesure sur le fichier.
 
 ## Références
 
-- `cahier-des-charges.md` §2.5, §4.3, §4.5, §4.6 (CA-6, CA-19, CA-20, CA-33, CA-46, CA-47, CA-49), §4.8 (prose et CA-15).
+- `cahier-des-charges.md` §4.5 et §4.6 (écart « Prêt » et points ouverts).
