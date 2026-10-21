@@ -146,3 +146,11 @@ Session 2026-10-21 — Délai 15 s, lancement manuel, coche et sablier (commit 4
 - L'animateur peut lancer la question à la main même si tout le monde n'est pas prêt.
 - Liste des joueurs : coche verte si prêt, sablier orange sinon, seulement si le mode est actif.
 - Choix incertains laissés : bornes 5 à 60 s, 0 = pas de délai, sens du lancement manuel. Couleurs et taille des icônes en proposition.
+
+================================================================================
+Session 2026-10-21 — 2e recette, CA-52 à CA-63 (commit d19d0e9)
+================================================================================
+- Bugs : un seul buzz, surbrillance QCM, taille de texte, écran noir diffusion.
+- Buzzer qui reste, gris « Buzz envoyé ». Maquette v3 décidée.
+- Bloc rond joueur encore incertain (CA-59). Question jouée pendant les trois décomptes, envoi seulement à l'ouverture, encore incertain (CA-60, CA-61).
+- Résultat joueur : fond vert, surlignage jaune, effectifs. Format des pourcentages encore incertain.

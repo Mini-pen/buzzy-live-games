@@ -1,29 +1,27 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : 2e recette Minipen (vers 16 h), puis validations et lectures de Coding Agent. Documentation seule, poussée sur `main`.
+**Contexte** : maquettes v4 et v5, texte humoristique pendant « Prêt ? », pourcentages arrondis. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Ajouter la sous-section « Recette Minipen du 21/10/2026, 2e passage », CA-52 à CA-63.
-- Garder les anciens textes. Marquer « remplacé si confirmé » là où le bloc rond joueur toucherait une modale.
-- Inscrire `buzzer_etats_joueur_v3.png` comme décidée, avec le résultat joueur (vert, jaune, effectifs).
+- Citer `buzzer_etats_joueur_v4.png` pour le 4e écran, et garder la v3 pour les autres états.
+- Remplacer la question pendant « Prêt ? » par un texte humoristique, sans fixer le nombre de phrases.
+- Passer l'arrondi séparé des pourcentages, et un total autre que 100 %, en décidé.
 
 ## Réalisations
 
-- Bugs : un seul buzz (CA-52), surbrillance QCM qui rappelle le CA-45 (CA-53), taille de texte stable (CA-54), pas d'écran noir en diffusion qui rappelle le CA-44 (CA-55).
-- Décidé : retrait de « Réponse enregistrée… » (CA-56). Le buzzer reste et passe au gris « Buzz envoyé » (CA-57), la maquette v3 étant validée.
-- CA-58 : vague orange, rayons verts, disque du gagnant, « + 1 point ». Les v1 ne sont plus valables. Ligne d'équipe encore en proposition. Vitesses d'animation à confirmer.
-- CA-59 : choix incertain de Coding Agent. Bloc rond joueur, notification seulement sur la diffusion. Remplacerait CA-46 et CA-50 si confirmé. CA-47 reste la notification de diffusion.
-- CA-60 et CA-61 : question jouée pendant les trois décomptes. Lecture de Coding Agent : la suivante n'apparaît, et n'est envoyée, qu'à l'ouverture du buzzer. Question ouverte : l'afficher dès le début du décompte du buzzer, à cause du rôle de lecture donné par le §4.5.
-- CA-62 et CA-63 : bonne réponse sur fond vert, surlignage jaune gardé, effectif et pourcentage. Format « 2 (11%) », cumul vert et jaune, arrondi et « 0 (0%) » encore incertains. Design UI doit retoucher la maquette.
+- CA-58, CA-62, CA-63 : v4, coche en proposition, votes à droite « 11 (61%) ». `buzzer_bonne_reponse_choisie_v1.png` : « Vous ! » ne remplace que le nom, sur le téléphone du gagnant. L'écart est résolu, le texte reste à confirmer.
+- CA-64 : cinq exemples de Minipen. Même phrase partout et jamais deux fois de suite : choix incertain de Coding Agent. 18 phrases hors dépôt dans `phrases_pret.txt`. Le fichier de code n'est pas sur main : aucun chemin inventé. Le minimum de 20 est retiré.
+- CA-65 : cacher les réponses pendant « Prêt ? », choix incertain de Design UI. Maquette v5 : jaune italique sur violet foncé, sous « Question 4 / 10 · en préparation ».
+- CA-60 : pendant « Prêt ? », l'ancienne phrase est conservée puis remplacée par le CA-64.
 
 ## Prochain focus suggéré
 
-- Minipen : téléphone ou souris pour le double buzz ; vitesses d'animation ; confirmer le bloc rond ; moment d'affichage de la nouvelle question ; format des pourcentages.
-- Toujours ouverts du 1er passage : CA-34, CA-41, maxima, grands chiffres du buzzer sur la diffusion, CA-20, fermeture CA-47, réglages du mode « Prêt ? ».
-- `resultat_diffusion_v3.png` n'est toujours pas inscrit.
+- Confirmer : « Vous ! », la coche, le format des votes, le cumul vert et jaune, cacher les réponses, la phrase identique sur tous les écrans.
+- Le fichier de phrases du code, dès qu'il est sur main : y renvoyer par son chemin réel.
+- Questions déjà ouvertes : téléphone ou souris, vitesses d'animation, bloc rond, moment d'affichage de la nouvelle question au décompte du buzzer.
 
 ## Références
 
-- `cahier-des-charges.md` §2, §4.5, §4.6 (CA-44 à CA-63). `DEV_PLAN.md` note de correspondance du §7.6.
+- `cahier-des-charges.md` §4.6, CA-58 à CA-65. Dossier hors dépôt `/workspace/ui/buzzy/`.
