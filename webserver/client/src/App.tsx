@@ -37,6 +37,10 @@ import {
   READY_TIMEOUT_MAX_SEC,
   readyStatusLabel,
 } from "../../src/domain/nextQuestionCountdown";
+import { quizChoiceVoteLabel } from "../../src/domain/questionReveal";
+import { PlayFrame } from "./questionSurface";
+import { useFrozenSvh } from "./stableViewport";
+import { VisibleErrorBoundary } from "./visibleErrorBoundary";
 
 /** * Quiz surface from `PartyPublicSnapshot.gameBoard`. */
 interface PartyGameBoardQuiz {
@@ -52,6 +56,8 @@ interface PartyGameBoardQuiz {
   /** * Optional quiz illustration (HTTPS or `/…` served by backend). */
   imageUrl?: string;
   correctChoiceIndex?: number;
+  /** * Present only once the result is public. Absent while players are still answering. */
+  choiceCounts?: number[];
 }
 
 /** * Vidéo auto-hébergée ou fichier direct (`<video src>` ; préférez HTTPS ou `/games/…`). */
@@ -2070,6 +2076,7 @@ function GameBoardPanel(props: {
       hostToneByIndex.set(h.choiceIndex, h.tone);
     }
     const qp = quizPlayerPickUi;
+    const voteTotal = (board.choiceCounts ?? []).reduce((sum, count) => sum + (count > 0 ? count : 0), 0);
 
     return (
       <section className="bz-board">
@@ -2102,8 +2109,8 @@ function GameBoardPanel(props: {
             if (qp !== undefined && lockedRow !== null && lockedRow.choiceIndex === i) {
               if (lockedRow.verdict === "good") rowClass += " bz-choice--player-pick-good";
               else if (lockedRow.verdict === "bad") rowClass += " bz-choice--player-pick-bad";
-              else rowClass += " bz-choice--player-pick-locked";
-            } else if (qp !== undefined && lockedRow === null && qp.canPick && qp.selectedIndex === i) {
+            }
+            if (qp !== undefined && qp.selectedIndex === i) {
               rowClass += " bz-choice--selected";
             }
 
@@ -2119,11 +2126,9 @@ function GameBoardPanel(props: {
                   >
                     <span className="bz-choice-letter">{String.fromCharCode(65 + i)}</span>
                     <span className="bz-choice-text">{c}</span>
-                    {isCorrectReveal ? (
-                      <span className="bz-pill bz-good">
-                        <span className="bz-dot" />
-                        bonne réponse
-                      </span>
+                    {isCorrectReveal ? <span className="bz-choice-check" aria-hidden="true">✓</span> : null}
+                    {board.choiceCounts ? (
+                      <span className="bz-choice-votes">{quizChoiceVoteLabel(board.choiceCounts[i] ?? 0, voteTotal)}</span>
                     ) : null}
                   </button>
                 </li>
@@ -2134,25 +2139,14 @@ function GameBoardPanel(props: {
               <li key={key} className={rowClass}>
                 <span className="bz-choice-letter">{String.fromCharCode(65 + i)}</span>
                 <span className="bz-choice-text">{c}</span>
-                {isCorrectReveal ? (
-                  <span className="bz-pill bz-good">
-                    <span className="bz-dot" />
-                    bonne réponse
-                  </span>
+                {isCorrectReveal ? <span className="bz-choice-check" aria-hidden="true">✓</span> : null}
+                {board.choiceCounts ? (
+                  <span className="bz-choice-votes">{quizChoiceVoteLabel(board.choiceCounts[i] ?? 0, voteTotal)}</span>
                 ) : null}
               </li>
             );
           })}
         </ol>
-        {qp !== undefined &&
-        qp.locked !== undefined &&
-        qp.locked !== null &&
-        qp.locked.verdict === undefined ? (
-          <p className="bz-board-quiz-wait-host bz-muted" style={{ marginTop: 10 }}>
-            Réponse enregistrée — l&apos;animateur doit valider dans la file de buzz avant l&apos;indication bon /
-            mauvais à l&apos;écran.
-          </p>
-        ) : null}
         {correctText !== null ? (
           <p className="bz-board-answer">
             Réponse attendue : <strong>{correctText}</strong>
@@ -2430,6 +2424,7 @@ function Play(): JSX.Element {
   const [readyLoading, setReadyLoading] = useState(false);
   const [clockSync, setClockSync] = useState<ClientClockSync | null>(null);
   const [buzzPending, setBuzzPending] = useState(false);
+  const buzzLock = useRef(false);
   const periodicSyncInterval = useRef<number | null>(null);
   const pauseStartedAt =
     typeof snap?.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
@@ -2585,13 +2580,6 @@ function Play(): JSX.Element {
   }, [quizSurfaceKey]);
 
   useEffect(() => {
-    if (snap?.gameBoard?.kind !== "quiz") return;
-    if (snap.buzzWindowOpen !== false) return;
-    setQuizSelected(null);
-    setQuizBuzzLocked(null);
-  }, [snap?.gameBoard?.kind, snap?.buzzWindowOpen]);
-
-  useEffect(() => {
     if (quizAutoToast === null) return undefined;
     const tid = window.setTimeout(() => setQuizAutoToast(null), 3200);
     return (): void => window.clearTimeout(tid);
@@ -2599,7 +2587,8 @@ function Play(): JSX.Element {
 
   async function buzz(): Promise<void> {
     if (!pid || jwt === null || jwt === "") return;
-    if (!canBuzz || buzzPending) return;
+    if (buzzLock.current || !canBuzz || buzzPending) return;
+    buzzLock.current = true;
     if (
       snap?.gameBoard?.kind === "quiz" &&
       typeof quizSelected !== "number"
@@ -2647,6 +2636,7 @@ function Play(): JSX.Element {
     } catch (e3) {
       setErr(e3 instanceof Error ? e3.message : "Buzz refusé");
     } finally {
+      buzzLock.current = false;
       setBuzzPending(false);
     }
   }
@@ -2668,6 +2658,12 @@ function Play(): JSX.Element {
       setErr(e3 instanceof Error ? e3.message : "Chat refusé");
     }
   }
+
+  const phoneStage =
+    snap !== null &&
+    snap.state === "round_active" &&
+    (snap.gameBoard == null || snap.gameBoard.kind === "quiz" || snap.gameBoard.kind === "ready_hold");
+  useFrozenSvh(phoneStage);
 
   if (!pid) return <Navigate to="/join" replace />;
 
@@ -2728,6 +2724,120 @@ function Play(): JSX.Element {
       setErr(e4 instanceof Error ? e4.message : "Mise à jour refusée");
     }
     setLobbyBuzzSaving(false);
+  }
+
+  const award = snap.pointAward;
+  const showPointDisc =
+    award != null &&
+    pauseStartedAt !== null &&
+    isPointModalVisible({
+      dismissed: dismissedPointKey === pointDismissKey && pointDismissKey !== null,
+      startedAt: pauseStartedAt,
+      durationSec: gapSec,
+      closeAfterMs: POINT_MODAL_CLOSE_MS,
+      nowMs: countdownNow,
+    });
+  const readyNow = (snap.readyPlayers ?? []).includes(myId ?? "");
+  const buzzerControl = (
+    <>
+      {showPointDisc && award != null ? (
+        <button type="button" className="bz-buzz-btn bz-buzz-award" disabled>
+          {/* INCERTAIN: Design UI, 2026-10-21, « Vous ! » sur le disque du gagnant, à confirmer par Minipen */}
+          <span className="bz-buzz-award-kicker">{award.playerId === myId ? "Vous !" : award.playerName}</span>
+          <span className="bz-buzz-award-points">{pointAwardLabel(award.points, award.teamName)}</span>
+          <span className="bz-buzz-award-count">
+            Prochaine question dans : {nextQuestionCountdownRemainingSec(pauseStartedAt, gapSec, countdownNow) ?? 0}
+          </span>
+        </button>
+      ) : readyPhaseOnScreen(snap) ? (
+        <div className="bz-ready-stack">
+          <button
+            type="button"
+            className={readyNow ? "bz-buzz-btn bz-buzz-ready is-ready" : "bz-buzz-btn bz-buzz-ready"}
+            disabled={readyLoading}
+            aria-pressed={readyNow}
+            onClick={() => void markReady(!readyNow)}
+          >
+            {readyNow ? "Prêt !" : "Prêt ?"}
+          </button>
+          <p className="bz-buzz-caption">
+            {readyNow ? "Touchez à nouveau pour annuler" : "Touchez quand vous êtes prêt"}
+          </p>
+          <p className="bz-ready-count">
+            {readyStatusLabel((snap.readyPlayers ?? []).length, snap.players.length, "player")}
+          </p>
+        </div>
+      ) : countdownLeft !== null && countdownLeft > 0 ? (
+        <BuzzCountdownButton startedAt={snap.countdownStartedAt} durationSec={buzzerSec} nowMs={countdownNow} />
+      ) : canBuzz && !queuedBuzz ? (
+        <button
+          type="button"
+          onClick={() => void buzz()}
+          disabled={(snap.gameBoard?.kind === "quiz" && quizSelected === null) || buzzPending}
+          className="bz-buzz-btn bz-buzz-armed"
+          aria-label="Buzz"
+        >
+          BUZZ !
+        </button>
+      ) : queuedBuzz || buzzPending ? (
+        <>
+          <button type="button" className="bz-buzz-btn bz-buzz-sent" disabled>
+            Buzz envoyé
+          </button>
+          <p className="bz-buzz-caption">En attente de l'animateur</p>
+        </>
+      ) : (
+        <>
+          <button type="button" className="bz-buzz-btn bz-buzz-sent" disabled>
+            Buzz
+          </button>
+          <p className="bz-buzz-caption">
+            {snap.state === "lobby"
+              ? "En attente du démarrage de la manche par l'animateur."
+              : snap.state === "between_rounds"
+                ? "Pause entre les manches."
+                : snap.state === "ended"
+                  ? "Partie terminée."
+                  : "L'animateur n'a pas encore ouvert le buzzer."}
+          </p>
+        </>
+      )}
+    </>
+  );
+
+  if (phoneStage) {
+    const board = snap.gameBoard;
+    const quiz = board !== null && board.kind === "quiz" ? board : null;
+    const ready = board !== null && board.kind === "ready_hold" ? board : null;
+    const resultOn = quiz !== null && quiz.choiceCounts != null;
+    return (
+      <PlayFrame
+        mode="live"
+        kicker={
+          ready !== null
+            ? `Question ${ready.questionNumberHuman} / ${ready.questionCount} · en préparation`
+            : quiz !== null
+              ? `Question ${quiz.questionIndexInRound + 1}`
+              : "Question"
+        }
+        prompt={quiz?.prompt ?? ""}
+        choices={quiz?.choices ?? []}
+        tagline={ready?.tagline ?? null}
+        showResult={resultOn}
+        correctIndex={resultOn ? (quiz?.correctChoiceIndex ?? null) : null}
+        selectedIndex={quizSelected}
+        counts={resultOn ? (quiz?.choiceCounts ?? null) : null}
+        interactive={canBuzz && !queuedBuzz && quiz !== null}
+        onPick={(index) => setQuizSelected(index)}
+        header={
+          <>
+            <span className="bz-logo">buzzy</span>
+            {snap.playerShowScores === false ? null : <span>Mon score : {rowMe?.score ?? 0}</span>}
+          </>
+        }
+        buzzer={buzzerControl}
+      />
+    );
   }
 
   return (
@@ -2795,98 +2905,7 @@ function Play(): JSX.Element {
         />
       </QuestionCountdownFrame>
 
-      {snap.pointAward != null && pauseStartedAt !== null && gapSec > 0 ? (
-        <PointAwardModal
-          award={snap.pointAward}
-          startedAt={pauseStartedAt}
-          durationSec={gapSec}
-          nowMs={countdownNow}
-          closeAfterMs={POINT_MODAL_CLOSE_MS}
-          variant="player"
-          dismissed={dismissedPointKey === pointDismissKey && pointDismissKey !== null}
-          onDismiss={() => {
-            if (pointDismissKey !== null) setDismissedPointKey(pointDismissKey);
-          }}
-        />
-      ) : null}
-
-      <section className="bz-buzz-hero">
-        {readyPhaseOnScreen(snap) ? (
-          <div className="bz-ready-stack">
-            <button
-              type="button"
-              className={
-                (snap.readyPlayers ?? []).includes(myId ?? "")
-                  ? "bz-buzz-btn bz-buzz-ready is-ready"
-                  : "bz-buzz-btn bz-buzz-ready"
-              }
-              disabled={readyLoading}
-              aria-pressed={(snap.readyPlayers ?? []).includes(myId ?? "")}
-              onClick={() => void markReady(!(snap.readyPlayers ?? []).includes(myId ?? ""))}
-            >
-              {(snap.readyPlayers ?? []).includes(myId ?? "") ? "Prêt !" : "Prêt ?"}
-            </button>
-            <p className="bz-ready-count">
-              {readyStatusLabel((snap.readyPlayers ?? []).length, snap.players.length, "player")}
-            </p>
-          </div>
-        ) : countdownLeft !== null && countdownLeft > 0 ? (
-          <BuzzCountdownButton
-            startedAt={snap.countdownStartedAt}
-            durationSec={buzzerSec}
-            nowMs={countdownNow}
-          />
-        ) : canBuzz && !queuedBuzz ? (
-          <button
-            type="button"
-            onClick={() => void buzz()}
-            disabled={(snap.gameBoard?.kind === "quiz" && quizSelected === null) || buzzPending}
-            className="bz-buzz-btn bz-buzz-armed"
-            aria-label="Buzz"
-          >
-            BUZZ !
-          </button>
-        ) : queuedBuzz ? (
-          <div className="bz-buzz-closed">
-            <span className="bz-pill bz-good">Buzz reçu</span>
-            <p>
-              Ton buzz a été enregistré. Attends la décision de l'animateur.
-            </p>
-          </div>
-        ) : (
-          <div className="bz-buzz-closed">
-            <span className="bz-pill">buzzer fermé</span>
-            <p>
-              {snap.gameBoard !== null &&
-              snap.gameBoard.kind === "audio_blind" &&
-              snap.allowPlayerAudioControl !== true
-                ? "Blind test : pas de lecteur audio sur ton téléphone tant que l’animateur diffuse en salle uniquement."
-                : snap.gameBoard !== null &&
-                  (snap.gameBoard.kind === "video" ||
-                    snap.gameBoard.kind === "youtube" ||
-                    snap.gameBoard.kind === "audio_blind")
-                  ? "Regarde ou écoute — l’animateur peut enchaîner l’extrait pour tout le monde."
-                : snap.gameBoard !== null &&
-                  snap.gameBoard.kind === "progressive_guess" &&
-                  snap.gameBoard.phase === "reveal"
-                  ? "Révélation affichée : plus d’indices — le buzzer ne sert plus à marquer sur cette vignette."
-                : snap.gameBoard !== null &&
-                  (snap.gameBoard.kind === "free_buzz" ||
-                    snap.gameBoard.kind === "image_buzz" ||
-                    (snap.gameBoard.kind === "progressive_guess" &&
-                      snap.gameBoard.phase === "clue"))
-                  ? "Pas de choix à l'écran : réponds à voix quand l’animateur ouvre le buzzer."
-                : snap.state === "lobby"
-                ? "En attente du démarrage de la manche par l'animateur."
-                : snap.state === "between_rounds"
-                ? "Pause entre les manches. Le buzzer rouvrira à la prochaine manche."
-                : snap.state === "ended"
-                ? "Partie terminée. Merci d'avoir joué !"
-                : "L'animateur n'a pas encore ouvert le buzzer pour cette question."}
-            </p>
-          </div>
-        )}
-      </section>
+      <section className="bz-buzz-hero">{buzzerControl}</section>
 
       {snap.buzzOrder.length > 0 ? (
         <section className="bz-queue">
@@ -5263,6 +5282,7 @@ function Broadcast(): JSX.Element {
   }
 
   return (
+    <VisibleErrorBoundary>
     <BroadcastSurface
       snap={snap}
       partyId={pid}
@@ -5278,6 +5298,7 @@ function Broadcast(): JSX.Element {
             }
       }
     />
+    </VisibleErrorBoundary>
   );
 }
 
@@ -5351,6 +5372,7 @@ function BroadcastSurface(props: {
           </div>
         ) : null}
 
+        {/* INCERTAIN: Design UI, 2026-10-21, la diffusion garde la notification de point, à confirmer par Minipen */}
         {!preview && snap.pointAward != null && pauseStartedAt !== null && gapSec > 0 ? (
           <PointAwardModal
             award={snap.pointAward}
@@ -5430,17 +5452,27 @@ function BroadcastSurface(props: {
             ) : null}
             <h1 className="bz-bc-prompt">{quizBoard.prompt}</h1>
             <ol className="bz-bc-choices" data-count={quizBoard.choices.length}>
-              {quizBoard.choices.map((c, i) => (
-                <li
-                  key={`${quizBoard.roundIndex}-${quizBoard.questionIndexInRound}-${i}`}
-                  className="bz-bc-choice"
-                >
-                  <span className="bz-bc-choice-letter">
-                    {String.fromCharCode(65 + i)}
-                  </span>
-                  <span className="bz-bc-choice-text">{c}</span>
-                </li>
-              ))}
+              {quizBoard.choices.map((c, i) => {
+                const counts = quizBoard.choiceCounts;
+                const total = (counts ?? []).reduce((sum, count) => sum + (count > 0 ? count : 0), 0);
+                const correct =
+                  counts != null &&
+                  typeof quizBoard.correctChoiceIndex === "number" &&
+                  quizBoard.correctChoiceIndex === i;
+                return (
+                  <li
+                    key={`${quizBoard.roundIndex}-${quizBoard.questionIndexInRound}-${i}`}
+                    className={correct ? "bz-bc-choice bz-choice--correct" : "bz-bc-choice"}
+                  >
+                    <span className="bz-bc-choice-letter">{String.fromCharCode(65 + i)}</span>
+                    <span className="bz-bc-choice-text">{c}</span>
+                    {correct ? <span className="bz-choice-check">✓</span> : null}
+                    {counts ? (
+                      <span className="bz-choice-votes">{quizChoiceVoteLabel(counts[i] ?? 0, total)}</span>
+                    ) : null}
+                  </li>
+                );
+              })}
             </ol>
           </>
         ) : null}
@@ -5536,6 +5568,7 @@ function BroadcastSurface(props: {
 
 export default function App(): JSX.Element {
   return (
+    <VisibleErrorBoundary>
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/join" element={<Join />} />
@@ -5545,6 +5578,7 @@ export default function App(): JSX.Element {
       <Route path="/party/:partyId/broadcast" element={<Broadcast />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </VisibleErrorBoundary>
   );
 }
 

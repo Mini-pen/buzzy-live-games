@@ -447,17 +447,23 @@ describe("broadcast sequence after every answer", () => {
     expect((container.textContent ?? "").trim().length).toBeGreaterThan(0);
   });
 
-  it("closes the player point modal on the same clock", async () => {
+  it("shows the point on a disc in the buzzer slot, then hides it after 3 s", async () => {
     beginClock();
     const { party, packs } = answeredParty(pauseOpts);
     const container = await show(`/party/${party.id}/play`, snapsOf(party, packs));
-    expect(container.querySelector(".bz-point-modal")).not.toBeNull();
-    expect(container.textContent).toContain("Touchez pour fermer");
+    expect(container.querySelector(".bz-point-modal, .bz-winner-screen")).toBeNull();
+    const disc = container.querySelector(".bz-buzz-award");
+    expect(disc).not.toBeNull();
+    expect(disc?.textContent).toContain("Vous !");
+    expect(disc?.textContent).toContain("+ 10 points");
+    expect(disc?.textContent).toContain("Prochaine question dans :");
+    expect(container.textContent).toContain(PREV_PROMPT);
     await settle(2_999);
-    expect(container.querySelector(".bz-point-modal")).not.toBeNull();
+    expect(container.querySelector(".bz-buzz-award")).not.toBeNull();
     await settle(1);
-    expect(container.querySelector(".bz-point-modal")).toBeNull();
-    expect(container.textContent).toContain("Prochaine question dans :");
+    expect(container.querySelector(".bz-buzz-award")).toBeNull();
+    expect(container.querySelector(".bz-point-modal, .bz-winner-screen")).toBeNull();
+    expect(container.textContent).toContain(PREV_PROMPT);
   });
 
   it("closes the point modal when the pause itself is only 2 s", async () => {
@@ -634,17 +640,17 @@ describe("player buzzer control", () => {
     expect(button?.disabled).toBe(false);
   });
 
-  it("shows « Buzz reçu » once the player is in buzzOrder", async () => {
+  it("shows « Buzz envoyé » once the player is in buzzOrder", async () => {
     beginClock();
     const party = armedParty();
     party.buzzWindowOpen = true;
     party.buzzWindowOpenedAt = Date.now();
     party.buzzOrder = ["alice"];
     const container = await show(`/party/${party.id}/play`, snapsOf(party, new Map()));
-    expect(container.textContent).toContain("Buzz reçu");
+    expect(container.textContent).toContain("Buzz envoyé");
   });
 
-  it("shows « Buzz reçu » as soon as the server has parked the buzz, before buzzOrder is filled", async () => {
+  it("shows « Buzz envoyé » as soon as the server has parked the buzz, before buzzOrder is filled", async () => {
     beginClock();
     const store = new PartyStore(() => {}, buzzCatalog);
     const party = store.createParty({
@@ -666,6 +672,6 @@ describe("player buzzer control", () => {
     expect(party.buzzOrder).toEqual([]);
     expect(party.pendingBuzzQueue.map((row) => row.playerId)).toEqual(["alice"]);
     const container = await show(`/party/${party.id}/play`, snapsOf(party, new Map()));
-    expect(container.textContent).toContain("Buzz reçu");
+    expect(container.textContent).toContain("Buzz envoyé");
   });
 });

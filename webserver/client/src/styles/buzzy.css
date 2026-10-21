@@ -2650,6 +2650,18 @@ html, body {
   border-color: #4c4c56;
   color: #fff;
   cursor: default;
+  font-size: clamp(16px, 18cqh, 28px);
+}
+.bz-buzz-caption,
+.bz-buzz-slot .bz-ready-count,
+.bz-buzz-slot .bz-buzz-caption {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 4px;
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
 }
 .bz-app .bz-buzz-btn.bz-buzz-award {
   background: radial-gradient(circle at 35% 30%, #3a3a4a, #1c1c28 70%);
