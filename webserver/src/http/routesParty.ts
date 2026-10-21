@@ -10,7 +10,11 @@ import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import type { PartyStore, QuizBuzzChoiceOpts } from "../domain/store.js";
 import type { Party } from "../domain/types.js";
-import { partySnapshotWithGame, quizPackFromLoadedId } from "../domain/partySnapshotPresenter.js";
+import {
+  findPackByKeyOrId,
+  partySnapshotWithGame,
+  quizPackFromLoadedId,
+} from "../domain/partySnapshotPresenter.js";
 import type { QuizPack } from "../games/pack.js";
 import { isQuizRound, quizPackSchema } from "../games/pack.js";
 import type { LoadedBuzzSoundCatalog } from "../games/buzzSoundCatalog.js";
@@ -1506,16 +1510,15 @@ export async function registerPartyRoutes(
 
         const body = z.object({ packId: z.string().min(1) }).parse(req.body);
 
-        let pack = packs.get(body.packId);
+        const merged = new Map<string, QuizPack>([
+          ...packs.entries(),
+          ...importedPacks.getAll().entries(),
+        ]);
+        const pack = findPackByKeyOrId(merged, body.packId);
         const existingMedia = new Map<string, Buffer>();
 
         if (!pack) {
-          pack = importedPacks.get(body.packId);
-          if (!pack) {
-            return reply.status(404).send({ error: "PACK_NOT_FOUND" });
-          }
-          // * For imported packs, collect existing media
-          // * (Media paths in imported packs are already normalized to /imported-packs/:id/...)
+          return reply.status(404).send({ error: "PACK_NOT_FOUND" });
         }
 
         const editorId = packEditor.startEditing(pack, existingMedia);
@@ -1681,6 +1684,21 @@ export async function registerPartyRoutes(
           return reply.status(404).send({ error: "EDITOR_SESSION_NOT_FOUND" });
         }
         assertQuizTextWithinLimits(pack);
+
+        // * A pack loaded from disk stays in the scanned map. The edit replaces that
+        // * in-memory copy for this process and is not written back to games/.
+        for (const [key, diskPack] of packs) {
+          if (diskPack.id !== pack.id) continue;
+          packs.set(key, structuredClone(pack));
+          return reply.status(200).send({
+            pack: {
+              id: pack.id,
+              title: pack.title,
+              version: pack.version,
+              roundCount: pack.rounds.length,
+            },
+          });
+        }
 
         // * Create a synthetic ZIP to re-import the edited pack
         const zipBuffer = packEditor.exportAsZip(req.params.editorId);

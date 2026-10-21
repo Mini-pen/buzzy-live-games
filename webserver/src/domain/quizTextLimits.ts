@@ -194,17 +194,39 @@ export function assertQuizTextWithinLimits(pack: QuizPack): void {
   });
 }
 
+/** * Wording shared by the ZIP import and the editor opening banner. */
+export function quizTextAttention(
+  questionNumber: number,
+  kind: "prompt" | "choice" | "duplicate_choices",
+): string {
+  if (kind === "prompt") return `Attention, la question ${questionNumber} dépasse la taille autorisée`;
+  if (kind === "choice") {
+    return `Attention, une réponse de la question ${questionNumber} dépasse la taille autorisée`;
+  }
+  // INCERTAIN: Testeur, 2026-10-21, signalement des réponses identiques après troncature, à confirmer par Minipen
+  return `Attention, la question ${questionNumber} a des réponses devenues identiques après troncature : à corriger`;
+}
+
 function promptNotice(questionNumber: number): string {
-  return `Attention, la question ${questionNumber} dépasse la taille autorisée`;
+  return quizTextAttention(questionNumber, "prompt");
 }
 
 function choiceNotice(questionNumber: number): string {
-  return `Attention, une réponse de la question ${questionNumber} dépasse la taille autorisée`;
+  return quizTextAttention(questionNumber, "choice");
 }
 
 function duplicateNotice(questionNumber: number): string {
-  // INCERTAIN: Testeur, 2026-10-21, signalement des réponses identiques après troncature, à confirmer par Minipen
-  return `Attention, la question ${questionNumber} a des réponses devenues identiques après troncature : à corriger`;
+  return quizTextAttention(questionNumber, "duplicate_choices");
+}
+
+/** * True when a cut made two answers equal and they were different before. */
+function choicesBecameIdentical(before: string[], after: string[]): boolean {
+  for (let i = 0; i < after.length; i += 1) {
+    for (let j = i + 1; j < after.length; j += 1) {
+      if (after[i] === after[j] && before[i] !== before[j]) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -247,13 +269,85 @@ export function applyQuizImportTextLimits(pack: QuizPack): {
       });
     }
 
-    const seen = new Set<string>();
-    let duplicate = false;
-    for (const choice of stored.choices) {
-      if (seen.has(choice)) duplicate = true;
-      seen.add(choice);
+    if (choicesBecameIdentical(question.choices, stored.choices)) {
+      notices.push({
+        questionNumber: question.questionNumber,
+        kind: "duplicate_choices",
+        message: duplicateNotice(question.questionNumber),
+      });
     }
-    if (duplicate) {
+  }
+  return { pack: next, notices };
+}
+
+export interface FitFieldQuery {
+  questionNumber: number;
+  field: "prompt" | "choice";
+  choiceIndex?: number;
+  choiceCount: number;
+  text: string;
+}
+
+/**
+ * * Shortens each prompt and each answer until `fits` accepts it.
+ *   The browser passes the 360×640 preview measure. Tests pass a fake `fits`.
+ *   INCERTAIN: Testeur, 2026-10-21, mesure navigateur après l'import ZIP, à confirmer par Minipen.
+ *   The cut itself keeps the last whole word, then the last grapheme.
+ *   INCERTAIN: Specs Writer, 2026-10-21, coupe au dernier mot, à confirmer par Minipen.
+ */
+export function shrinkQuizPackToFit(
+  pack: QuizPack,
+  fits: (query: FitFieldQuery) => boolean,
+): { pack: QuizPack; notices: ImportTextNotice[] } {
+  const next = structuredClone(pack);
+  const notices: ImportTextNotice[] = [];
+  for (const question of eachQuizQuestion(next)) {
+    const round = next.rounds[question.roundIndex];
+    if (round === undefined || !isQuizRound(round)) continue;
+    const stored = round.questions[question.questionIndex];
+    if (stored === undefined) continue;
+    const choiceCount = stored.choices.length;
+    const before = stored.choices.slice();
+
+    const promptCut = truncateUntilFits(stored.prompt, (text) =>
+      fits({
+        questionNumber: question.questionNumber,
+        field: "prompt",
+        choiceCount,
+        text,
+      }),
+    );
+    if (promptCut.truncated) {
+      stored.prompt = promptCut.text === "" ? "…" : promptCut.text;
+      notices.push({
+        questionNumber: question.questionNumber,
+        kind: "prompt",
+        message: promptNotice(question.questionNumber),
+      });
+    }
+
+    let choiceTruncated = false;
+    stored.choices = stored.choices.map((choice, choiceIndex) => {
+      const cut = truncateUntilFits(choice, (text) =>
+        fits({
+          questionNumber: question.questionNumber,
+          field: "choice",
+          choiceIndex,
+          choiceCount,
+          text,
+        }),
+      );
+      if (cut.truncated) choiceTruncated = true;
+      return cut.text;
+    });
+    if (choiceTruncated) {
+      notices.push({
+        questionNumber: question.questionNumber,
+        kind: "choice",
+        message: choiceNotice(question.questionNumber),
+      });
+    }
+    if (choicesBecameIdentical(before, stored.choices)) {
       notices.push({
         questionNumber: question.questionNumber,
         kind: "duplicate_choices",

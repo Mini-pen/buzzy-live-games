@@ -713,4 +713,50 @@ describe("Import does not write to disk", () => {
     // * The files should be equal (no new files)
     expect(afterFiles.size).toBe(beforeFiles.size);
   });
+
+  it("truncates an oversized prompt on graphemes, keeps the emoji whole, and returns notices", () => {
+    const pack: QuizPack = {
+      id: "long-text",
+      title: "Texte long",
+      version: 1,
+      rounds: [
+        {
+          kind: "free_buzz",
+          id: "oral",
+          title: "Oral",
+          playerPrompt: "Parlez",
+        },
+        {
+          id: "quiz",
+          title: "Quiz",
+          questions: [
+            {
+              id: "q1",
+              prompt: "Courte ?",
+              choices: ["Oui", "Non"],
+              correctIndex: 0,
+              points: 1,
+            },
+            {
+              id: "q2",
+              prompt: `${"é".repeat(139)}🎉 suite`,
+              choices: [`${"A".repeat(119)}YZ`, `${"A".repeat(119)}YQ`],
+              correctIndex: 0,
+              points: 1,
+            },
+          ],
+        },
+      ],
+    };
+    const result = importZipPack(createZipBuffer(pack), DEFAULT_MAX_ZIP_BYTES, new Set(), new Set());
+    const quiz = result.pack.rounds[1];
+    if (quiz === undefined || !("questions" in quiz)) throw new Error("expected a quiz round");
+    expect(quiz.questions[1]!.prompt.endsWith("…")).toBe(true);
+    expect(quiz.questions[1]!.prompt.includes("🎉")).toBe(false);
+    expect(result.textNotices.map((notice) => notice.message)).toEqual([
+      "Attention, la question 2 dépasse la taille autorisée",
+      "Attention, une réponse de la question 2 dépasse la taille autorisée",
+      "Attention, la question 2 a des réponses devenues identiques après troncature : à corriger",
+    ]);
+  });
 });

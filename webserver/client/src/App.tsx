@@ -39,6 +39,14 @@ import {
 } from "../../src/domain/nextQuestionCountdown";
 import { quizChoiceVoteLabel } from "../../src/domain/questionReveal";
 import { PlayFrame } from "./questionSurface";
+import {
+  PackPreviewMeasure,
+  QuestionEditor,
+  quizFitSignature,
+  shrinkPackWithReports,
+  type PackFitSnapshot,
+} from "./questionEditor";
+import type { QuizPack } from "../../src/games/pack";
 import { useFrozenSvh } from "./stableViewport";
 import { VisibleErrorBoundary } from "./visibleErrorBoundary";
 
@@ -906,6 +914,10 @@ async function loadPartySnapshot(
     }
     return { kind: "network", message: e instanceof Error ? e.message : String(e) };
   }
+}
+
+function uniqueLines(lines: string[]): string[] {
+  return [...new Set(lines.filter((line) => line !== ""))];
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -3195,6 +3207,19 @@ function Admin(): JSX.Element {
 
   /** * ZIP pack import */
   const [importZipOpen, setImportZipOpen] = useState(false);
+  const [editorPackId, setEditorPackId] = useState("");
+  const [editorSession, setEditorSession] = useState<{
+    editorId: string;
+    pack: QuizPack;
+    notices: string[];
+  } | null>(null);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [importJob, setImportJob] = useState<{
+    editorId: string;
+    pack: QuizPack;
+    notices: string[];
+  } | null>(null);
+  const importMeasureLock = useRef<string | null>(null);
   
   /** * Launch dialog for choosing mode (normal/autonomous) */
   const [launchDialogOpen, setLaunchDialogOpen] = useState(false);
@@ -3216,6 +3241,10 @@ function Admin(): JSX.Element {
     setModalPackBasename((prev) => {
       if (prev !== "" && packsList.some((p) => p.basename === prev)) return prev;
       return packsList[0]!.basename;
+    });
+    setEditorPackId((prev) => {
+      if (prev !== "" && packsList.some((p) => p.id === prev)) return prev;
+      return packsList[0]!.id;
     });
   }, [packsList]);
 
@@ -3588,10 +3617,10 @@ function Admin(): JSX.Element {
         const formData = new FormData();
         formData.append("file", file);
 
-        const res = await fetch(`${hostBasePath}/host/import-pack-zip`, {
+        const res = await fetch(withBase(`${hostBasePath}/host/import-pack-zip`), {
           method: "POST",
           headers: {
-            Authorization: bearer,
+            Authorization: `Bearer ${bearer}`,
           },
           body: formData,
         });
@@ -3611,16 +3640,19 @@ function Admin(): JSX.Element {
 
         const data = (await res.json()) as {
           pack: { id: string; title: string; version: number; roundCount: number };
+          textNotices?: Array<{ message: string }>;
         };
-
-        // * Refresh packs list
-        const packsRes = await fetchJson<{
-          packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
-        }>(`/api/packs`);
-        setPacksList(packsRes.packs);
-
-        setImportZipOpen(false);
-        window.alert(`Pack "${data.pack.title}" importé avec succès (${data.pack.roundCount} segments).`);
+        const notices = uniqueLines((data.textNotices ?? []).map((notice) => notice.message));
+        const started = await fetchJson<{ editorId: string; pack: QuizPack }>(
+          `${hostBasePath}/host/editor/start`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${bearer}` },
+            body: JSON.stringify({ packId: data.pack.id }),
+          },
+        );
+        importMeasureLock.current = null;
+        setImportJob({ editorId: started.editorId, pack: started.pack, notices });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setImportZipError(msg);
@@ -3629,6 +3661,98 @@ function Admin(): JSX.Element {
       }
     },
     [bearer, hostBasePath],
+  );
+
+  const openPackEditor = useCallback(
+    async (packId: string): Promise<void> => {
+      if (packId === "") return;
+      setErr(null);
+      try {
+        const started = await fetchJson<{ editorId: string; pack: QuizPack }>(
+          `${hostBasePath}/host/editor/start`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${bearer}` },
+            body: JSON.stringify({ packId }),
+          },
+        );
+        setEditorSession({ editorId: started.editorId, pack: started.pack, notices: [] });
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [bearer, hostBasePath],
+  );
+
+  const saveEditor = useCallback(async (): Promise<void> => {
+    if (editorSession === null) return;
+    setEditorSaving(true);
+    setErr(null);
+    try {
+      await fetchJson(`${hostBasePath}/host/editor/${encodeURIComponent(editorSession.editorId)}`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${bearer}` },
+        body: JSON.stringify({ pack: editorSession.pack }),
+      });
+      await fetchJson(`${hostBasePath}/host/editor/${encodeURIComponent(editorSession.editorId)}/use`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bearer}` },
+        body: "{}",
+      });
+      const packsRes = await fetchJson<{
+        packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
+      }>(`/api/packs`);
+      setPacksList(packsRes.packs);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEditorSaving(false);
+    }
+  }, [bearer, editorSession, hostBasePath]);
+
+  const onImportMeasured = useCallback(
+    (snapshot: PackFitSnapshot): void => {
+      if (importJob === null) return;
+      if (snapshot.signature !== quizFitSignature(importJob.pack)) return;
+      if (importMeasureLock.current === importJob.editorId) return;
+      importMeasureLock.current = importJob.editorId;
+      const job = importJob;
+      void (async (): Promise<void> => {
+        try {
+          const shrunk = shrinkPackWithReports(job.pack, snapshot.reports);
+          const notices = uniqueLines([...job.notices, ...shrunk.notices.map((notice) => notice.message)]);
+          if (JSON.stringify(job.pack.rounds) !== JSON.stringify(shrunk.pack.rounds)) {
+            await fetchJson(`${hostBasePath}/host/editor/${encodeURIComponent(job.editorId)}`, {
+              method: "PUT",
+              headers: { Authorization: `Bearer ${bearer}` },
+              body: JSON.stringify({ pack: shrunk.pack }),
+            });
+            await fetchJson(`${hostBasePath}/host/editor/${encodeURIComponent(job.editorId)}/use`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${bearer}` },
+              body: "{}",
+            });
+          }
+          const packsRes = await fetchJson<{
+            packs: Array<{ basename: string; id: string; title: string; roundCount: number }>;
+          }>(`/api/packs`);
+          setPacksList(packsRes.packs);
+          setEditorSession({ editorId: job.editorId, pack: shrunk.pack, notices });
+          setImportJob(null);
+          setImportZipOpen(false);
+          window.alert(
+            notices.length > 0
+              ? notices.join("\n")
+              : `Pack "${shrunk.pack.title}" importé avec succès (${shrunk.pack.rounds.length} segments).`,
+          );
+        } catch (e) {
+          importMeasureLock.current = null;
+          setImportZipError(e instanceof Error ? e.message : String(e));
+          setImportJob(null);
+        }
+      })();
+    },
+    [bearer, hostBasePath, importJob],
   );
 
   const onHostRoundPause = useCallback(async (): Promise<void> => {
@@ -4190,6 +4314,27 @@ function Admin(): JSX.Element {
               >
                 Importer un pack (ZIP)
               </button>
+              <label className="bz-muted" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                Pack
+                <select
+                  aria-label="Pack à modifier"
+                  value={editorPackId}
+                  onChange={(event) => setEditorPackId(event.target.value)}
+                >
+                  {packsList.map((pk) => (
+                    <option key={pk.basename} value={pk.id}>
+                      {pk.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                type="button"
+                disabled={editorPackId === ""}
+                onClick={() => void openPackEditor(editorPackId)}
+              >
+                Modifier le pack
+              </button>
             </div>
             <p className="bz-muted" style={{ margin: "10px 0 0", fontSize: 13 }}>
               « ▶ Lancer la manche » joue et met en <strong>tête</strong> la première ligne ; réordonnez avec les
@@ -4276,7 +4421,22 @@ function Admin(): JSX.Element {
                 })}
               </ul>
             )}
+            {editorSession !== null ? (
+              <QuestionEditor
+                pack={editorSession.pack}
+                saving={editorSaving}
+                notices={editorSession.notices}
+                onPack={(pack) => {
+                  setEditorSession((prev) => (prev === null ? prev : { ...prev, pack }));
+                }}
+                onSave={() => void saveEditor()}
+              />
+            ) : null}
           </section>
+
+          {importJob !== null ? (
+            <PackPreviewMeasure pack={importJob.pack} onReady={onImportMeasured} />
+          ) : null}
 
           {/* Sticky controls */}
           <div className="bz-host-controls">
@@ -4900,16 +5060,19 @@ function Admin(): JSX.Element {
               {importZipUploading ? (
                 <p style={{ marginTop: 12 }}>Import en cours…</p>
               ) : null}
+              {importJob !== null ? (
+                <p style={{ marginTop: 12 }}>Mesure de l'aperçu…</p>
+              ) : null}
               <div className="bz-modal-actions" style={{ marginTop: 16 }}>
                 <button
                   type="button"
-                  disabled={importZipUploading}
+                  disabled={importZipUploading || importJob !== null}
                   onClick={() => {
                     setImportZipOpen(false);
                     setImportZipError(null);
                   }}
                 >
-                  {importZipUploading ? "Fermer après import" : "Annuler"}
+                  {importZipUploading || importJob !== null ? "Mesure en cours" : "Annuler"}
                 </button>
               </div>
             </div>

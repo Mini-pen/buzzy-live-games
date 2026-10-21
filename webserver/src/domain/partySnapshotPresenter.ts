@@ -66,6 +66,14 @@ export function quizPackFromLoadedId(
   return null;
 }
 
+/** * Editor lookup: the map key (disk basename or imported id), then `QuizPack.id`. */
+export function findPackByKeyOrId(packs: Map<string, QuizPack>, key: string): QuizPack | null {
+  if (key === "") return null;
+  const direct = packs.get(key);
+  if (direct !== undefined) return direct;
+  return quizPackFromLoadedId(packs, key);
+}
+
 function deriveGameBoard(
   party: Party,
   pack: QuizPack | null,

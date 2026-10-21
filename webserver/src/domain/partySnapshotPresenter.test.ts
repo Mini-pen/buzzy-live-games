@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import type { QuizPack } from "../games/pack.js";
 import type { MancheCatalogItem, Party } from "./types.js";
-import { partySnapshotWithGame } from "./partySnapshotPresenter.js";
+import { findPackByKeyOrId, partySnapshotWithGame } from "./partySnapshotPresenter.js";
 
 const demoPack: QuizPack = {
   id: "demo-quiz-v1",
@@ -422,5 +422,14 @@ describe("partySnapshotWithGame", () => {
     expect(snap.gameBoard.questionNumberHuman).toBe(3);
     expect(snap.gameBoard.plannedQuestionCount).toBe(3);
     expect(snap.gameBoard.prompt).toBe("Buzz");
+  });
+});
+
+describe("findPackByKeyOrId", () => {
+  test("finds a disk pack by its file key and by its id", () => {
+    const packs = new Map<string, QuizPack>([["culture/generale", demoPack]]);
+    expect(findPackByKeyOrId(packs, "culture/generale")?.id).toBe(demoPack.id);
+    expect(findPackByKeyOrId(packs, demoPack.id)?.title).toBe(demoPack.title);
+    expect(findPackByKeyOrId(packs, "missing")).toBeNull();
   });
 });
