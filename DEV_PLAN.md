@@ -288,7 +288,7 @@ Ces fonctionnalités enrichissent l'expérience au-delà du MVP actuel. Elles so
 
 **Statut :** Livré (serveur + UI). Tests Vitest ciblés sur les réglages et le snapshot ; extension UI à compléter si besoin.
 
-**Note de correspondance :** Section 4.6 du cahier-des-charges (source de vérité). CA-1 à CA-38 : périmètre livré. CA-39 à CA-51 : sous-section « Recette Minipen du 21/10/2026 », statut « En cours de correction ». CA-52 à CA-65 : sous-section « Recette Minipen du 21/10/2026, 2e passage », même statut. Les écarts avec le CDC déjà écrit y sont notés, non tranchés.
+**Note de correspondance :** Section 4.6 du cahier-des-charges (source de vérité). CA-1 à CA-38 : périmètre livré. CA-39 à CA-51 : sous-section « Recette Minipen du 21/10/2026 », statut « En cours de correction ». CA-52 à CA-66 : sous-section « Recette Minipen du 21/10/2026, 2e passage », même statut. Les écarts avec le CDC déjà écrit y sont notés, non tranchés.
 
 **Description :** Carte « Aperçu diffusion » dans l'admin, sous le hero, avant le plateau. La miniature réutilise le snapshot animateur (pas de second socket `broadcast`), en 16:9, muette. Panneau « Affichage projeté » : afficher le classement, scores sur le grand écran, scores côté joueurs (réglages indépendants, défaut On), vue individuelle / vue par équipe, mettre en avant le gagnant du buzz après la décision §4.8.
 

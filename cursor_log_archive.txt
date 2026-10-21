@@ -154,3 +154,10 @@ Session 2026-10-21 — 2e recette, CA-52 à CA-63 (commit d19d0e9)
 - Buzzer qui reste, gris « Buzz envoyé ». Maquette v3 décidée.
 - Bloc rond joueur encore incertain (CA-59). Question jouée pendant les trois décomptes, envoi seulement à l'ouverture, encore incertain (CA-60, CA-61).
 - Résultat joueur : fond vert, surlignage jaune, effectifs. Format des pourcentages encore incertain.
+
+================================================================================
+Session 2026-10-21 — v4, v5 et texte humoristique (commit 4e8905a)
+================================================================================
+- v4 pour le 4e écran. « Vous ! » ne remplace que le nom, encore à confirmer.
+- CA-64 : phrase humoristique pendant « Prêt ? ». Même phrase et « jamais deux fois » encore incertains. Fichier de code absent de main.
+- CA-65 : cacher les réponses, encore incertain. Total de pourcentages autre que 100 % décidé.

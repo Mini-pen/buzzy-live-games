@@ -1,27 +1,26 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : maquettes v4 et v5, texte humoristique pendant « Prêt ? », pourcentages arrondis. Documentation seule, poussée sur `main`.
+**Contexte** : Minipen valide le bloc d'attente et la phrase commune. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Citer `buzzer_etats_joueur_v4.png` pour le 4e écran, et garder la v3 pour les autres états.
-- Remplacer la question pendant « Prêt ? » par un texte humoristique, sans fixer le nombre de phrases.
-- Passer l'arrondi séparé des pourcentages, et un total autre que 100 %, en décidé.
+- Le bloc d'attente prend la hauteur de la question et des réponses, sans trou au-dessus du buzzer.
+- Les réponses cachées et la phrase identique sur tous les écrans passent en décidé.
+- Citer `buzzer_etats_joueur_v6.png` à la place de la v5 pour la taille du bloc.
 
 ## Réalisations
 
-- CA-58, CA-62, CA-63 : v4, coche en proposition, votes à droite « 11 (61%) ». `buzzer_bonne_reponse_choisie_v1.png` : « Vous ! » ne remplace que le nom, sur le téléphone du gagnant. L'écart est résolu, le texte reste à confirmer.
-- CA-64 : cinq exemples de Minipen. Même phrase partout et jamais deux fois de suite : choix incertain de Coding Agent. 18 phrases hors dépôt dans `phrases_pret.txt`. Le fichier de code n'est pas sur main : aucun chemin inventé. Le minimum de 20 est retiré.
-- CA-65 : cacher les réponses pendant « Prêt ? », choix incertain de Design UI. Maquette v5 : jaune italique sur violet foncé, sous « Question 4 / 10 · en préparation ».
-- CA-60 : pendant « Prêt ? », l'ancienne phrase est conservée puis remplacée par le CA-64.
+- CA-64 : l'ancienne taille « bloc question seul » est conservée puis remplacée. Phrase tirée par le serveur, la même partout. « Jamais deux fois de suite » reste incertain. La liste intégrée au code est les 18 phrases de Design UI. Le chemin n'est pas sur main.
+- CA-65 : réponses cachées, décidé, parce que Minipen a validé la v5.
+- CA-66 : pas de trou ni de saut. Choix incertain : hauteur de la question précédente, petit saut si la nouvelle diffère, hauteur par défaut à la première question. Les 386 px de la v6 sur un téléphone 390×844 illustrent l'écran, ils ne sont pas la règle.
 
 ## Prochain focus suggéré
 
-- Confirmer : « Vous ! », la coche, le format des votes, le cumul vert et jaune, cacher les réponses, la phrase identique sur tous les écrans.
-- Le fichier de phrases du code, dès qu'il est sur main : y renvoyer par son chemin réel.
-- Questions déjà ouvertes : téléphone ou souris, vitesses d'animation, bloc rond, moment d'affichage de la nouvelle question au décompte du buzzer.
+- Confirmer le calage sur la question précédente, le petit saut, et la hauteur par défaut.
+- Confirmer le tirage sans répétition immédiate.
+- Citer le chemin du fichier de phrases dès qu'il est sur main.
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-58 à CA-65. Dossier hors dépôt `/workspace/ui/buzzy/`.
+- `cahier-des-charges.md` §4.6, CA-64 à CA-66.
