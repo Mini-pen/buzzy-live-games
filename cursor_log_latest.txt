@@ -1,21 +1,25 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Précision de Design UI sur les marches du podium. Documentation seule, poussée sur `main`.
+**Contexte** : Fin de manche, dernière question et livraisons de `6023afd`. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Ajouter au CA-73, à côté du point ouvert sur les marches vides, une proposition de Design UI, sans la trancher.
+- Poser l'À décider sur la fin de manche, sans le trancher.
+- Noter les choix incertains de Coding Agent codés dans `6023afd`.
+- Noter dans les statuts de recette ce qui est livré, en laissant la recette en cours.
 
 ## Réalisations
 
-- Proposition de Design UI (21/10/2026), à confirmer par Minipen. Avec 1, 1, 2, 3, aucune marche n'est vide et il n'y a pas de conflit. Avec 1, 1, 3, les ex æquo vont sur la 1re marche et le joueur suivant sur la 2e marche, avec l'étiquette « 3e ».
-- La précision « la 2e marche reste vide » et le choix « marches vides masquées » restent écrits.
+- CA-73 : À décider (Minipen). La manche se termine-t-elle toute seule après la dernière question, ou seulement avec « Afficher gagnant » ?
+- Choix incertains (Coding Agent, 21/10/2026), codés dans `6023afd`. À la dernière question, « Question suivante → » est désactivé et renvoie vers « Afficher gagnant », au lieu de déclencher le gagnant. Un réglage numérique part au serveur en sortant du champ ou avec Entrée, pas à chaque frappe. Ce choix ne répond pas à l'À décider.
+- Statuts des deux recettes : livrés dans `6023afd`, la réponse D et le contour jaune à 390×844, la hauteur 398 px commune au bloc « Prêt ? » et à la zone des réponses, le podium en escalier sur le téléphone. La recette de Testeur reste en cours.
 
 ## Prochain focus suggéré
 
-- Trancher le podium en 1, 1, 3 : 2e marche vide, ou joueur suivant sur la 2e marche avec l'étiquette « 3e ».
+- Trancher si la manche se termine toute seule ou seulement avec « Afficher gagnant ».
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-73.
+- `cahier-des-charges.md` §2.5, §4.6 CA-73 et CA-74.
+- Commit `6023afd`.
