@@ -161,3 +161,11 @@ Session 2026-10-21 — v4, v5 et texte humoristique (commit 4e8905a)
 - v4 pour le 4e écran. « Vous ! » ne remplace que le nom, encore à confirmer.
 - CA-64 : phrase humoristique pendant « Prêt ? ». Même phrase et « jamais deux fois » encore incertains. Fichier de code absent de main.
 - CA-65 : cacher les réponses, encore incertain. Total de pourcentages autre que 100 % décidé.
+
+================================================================================
+Session 2026-10-21 — Bloc d'attente à hauteur question et réponses (commit 1248aa0)
+================================================================================
+- Le bloc d'attente prend la hauteur de la question et des réponses, sans trou au-dessus du buzzer.
+- CA-65 : réponses cachées, décidé, parce que Minipen a validé la v5.
+- CA-66 de ce commit : pas de trou. Choix incertain alors : hauteur de la question précédente, petit saut, hauteur par défaut. Les 386 px de la v6 illustrent un 390×844.
+- Phrase identique sur tous les écrans, tirée par le serveur : décidé. « Jamais deux fois de suite » reste incertain. Chemin du fichier de phrases absent de main.

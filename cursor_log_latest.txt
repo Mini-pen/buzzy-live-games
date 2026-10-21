@@ -1,26 +1,31 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Minipen valide le bloc d'attente et la phrase commune. Documentation seule, poussée sur `main`.
+**Contexte** : Zone fixe, polices minimales et limite de saisie. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Le bloc d'attente prend la hauteur de la question et des réponses, sans trou au-dessus du buzzer.
-- Les réponses cachées et la phrase identique sur tous les écrans passent en décidé.
-- Citer `buzzer_etats_joueur_v6.png` à la place de la v5 pour la taille du bloc.
+- Remplacer le défilement de dernier recours et la coupe en jeu.
+- Fixer les polices minimales à 14 px et 10 px.
+- Faire de la mesure dans l'aperçu la règle principale d'enregistrement.
+- Ajouter les CA-67 à CA-70 sans trancher les choix encore ouverts.
 
 ## Réalisations
 
-- CA-64 : l'ancienne taille « bloc question seul » est conservée puis remplacée. Phrase tirée par le serveur, la même partout. « Jamais deux fois de suite » reste incertain. La liste intégrée au code est les 18 phrases de Design UI. Le chemin n'est pas sur main.
-- CA-65 : réponses cachées, décidé, parce que Minipen a validé la v5.
-- CA-66 : pas de trou ni de saut. Choix incertain : hauteur de la question précédente, petit saut si la nouvelle diffère, hauteur par défaut à la première question. Les 386 px de la v6 sur un téléphone 390×844 illustrent l'écran, ils ne sont pas la règle.
+- CA-66 : zone fixe par écran, buzzer immobile. Polices minimales décidées, 14 px pour la question et 10 px pour les réponses. Les 15 px, 12 px et 8 px sont conservés et marqués remplacés. La répartition de Design UI (48 px, 50 %, 35 %, quatre réponses, buzzer 30 % plafonné à 230 px) remplace les 140 px et 46 px fixes, qui restent un exemple pour le 390×844. Écart : cette répartition suppose quatre réponses, alors que `quizChoiceIndex` va de 0 à N-1. Le partage quand N n'est pas 4 n'est pas décidé. Mesure du buzzer sur 360×640, 390×844 et une tablette, par un test navigateur Playwright et non par Vitest. Le §5.1.4, qui dit qu'aucun Playwright n'est configuré, est conservé.
+- CA-67 : aucun défilement, et rien n'est coupé en jeu. Le filet « … » pour d'anciens packs reste incertain.
+- CA-68 : l'éditeur refuse un texte qui ne tient pas dans l'aperçu à la police minimale, même sous la limite de caractères. L'À décider « avertir ou bloquer » est résolu. Les limites 140 et 120 (le 120 remplace le 60) restent incertaines.
+- CA-69 : compteur « 128 / 140 » et aperçu téléphone, décidé (« c'est parfait »). Maquette `editeur_limites_v1.png`. Le gris, les 85 % (ils remplacent les 90 %), le bouton grisé et le contour rouge restent des propositions.
+- CA-70 : à l'import ZIP, question et réponse trop longues sont tronquées, avec le message « Attention, la question xx dépasse la taille autorisée ». À décider : où couper un texte sous la limite de caractères mais trop large à la mesure. Proposition non tranchée : au dernier mot qui tient.
 
 ## Prochain focus suggéré
 
-- Confirmer le calage sur la question précédente, le petit saut, et la hauteur par défaut.
-- Confirmer le tirage sans répétition immédiate.
+- Confirmer l'écran de mesure 360×640, le garde-fou 140 / 120, et la mesure seulement dans le navigateur.
+- Trancher où couper à l'import un texte sous la limite de caractères mais trop large à la mesure.
+- Confirmer la répartition de hauteur, et le partage quand le nombre de réponses n'est pas 4.
 - Citer le chemin du fichier de phrases dès qu'il est sur main.
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-64 à CA-66.
+- `cahier-des-charges.md` §4.6, CA-66 à CA-70.
+- `editeur_limites_v1.png`, hors dépôt, `/workspace/ui/buzzy/`.
