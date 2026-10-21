@@ -921,3 +921,61 @@ describe("ready marks and the host return tab", () => {
     opened.mockRestore();
   });
 });
+
+describe("normal launch", () => {
+  it("affiche le quiz chargé sans ouvrir le buzzer, et garde la question suivante masquée", async () => {
+    beginClock();
+    const store = new PartyStore(() => {}, buzzCatalog);
+    const party = store.createParty({
+      maxPlayers: null,
+      maxTeams: null,
+      closedAfterStart: false,
+      allowRename: true,
+      allowTeamChange: true,
+    });
+    const quiz = holdPack({ ...pauseOpts, questions: 2, ready: false });
+    const packs = new Map<string, QuizPack>([[quiz.basename, quiz]]);
+    store.hostAppendManche(party, {
+      kind: "pack_quiz",
+      title: "Culture Générale - QCM",
+      packBasename: quiz.basename,
+      iframeUrl: null,
+      youtubeEmbedUrl: null,
+      directVideoUrl: null,
+      savedRoundIndex: 0,
+      savedQuestionIndex: 0,
+      transitionKind: null,
+      transitionDurationMs: null,
+    });
+    store.adminSetNextQuestionCountdownSec(party, 0);
+    store.hostLaunchManche(party, party.mancheScript[0]!.id, "normal", false, packs);
+
+    expect(party.loadedPackId).toBe(quiz.id);
+    expect(party.buzzWindowOpen).toBe(false);
+    expect(party.autoOpenBuzzOnCueAdvance).toBe(false);
+    expect(party.questionRevealed).toBe(true);
+    const snaps = snapsOf(party, packs);
+    for (const snap of [snaps.player, snaps.host]) {
+      expect(snap.state).toBe("round_active");
+      expect(snap.gameBoard?.kind).toBe("quiz");
+      const raw = JSON.stringify(snap);
+      expect(raw).toContain(PREV_PROMPT);
+      expect(leakedNext(raw)).toEqual([]);
+    }
+    const texts = await textsOf(snaps);
+    expect(texts.broadcast).toContain(PREV_PROMPT);
+    expect(texts.broadcast).not.toContain("charger un pack quiz");
+    expect(texts.player).toContain(PREV_PROMPT);
+    expect(texts.host).toContain(PREV_PROMPT);
+    expect(texts.host).not.toContain("Rien à afficher");
+
+    store.adminAdvanceCue(party, quiz);
+    const after = snapsOf(party, packs);
+    for (const snap of [after.player, after.host]) {
+      const raw = JSON.stringify(snap);
+      expect(raw).toContain(PREV_PROMPT);
+      expect(leakedNext(raw)).toEqual([]);
+      expect(snap.buzzWindowOpen).toBe(false);
+    }
+  });
+});

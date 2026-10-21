@@ -1000,6 +1000,11 @@ export class PartyStore {
     }
     party.buzzWindowOpen = false;
     this.clearReadyPhase(party);
+    // * Manual control keeps the buzzer closed. The first cue has no previous
+    //   question to hold, so it must still be on screen — otherwise every client
+    //   looks like the pack was never loaded. A held next question stays hidden
+    //   until the buzzer opens.
+    if (party.questionHold == null) party.questionRevealed = true;
   }
 
   /** * Opens the « Prêt ? » step. Every connected player starts orange. */
