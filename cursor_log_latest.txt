@@ -1,25 +1,26 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
-**Date** : 2026-10-21  
-**Contexte** : Fin de manche, dernière question et livraisons de `6023afd`. Documentation seule, poussée sur `main`.
+**Date** : 2026-10-22  
+**Contexte** : Podium équipes, pause, jeton animateur. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Poser l'À décider sur la fin de manche, sans le trancher.
-- Noter les choix incertains de Coding Agent codés dans `6023afd`.
-- Noter dans les statuts de recette ce qui est livré, en laissant la recette en cours.
+- Noter les choix incertains de Coding Agent dans `98e9559` et `f81d3ec`, sans les trancher.
+- Noter la correction d'accord `601fa63`.
+- Consigner l'écart du jeton animateur à côté de la règle décidée (§2.5, CA-48).
 
 ## Réalisations
 
-- CA-73 : À décider (Minipen). La manche se termine-t-elle toute seule après la dernière question, ou seulement avec « Afficher gagnant » ?
-- Choix incertains (Coding Agent, 21/10/2026), codés dans `6023afd`. À la dernière question, « Question suivante → » est désactivé et renvoie vers « Afficher gagnant », au lieu de déclencher le gagnant. Un réglage numérique part au serveur en sortant du champ ou avec Entrée, pas à chaque frappe. Ce choix ne répond pas à l'À décider.
-- Statuts des deux recettes : livrés dans `6023afd`, la réponse D et le contour jaune à 390×844, la hauteur 398 px commune au bloc « Prêt ? » et à la zone des réponses, le podium en escalier sur le téléphone. La recette de Testeur reste en cours.
+- CA-73 : « N joueurs » (« 1 joueur ») sous le nom d'équipe, sur sa marche. Choix incertain, `98e9559`.
+- §2.5 : pause qui gèle l'écran. La phrase « retour lobby » reste. « Afficher gagnant » ouvre le podium, sans répondre à l'À décider. Saut `?question=N` sans bouton. Message « Partie introuvable. Cette partie n'est plus sur le serveur. » La phrase courte du §2.9 reste.
+- §4.5 : « 1 / 2 joueurs prêts ». Correction d'accord, pas un choix.
+- §2.5 et CA-48 : le jeton reste dans `#token=`. À décider (Minipen).
 
 ## Prochain focus suggéré
 
-- Trancher si la manche se termine toute seule ou seulement avec « Afficher gagnant ».
+- Trancher le jeton visible dans l'adresse, et la pause qui gèle au lieu du salon.
 
 ## Références
 
-- `cahier-des-charges.md` §2.5, §4.6 CA-73 et CA-74.
-- Commit `6023afd`.
+- `cahier-des-charges.md` §2.5, §2.9, §4.5, CA-48, CA-73.
+- Commits `98e9559`, `601fa63`, `f81d3ec`.

@@ -230,3 +230,10 @@ Session 2026-10-21 — Marches 1, 1, 3, étiquette « 3e » (commit 5482ab8)
 ================================================================================
 - CA-73 : proposition de Design UI, non tranchée. Avec 1, 1, 2, 3, aucune marche vide. Avec 1, 1, 3, ex æquo sur la 1re marche, suivant sur la 2e, étiquette « 3e ».
 - La précision « la 2e marche reste vide » et « marches vides masquées » restent écrites.
+
+================================================================================
+Session 2026-10-21 — Fin de manche, dernière question, livraisons 6023afd (commit 80e28d3)
+================================================================================
+- CA-73 : À décider si la manche se termine seule ou seulement avec « Afficher gagnant ».
+- `6023afd` : « Question suivante → » désactivé, réglage numérique à la sortie du champ. Ne répond pas à l'À décider.
+- Statuts de recette : réponse D, contour jaune, hauteur 398 px, podium en escalier. Recette toujours en cours.
