@@ -1,24 +1,32 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Complément du podium, joueur déconnecté et marches. Documentation seule, poussée sur `main`.
+**Contexte** : Barre du bas de l'animateur et bloc « Paramètres de la partie ». Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Noter le choix incertain de Coding Agent sur le joueur déconnecté.
-- Préciser l'écart entre un podium plein (1, 1, 2, 3) et une 2e marche vide (1, 1, 3), sans le trancher.
+- Noter la décision de Minipen : quatre boutons dans la barre, le reste dans un bloc repliable.
+- Citer la maquette `animateur_parametres_v1.png` et les propositions de Design UI.
+- Rappeler deux écarts code/CDC de Test Writer (`3a710c6`), sans les trancher.
 
 ## Réalisations
 
-- CA-73 : choix incertain (Coding Agent, 21/10/2026). Un joueur déconnecté pendant la manche garde ses points et reste classé. Il code aussi les égalités en 1, 1, 2, 3.
-- Le choix entre 1, 1, 2, 3 et 1, 1, 3 reste à trancher par Minipen.
-- Précision de Design UI : avec 1, 1, 3, la 2e marche reste vide. Avec 1, 1, 2, 3, le podium est toujours plein.
+- §2.5, « Barre du bas », et CA-74. Quatre boutons décidés : « Lancer la manche », « Ouvrir buzzer », « Pause », « Afficher gagnant ».
+- Le reste du CDC (décomptes, mode « Prêt ? », délai auto, toggles, fenêtre d'attente, sons, audio joueur) déménage dans « Paramètres de la partie », sous le bloc des questions.
+- Maquette hors dépôt, ordinateur partagé, 1600×1080. Trois groupes : Buzzer, Comptes à rebours, Sons et affichage.
+- Proposition de Design UI : ligne de résumé quand le bloc est replié. Mémoire de l'état d'une visite à l'autre. Cette variante et « gardé pendant la partie » (Specs Writer) restent à trancher.
+- Choix incertain de Design UI : boutons occasionnels sous la question en cours. Il remplace le lancement manuel laissé dans les paramètres. Le lancement manuel reste une action en direct.
+- Replié par défaut, et boutons désactivés qui gardent leur place : choix incertains de Specs Writer.
+- Écart `store.ts:411` : arrivée pendant le décompte du buzzer, À décider par Minipen. Pendant « Prêt ? », le téléphone n'affiche pas les coches et les sabliers. La règle sur les trois écrans reste.
 
 ## Prochain focus suggéré
 
-- Trancher 1, 1, 2, 3 ou 1, 1, 3.
-- Confirmer que le joueur déconnecté garde ses points et reste classé.
+- Trancher l'état du bloc : pendant la partie, ou d'une visite à l'autre.
+- Trancher le placement des boutons occasionnels, dont le lancement manuel pendant « Prêt ? ».
+- Trancher l'arrivée pendant le décompte du buzzer.
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-73.
+- `cahier-des-charges.md` §2.5, §4.5, §4.6 CA-74.
+- Maquette `animateur_parametres_v1.png`, ordinateur partagé, hors dépôt.
+- `DEV_PLAN.md` §7.6, correspondance CA-52 à CA-74.

@@ -201,3 +201,10 @@ Session 2026-10-21 — Podium de fin de manche (commit d16a5cc)
 - Maquettes hors dépôt : `podium_diffusion_v1.png` et `podium_joueur_v1.png`.
 - Choix incertains : ex æquo, marches vides, mode équipes. Écart 1, 1, 2, 3 face à 1, 1, 3, encore à trancher.
 - Passage de `state` à "ended" non choisi. Place d'un joueur déconnecté non décidée à ce moment-là.
+
+================================================================================
+Session 2026-10-21 — Joueur déconnecté et marches du podium (commit 7b916a8)
+================================================================================
+- CA-73 : choix incertain (Coding Agent, 21/10/2026). Un joueur déconnecté pendant la manche garde ses points et reste classé. Il code aussi les égalités en 1, 1, 2, 3.
+- Le choix entre 1, 1, 2, 3 et 1, 1, 3 reste à trancher par Minipen.
+- Précision de Design UI : avec 1, 1, 3, la 2e marche reste vide. Avec 1, 1, 2, 3, le podium est toujours plein.
