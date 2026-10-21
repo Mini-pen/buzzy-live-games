@@ -102,3 +102,9 @@ Session 2026-10-07 — 404 time-sync et libellé admin
 - Vitest `webserver/src/http/playerTimeSyncUrl.test.ts`. Titre du panneau admin : « Sons et compte à rebours ».
 - Rebasé sur main `c09796d` (PR 29). Commit livré ensuite : `a860854` (#30).
 - Prochain focus noté alors : `updatePlayerClockSync` n'est jamais appelée, le serveur ignore `clientTimestamp`.
+
+================================================================================
+Session 2026-10-21 — Recette Minipen documentée (CA-39 à CA-51)
+================================================================================
+- Documentation seule, commits `edfae9b`, `baeba2b`, `311f488`.
+- Sous-section §4.6 « Recette Minipen du 21/10/2026 ». Modale de lancement décidée. Décompte v2. CA-48 : localStorage par partie, à confirmer.

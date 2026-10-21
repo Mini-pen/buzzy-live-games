@@ -22,6 +22,10 @@ import {
 import { resolveJoinAvatarKey, requireParsedAvatarKey } from "../avatars/catalog.js";
 import { randomJoinCode, randomSecretHex } from "./codes.js";
 import { defaultBroadcastViewMode } from "./broadcastDisplay.js";
+import {
+  isValidNextQuestionCountdownSec,
+  NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC,
+} from "./nextQuestionCountdown.js";
 import { evaluateJoin, normalizeTeamChoice, publicSnapshotForParty } from "./partyLogic.js";
 import { quizPackFromLoadedId } from "./partySnapshotPresenter.js";
 import type {
@@ -50,6 +54,8 @@ export interface CreatePartyOpts {
   closedAfterStart: boolean;
   allowRename: boolean;
   allowTeamChange: boolean;
+  /** * Initial next-question pause. Omitted values use the default (5 s). */
+  nextQuestionCountdownSec?: number;
 }
 
 /** * Optional QCM context for `buzz`; when `choicesLen >= 1`, `choiceIndex` must be in range. */
@@ -206,6 +212,10 @@ export class PartyStore {
       throw new Error("JOIN_CODE_EXHAUSTED");
     }
     const pol = defaultBuzzSoundPolicyFromCatalog(this.buzzCatalog);
+    const pauseSec = opts.nextQuestionCountdownSec ?? NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC;
+    if (!isValidNextQuestionCountdownSec(pauseSec)) {
+      throw Object.assign(new Error("Durée entre 3 et 30 secondes."), { code: "INVALID_DURATION" });
+    }
     const party: Party = {
       id: randomUUID(),
       joinCode,
@@ -250,6 +260,10 @@ export class PartyStore {
       },
       seenGameKinds: new Set(),
       countdownDurationSec: 5,
+      nextQuestionCountdownSec: pauseSec,
+      nextQuestionCountdownStartedAt: null,
+      pointAward: null,
+      pendingPointAward: null,
       winnerScreenMode: "question",
       readyPlayers: new Set(),
       readyPhaseStartedAt: null,
@@ -793,6 +807,8 @@ export class PartyStore {
       if (good) {
         const pl = party.players.get(pid);
         if (pl) pl.score = Math.max(0, pl.score + q.points);
+        // INCERTAIN: en mode auto, le point affiché est le premier bon de la file de buzz.
+        if (party.pendingPointAward === null) this.notePointAward(party, pid, q.points);
       }
       extras.push({
         kind: "buzz_verdict",
@@ -846,18 +862,66 @@ export class PartyStore {
     return false;
   }
 
-  /** * Clears any buzz queue then optionally starts ready phase or opens the buzzer per host « auto suivant » policy. */
-  private reopenBuzzAccordingToCueAdvancePolicy(party: Party, pack: QuizPack | null): void {
+  /**
+   * * Clears any buzz queue, then either starts the next-question pause or applies the buzz policy.
+   *   `gap: false` is the first cue of a manche (launch, video replay, script load) — no pause.
+   */
+  private reopenBuzzAccordingToCueAdvancePolicy(
+    party: Party,
+    pack: QuizPack | null,
+    opts?: { gap?: boolean },
+  ): void {
     clearBuzzQueue(party);
-    const shouldOpen = pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
-    if (shouldOpen) {
-      this.clearReadyPhase(party);
-      party.readyPhaseStartedAt = Date.now();
-      party.buzzWindowOpen = false;
-    } else {
-      party.buzzWindowOpen = false;
-      this.clearReadyPhase(party);
+    party.buzzWindowOpen = false;
+    this.clearReadyPhase(party);
+    if (opts?.gap !== false) {
+      // INCERTAIN: la même pause s'applique aussi en mode autonome, avant la phase « Prêt ».
+      party.pointAward = party.pendingPointAward;
+      party.pendingPointAward = null;
+      party.nextQuestionCountdownStartedAt = Date.now();
+      return;
     }
+    this.openBuzzPolicyAfterGap(party, pack);
+  }
+
+  /** * Ends the next-question pause and applies the host auto-open policy (ready phase, not the §4.5 countdown). */
+  private openBuzzPolicyAfterGap(party: Party, pack: QuizPack | null): void {
+    party.nextQuestionCountdownStartedAt = null;
+    party.pointAward = null;
+    if (party.winnerScreenMode === "question") party.winnerDisplay = null;
+    const shouldOpen =
+      pack !== null && party.autoOpenBuzzOnCueAdvance && this.surfaceSupportsBuzz(party, pack);
+    if (shouldOpen) {
+      if (party.readyPhaseStartedAt === null) party.readyPhaseStartedAt = Date.now();
+      party.buzzWindowOpen = false;
+      return;
+    }
+    party.buzzWindowOpen = false;
+    this.clearReadyPhase(party);
+  }
+
+  /** * Drops a running next-question pause without touching the §4.5 leader screen. */
+  private clearNextQuestionPause(party: Party): void {
+    party.nextQuestionCountdownStartedAt = null;
+    party.pointAward = null;
+    party.pendingPointAward = null;
+  }
+
+  /** * Moves to the next cue, starts the pause, then the per-question leader so one snapshot carries both. */
+  private commitCueAdvance(party: Party, pack: QuizPack, nextIndex: number, bumpReplay: boolean): void {
+    party.currentQuestionIndex = nextIndex;
+    if (bumpReplay) party.videoReplaySerial += 1;
+    this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
+    this.maybeAutoShowWinnerEndOfQuestion(party);
+    this.syncActiveQuizProgressIntoScriptItem(party);
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /** * Round is over: keep the §4.5 screen and cancel a pause so it cannot cover that screen. */
+  private markRoundExhausted(party: Party): void {
+    this.maybeAutoShowWinnerEndOfRound(party);
+    this.clearNextQuestionPause(party);
   }
 
   /** * Triggers winner screen automatically if configured for end-of-question and conditions are met. */
@@ -1104,8 +1168,11 @@ export class PartyStore {
     
     party.state = "round_active";
     party.hasStartedRound = true;
+    party.pendingPointAward = null;
+    party.pointAward = null;
+    party.nextQuestionCountdownStartedAt = null;
     const pk = quizPackFromLoadedId(packs, party.loadedPackId);
-    this.reopenBuzzAccordingToCueAdvancePolicy(party, pk);
+    this.reopenBuzzAccordingToCueAdvancePolicy(party, pk, { gap: false });
     this.touch(party);
     
     if (shouldShowTutorial && gameKind !== null) {
@@ -1129,6 +1196,7 @@ export class PartyStore {
     party.state = "lobby";
     party.buzzWindowOpen = false;
     clearBuzzQueue(party);
+    this.clearNextQuestionPause(party);
     this.touch(party);
     this.broadcast(party);
   }
@@ -1145,7 +1213,7 @@ export class PartyStore {
     const round = pack.rounds[ri];
     if (isVideoRound(round)) {
       party.videoReplaySerial += 1;
-      this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
+      this.reopenBuzzAccordingToCueAdvancePolicy(party, pack, { gap: false });
       this.syncActiveQuizProgressIntoScriptItem(party);
       this.touch(party);
       this.broadcast(party);
@@ -1153,28 +1221,17 @@ export class PartyStore {
     }
     if (isFreeBuzzRound(round)) {
       const qix = party.currentQuestionIndex ?? 0;
-      this.maybeAutoShowWinnerEndOfQuestion(party);
-      party.currentQuestionIndex = qix + 1;
-      this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
-      this.syncActiveQuizProgressIntoScriptItem(party);
-      this.touch(party);
-      this.broadcast(party);
+      this.commitCueAdvance(party, pack, qix + 1, false);
       return;
     }
     if (isAudioBlindRound(round)) {
       const qix = party.currentQuestionIndex ?? 0;
       const nextIx = qix + 1;
       if (nextIx < round.tracks.length) {
-        this.maybeAutoShowWinnerEndOfQuestion(party);
-        party.currentQuestionIndex = nextIx;
-        party.videoReplaySerial += 1;
-        this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
-        this.syncActiveQuizProgressIntoScriptItem(party);
-        this.touch(party);
-        this.broadcast(party);
+        this.commitCueAdvance(party, pack, nextIx, true);
         return;
       }
-      this.maybeAutoShowWinnerEndOfRound(party);
+      this.markRoundExhausted(party);
       throw Object.assign(
         new Error("Fin des extraits de cette manche — passez à la suivante ou mettez en pause."),
         { code: "ROUND_EXHAUSTED" },
@@ -1184,16 +1241,10 @@ export class PartyStore {
       const qix = party.currentQuestionIndex ?? 0;
       const nextIx = qix + 1;
       if (nextIx < round.slides.length) {
-        this.maybeAutoShowWinnerEndOfQuestion(party);
-        party.currentQuestionIndex = nextIx;
-        party.videoReplaySerial += 1;
-        this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
-        this.syncActiveQuizProgressIntoScriptItem(party);
-        this.touch(party);
-        this.broadcast(party);
+        this.commitCueAdvance(party, pack, nextIx, true);
         return;
       }
-      this.maybeAutoShowWinnerEndOfRound(party);
+      this.markRoundExhausted(party);
       throw Object.assign(
         new Error("Fin des images de cette manche — passez à la suivante ou mettez en pause."),
         { code: "ROUND_EXHAUSTED" },
@@ -1204,16 +1255,10 @@ export class PartyStore {
       const nextIx = qix + 1;
       const total = progressiveGuessTotalFlatSteps(round);
       if (nextIx < total) {
-        this.maybeAutoShowWinnerEndOfQuestion(party);
-        party.currentQuestionIndex = nextIx;
-        party.videoReplaySerial += 1;
-        this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
-        this.syncActiveQuizProgressIntoScriptItem(party);
-        this.touch(party);
-        this.broadcast(party);
+        this.commitCueAdvance(party, pack, nextIx, true);
         return;
       }
-      this.maybeAutoShowWinnerEndOfRound(party);
+      this.markRoundExhausted(party);
       throw Object.assign(
         new Error("Fin des énigmes de cette manche — passez à la suivante ou mettez en pause."),
         { code: "ROUND_EXHAUSTED" },
@@ -1228,15 +1273,10 @@ export class PartyStore {
     }
     const nextQ = qi + 1;
     if (nextQ < round.questions.length) {
-      this.maybeAutoShowWinnerEndOfQuestion(party);
-      party.currentQuestionIndex = nextQ;
-      this.reopenBuzzAccordingToCueAdvancePolicy(party, pack);
-      this.syncActiveQuizProgressIntoScriptItem(party);
-      this.touch(party);
-      this.broadcast(party);
+      this.commitCueAdvance(party, pack, nextQ, false);
       return;
     }
-    this.maybeAutoShowWinnerEndOfRound(party);
+    this.markRoundExhausted(party);
     throw Object.assign(
       new Error("Fin des questions de cette manche — passez à la suivante ou mettez en pause."),
       { code: "ROUND_EXHAUSTED" },
@@ -1320,6 +1360,31 @@ export class PartyStore {
     this.broadcast(party);
   }
 
+  /** * Sets the pause before the next question. Does not change the §4.5 pre-buzzer countdown. */
+  adminSetNextQuestionCountdownSec(party: Party, seconds: number): void {
+    if (!isValidNextQuestionCountdownSec(seconds)) {
+      throw Object.assign(new Error("Durée entre 3 et 30 secondes."), { code: "INVALID_DURATION" });
+    }
+    party.nextQuestionCountdownSec = seconds;
+    this.touch(party);
+    this.broadcast(party);
+  }
+
+  /**
+   * * Closes the next-question pause once `duration` has elapsed on the server clock.
+   *   Returns false while the pause is still running or was not started.
+   */
+  maybeFinishNextQuestionCountdown(party: Party, pack: QuizPack | null, now = Date.now()): boolean {
+    if (party.nextQuestionCountdownStartedAt === null) return false;
+    if (party.state !== "round_active") return false;
+    const elapsed = now - party.nextQuestionCountdownStartedAt;
+    if (elapsed < party.nextQuestionCountdownSec * 1000) return false;
+    this.openBuzzPolicyAfterGap(party, pack);
+    this.touch(party);
+    this.broadcast(party);
+    return true;
+  }
+
   adminSetWinnerScreenMode(party: Party, mode: "question" | "round"): void {
     party.winnerScreenMode = mode;
     this.touch(party);
@@ -1361,6 +1426,9 @@ export class PartyStore {
     if (party.state !== "round_active") {
       throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
     }
+    if (party.nextQuestionCountdownStartedAt !== null) {
+      throw Object.assign(new Error("La question suivante n'est pas encore ouverte."), { code: "BAD_PHASE" });
+    }
     const player = party.players.get(playerId);
     if (!player) {
       throw Object.assign(new Error("Joueur introuvable."), { code: "PLAYER_NOT_FOUND" });
@@ -1384,6 +1452,7 @@ export class PartyStore {
   
   maybeStartCountdownIfReady(party: Party, readyTimeoutMs: number): boolean {
     if (party.state !== "round_active") return false;
+    if (party.nextQuestionCountdownStartedAt !== null) return false;
     if (party.readyPhaseStartedAt === null) return false;
     if (party.countdownStartedAt !== null) return false;
     if (party.buzzWindowOpen) return false;
@@ -1402,6 +1471,7 @@ export class PartyStore {
   }
   
   maybeOpenBuzzAfterCountdown(party: Party): boolean {
+    if (party.nextQuestionCountdownStartedAt !== null) return false;
     if (party.countdownStartedAt === null) return false;
     if (party.buzzWindowOpen) return false;
     
@@ -1431,6 +1501,8 @@ export class PartyStore {
       throw Object.assign(new Error("Pas en manche active."), { code: "BAD_PHASE" });
     }
     this.clearReadyPhase(party);
+    party.nextQuestionCountdownStartedAt = null;
+    party.pointAward = null;
     party.winnerDisplay = null;
     party.buzzWindowOpen = true;
     party.buzzWindowOpenedAt = Date.now();
@@ -1471,6 +1543,8 @@ export class PartyStore {
       const pts = this.goodPointsForCurrentCue(party, pack);
       const player = party.players.get(playerId);
       if (player) player.score = Math.max(0, player.score + pts);
+      // INCERTAIN: si l'animateur valide plusieurs « Bon », le dernier écrase le précédent.
+      this.notePointAward(party, playerId, pts);
     }
     party.buzzOrder.splice(ix, 1);
     party.buzzQuizGuess.delete(playerId);
@@ -1492,6 +1566,18 @@ export class PartyStore {
     if (ri === null || qi === null || ri < 0 || qi < 0 || ri >= pack.rounds.length) return false;
     const round = pack.rounds[ri];
     return round !== undefined && isQuizRound(round);
+  }
+
+  /** * Remembers who just scored. Published on the next pause, not on this snapshot. */
+  private notePointAward(party: Party, playerId: string, points: number): void {
+    const player = party.players.get(playerId);
+    if (!player) return;
+    party.pendingPointAward = {
+      playerId,
+      playerName: player.displayName,
+      avatarKey: player.avatarKey,
+      points,
+    };
   }
 
   private goodPointsForCurrentCue(party: Party, pack: QuizPack): number {
@@ -1775,7 +1861,7 @@ export class PartyStore {
       party.state = "round_active";
       party.hasStartedRound = true;
       const pk = quizPackFromLoadedId(packs, party.loadedPackId);
-      this.reopenBuzzAccordingToCueAdvancePolicy(party, pk);
+      this.reopenBuzzAccordingToCueAdvancePolicy(party, pk, { gap: false });
     }
   }
 

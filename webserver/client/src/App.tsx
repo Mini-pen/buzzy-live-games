@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
@@ -16,6 +16,21 @@ import {
   visibleBuzzGapMs,
   type BroadcastViewMode,
 } from "../../src/domain/broadcastDisplay";
+import {
+  forgetHostToken,
+  hostAdminPath,
+  readHostToken,
+  rememberHostToken,
+  shouldShowHostReturnLink,
+} from "../../src/domain/hostReturnLink";
+import {
+  BROADCAST_POINT_MODAL_CLOSE_MS,
+  isPointModalVisible,
+  nextQuestionCountdownProgress,
+  nextQuestionCountdownRemainingSec,
+  PLAYER_POINT_MODAL_CLOSE_MS,
+  pointAwardLabel,
+} from "../../src/domain/nextQuestionCountdown";
 
 /** * Quiz surface from `PartyPublicSnapshot.gameBoard`. */
 interface PartyGameBoardQuiz {
@@ -197,6 +212,14 @@ interface PartySnapshot {
   autoOpenBuzzOnCueAdvance?: boolean;
   autoAdvanceQuizWhenAllBuzzed?: boolean;
   countdownDurationSec?: number;
+  nextQuestionCountdownSec?: number;
+  nextQuestionCountdownStartedAt?: number | null;
+  pointAward?: {
+    playerId: string;
+    playerName: string;
+    avatarKey: string;
+    points: number;
+  } | null;
   winnerScreenMode?: "question" | "round";
   readyPlayers?: string[];
   readyPhaseStartedAt?: number | null;
@@ -322,6 +345,220 @@ function AvatarFigure(props: { src: string; sizePx: number }): JSX.Element {
   );
 }
 
+/** * One clock for every countdown on the page, driven by the server start timestamp. */
+function useServerCountdownNow(startedAt: number | null): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (startedAt === null) return undefined;
+    const id = window.setInterval(() => setNow(Date.now()), 100);
+    return () => window.clearInterval(id);
+  }, [startedAt]);
+  return now;
+}
+
+function DrainingCircle(props: {
+  progress: number;
+  value: number;
+  size: number;
+  stroke: number;
+  numberSize: number;
+  numberColor: string;
+  track: string;
+  fill: string;
+}): JSX.Element {
+  const radius = (props.size - props.stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.min(1, Math.max(0, props.progress));
+  const center = props.size / 2;
+  return (
+    <span className="bz-drain" style={{ width: props.size, height: props.size }}>
+      <svg width={props.size} height={props.size} viewBox={`0 0 ${props.size} ${props.size}`} aria-hidden="true">
+        <circle cx={center} cy={center} r={radius} fill="none" stroke={props.track} strokeWidth={props.stroke} />
+        <circle
+          cx={center}
+          cy={center}
+          r={radius}
+          fill="none"
+          stroke={props.fill}
+          strokeWidth={props.stroke}
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference * (1 - clamped)}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${center} ${center})`}
+        />
+      </svg>
+      <span className="bz-drain-num" style={{ fontSize: props.numberSize, color: props.numberColor }}>
+        {props.value}
+      </span>
+    </span>
+  );
+}
+
+/** * Yellow banner on the question block while the server pause is running. Children render alone when it is idle. */
+function QuestionCountdownFrame(props: {
+  startedAt: number | null;
+  durationSec: number;
+  nowMs: number;
+  variant: "player" | "broadcast";
+  children: ReactNode;
+}): JSX.Element {
+  if (props.startedAt === null) return <>{props.children}</>;
+  const remaining = nextQuestionCountdownRemainingSec(props.startedAt, props.durationSec, props.nowMs) ?? 0;
+  const progress = nextQuestionCountdownProgress(props.startedAt, props.durationSec, props.nowMs) ?? 0;
+  const broadcast = props.variant === "broadcast";
+  return (
+    <div className={broadcast ? "bz-q-frame bz-q-frame--broadcast" : "bz-q-frame"}>
+      <div className="bz-q-banner">
+        <span>Prochaine question dans :</span>
+        <DrainingCircle
+          progress={progress}
+          value={remaining}
+          size={broadcast ? 72 : 48}
+          stroke={broadcast ? 5 : 4}
+          numberSize={broadcast ? 36 : 24}
+          numberColor="#1a1a1a"
+          track="rgba(26,26,26,0.22)"
+          fill="#1a1a1a"
+        />
+      </div>
+      <div className="bz-q-progress" aria-hidden="true">
+        <span style={{ width: `${progress * 100}%` }} />
+      </div>
+      <div className="bz-q-frame-body">{props.children}</div>
+    </div>
+  );
+}
+
+/**
+ * * Point modal for the player and the broadcast screen.
+ *   INCERTAIN: the ring stays gold #FFCA28 — the model has no per-player color.
+ */
+function PointAwardModal(props: {
+  award: { playerName: string; avatarKey: string; points: number };
+  startedAt: number;
+  durationSec: number;
+  nowMs: number;
+  closeAfterMs: number;
+  variant: "player" | "broadcast";
+  dismissed: boolean;
+  onDismiss?: () => void;
+}): JSX.Element | null {
+  const visible = isPointModalVisible({
+    dismissed: props.dismissed,
+    startedAt: props.startedAt,
+    durationSec: props.durationSec,
+    closeAfterMs: props.closeAfterMs,
+    nowMs: props.nowMs,
+  });
+  if (!visible) return null;
+  const remaining = nextQuestionCountdownRemainingSec(props.startedAt, props.durationSec, props.nowMs) ?? 0;
+  const progress = nextQuestionCountdownProgress(props.startedAt, props.durationSec, props.nowMs) ?? 0;
+  const broadcast = props.variant === "broadcast";
+  return (
+    <div
+      className={broadcast ? "bz-point-modal bz-point-modal--broadcast" : "bz-point-modal"}
+      role="presentation"
+      onClick={props.onDismiss}
+    >
+      <div
+        className="bz-point-card"
+        role="dialog"
+        aria-label={`Point pour ${props.award.playerName}`}
+        onClick={props.onDismiss}
+      >
+        <img
+          className={broadcast ? "bz-point-avatar bz-point-avatar--broadcast" : "bz-point-avatar"}
+          src={withBase(`/avatars/${props.award.avatarKey}`)}
+          alt=""
+          width={broadcast ? 220 : 120}
+          height={broadcast ? 220 : 120}
+          decoding="async"
+        />
+        <p className="bz-point-kicker">Point pour</p>
+        <p className="bz-point-name">{props.award.playerName}</p>
+        <p className="bz-point-pill">{pointAwardLabel(props.award.points)}</p>
+        <div className="bz-point-count">
+          <span>Prochaine question dans :</span>
+          <DrainingCircle
+            progress={progress}
+            value={remaining}
+            size={broadcast ? 84 : 56}
+            stroke={broadcast ? 5 : 4}
+            numberSize={broadcast ? 32 : 22}
+            numberColor="#FFCA28"
+            track="rgba(255,255,255,0.2)"
+            fill="#FFCA28"
+          />
+        </div>
+        {broadcast ? null : <p className="bz-point-hint">Touchez pour fermer</p>}
+      </div>
+    </div>
+  );
+}
+
+/** * Collapsible host aside block. Open/closed state is kept per party in localStorage. */
+function HostAsideBlock(props: {
+  partyId: string;
+  blockId: string;
+  title: string;
+  titleExtra?: ReactNode;
+  children: ReactNode;
+}): JSX.Element {
+  const storageKey = `partygames:hostAside:${props.partyId}:${props.blockId}`;
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  function toggle(): void {
+    const next = !open;
+    setOpen(next);
+    try {
+      localStorage.setItem(storageKey, next ? "1" : "0");
+    } catch {
+      /* * Private mode can reject storage writes. */
+    }
+  }
+  return (
+    <section className="bz-host-section">
+      <button type="button" className="bz-host-section-toggle" aria-expanded={open} onClick={toggle}>
+        <span className="bz-host-section-chevron" aria-hidden="true">
+          {open ? "▾" : "▸"}
+        </span>
+        <span className="bz-host-section-title">{props.title}</span>
+        {props.titleExtra}
+      </button>
+      {open ? <div className="bz-host-section-body">{props.children}</div> : null}
+    </section>
+  );
+}
+
+/** * Party code at section-title size, with a copy control. INCERTAIN: 28px rather than the 11px mono label. */
+function HostJoinCode(props: { code: string }): JSX.Element {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="bz-host-code-row">
+      <div className="bz-host-code">{props.code}</div>
+      <button
+        type="button"
+        className="bz-host-code-copy"
+        onClick={() => {
+          void navigator.clipboard.writeText(props.code).then(() => {
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 1500);
+          }).catch(() => {
+            /* * Clipboard can be denied. The code stays visible. */
+          });
+        }}
+      >
+        {copied ? "Copié" : "Copier"}
+      </button>
+    </div>
+  );
+}
+
 function playerSessionKey(pid: string): string {
   return `partygames:playerJwt:${pid.trim().toLowerCase()}`;
 }
@@ -402,10 +639,32 @@ function peekAdminBearer(routePartyIdRaw: string): string | null {
   let t = findAdminBearerForPartyRouteId(routePartyIdRaw);
   if (frag !== null && frag.length > 0) {
     sessionStorage.setItem(adminSessionKey(pidNorm), frag);
+    rememberSharedHostToken(pidNorm, frag);
     window.history.replaceState({}, "", `${window.location.pathname}${window.location.search}`);
     return frag;
   }
-  return typeof t === "string" && t.length > 0 ? t : null;
+  if (typeof t === "string" && t.length > 0) {
+    rememberSharedHostToken(pidNorm, t);
+    return t;
+  }
+  if (typeof globalThis.localStorage !== "undefined") {
+    const shared = readHostToken(localStorage, pidNorm);
+    if (shared !== null) {
+      sessionStorage.setItem(adminSessionKey(pidNorm), shared);
+      return shared;
+    }
+  }
+  return null;
+}
+
+/**
+ * * Copies the host token into localStorage so another tab on this origin (the broadcast screen)
+ *   can open the host page. The token is never written into a URL.
+ *   INCERTAIN: jeton animateur partagé entre onglets via localStorage, par partie, à confirmer par Minipen.
+ */
+function rememberSharedHostToken(partyId: string, token: string): void {
+  if (typeof globalThis.localStorage === "undefined") return;
+  rememberHostToken(localStorage, partyId, token);
 }
 
 /** * Browser-only: player JWT persisted for `/party/:id/play` hydration before first React commit. */
@@ -428,9 +687,12 @@ const STORAGE_LAST_ADMIN_PARTY = "partygames:lastAdminPartyId";
 
 /** * Drops every stale admin Bearer key tied to `routePartyIdRaw` plus `lastAdminParty` hint when it matches (case-insensitive id suffix). */
 function purgeAdminSessionForPartyRouteId(routePartyIdRaw: string): void {
-  if (typeof globalThis.sessionStorage === "undefined") return;
   const needle = canonicalPartyIdFromRoute(routePartyIdRaw);
   if (needle === "") return;
+  if (typeof globalThis.localStorage !== "undefined") {
+    forgetHostToken(localStorage, needle);
+  }
+  if (typeof globalThis.sessionStorage === "undefined") return;
   const prefix = "partygames:adminToken:";
   const keysToDrop: string[] = [];
   for (let i = 0; i < sessionStorage.length; i += 1) {
@@ -2009,6 +2271,7 @@ function Create(): JSX.Element {
   const [closedAfterStart, setClosedAfterStart] = useState(false);
   const [allowRename, setAllowRename] = useState(true);
   const [allowTeamChange, setAllowTeamChange] = useState(true);
+  const [nextQuestionCountdownSec, setNextQuestionCountdownSec] = useState(5);
   const [err, setErr] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent): Promise<void> {
@@ -2023,12 +2286,14 @@ function Create(): JSX.Element {
         closedAfterStart,
         allowRename,
         allowTeamChange,
+        nextQuestionCountdownSec,
       };
       const res = await fetchJson<{
         adminToken: string;
         partyId: string;
       }>(`/api/parties`, { method: "POST", body: JSON.stringify(body) });
       sessionStorage.setItem(adminSessionKey(res.partyId), res.adminToken);
+      rememberSharedHostToken(res.partyId, res.adminToken);
       rememberAdminParty(res.partyId);
       nav(`/party/${res.partyId}/admin#token=${encodeURIComponent(res.adminToken)}`);
     } catch (e2) {
@@ -2089,6 +2354,19 @@ function Create(): JSX.Element {
           />{" "}
           Authoriser le changement d’équipe (lobby)
         </label>
+        <label>
+          Délai avant la question suivante (3–30 secondes)
+          <input
+            type="number"
+            min={3}
+            max={30}
+            value={nextQuestionCountdownSec}
+            onChange={(e) => {
+              const val = Number.parseInt(e.target.value, 10);
+              if (val >= 3 && val <= 30) setNextQuestionCountdownSec(val);
+            }}
+          />
+        </label>
         {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
         <button type="submit">Créer et ouvrir l’administration</button>
       </form>
@@ -2127,6 +2405,14 @@ function Play(): JSX.Element {
   const [clockSync, setClockSync] = useState<ClientClockSync | null>(null);
   const [buzzPending, setBuzzPending] = useState(false);
   const periodicSyncInterval = useRef<number | null>(null);
+  const pauseStartedAt =
+    typeof snap?.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
+  const countdownNow = useServerCountdownNow(pauseStartedAt);
+  const pointDismissKey =
+    snap?.pointAward != null && pauseStartedAt !== null
+      ? `${snap.pointAward.playerId}:${pauseStartedAt}`
+      : null;
+  const [dismissedPointKey, setDismissedPointKey] = useState<string | null>(null);
 
   useEffect(() => {
     void fetchJson<{ defaultBuzzerKey: string; sounds: CatalogSoundEntry[] }>(`/api/sounds`).then(
@@ -2448,32 +2734,54 @@ function Play(): JSX.Element {
 
       {err ? <p style={{ color: "crimson" }}>{err}</p> : null}
 
-      <GameBoardPanel
-        board={snap.gameBoard ?? null}
-        partyState={snap.state}
-        revealCorrect={false}
-        allowBlindPlaybackOnClients={snap.allowPlayerAudioControl === true}
-        quizPlayerPickUi={
-          snap.state === "round_active" && snap.gameBoard?.kind === "quiz"
-            ? {
-                selectedIndex: quizSelected,
-                locked: quizBuzzLocked,
-                onPick: (ix) => {
-                  setQuizSelected(ix);
-                },
-                canPick: canBuzz && !queuedBuzz,
-              }
-            : undefined
-        }
-      />
+      <QuestionCountdownFrame
+        startedAt={pauseStartedAt}
+        durationSec={snap.nextQuestionCountdownSec ?? 5}
+        nowMs={countdownNow}
+        variant="player"
+      >
+        <GameBoardPanel
+          board={snap.gameBoard ?? null}
+          partyState={snap.state}
+          revealCorrect={false}
+          allowBlindPlaybackOnClients={snap.allowPlayerAudioControl === true}
+          quizPlayerPickUi={
+            snap.state === "round_active" && snap.gameBoard?.kind === "quiz"
+              ? {
+                  selectedIndex: quizSelected,
+                  locked: quizBuzzLocked,
+                  onPick: (ix) => {
+                    setQuizSelected(ix);
+                  },
+                  canPick: canBuzz && !queuedBuzz,
+                }
+              : undefined
+          }
+        />
+      </QuestionCountdownFrame>
 
-      {snap.winnerDisplay && (
+      {snap.pointAward != null && pauseStartedAt !== null ? (
+        <PointAwardModal
+          award={snap.pointAward}
+          startedAt={pauseStartedAt}
+          durationSec={snap.nextQuestionCountdownSec ?? 5}
+          nowMs={countdownNow}
+          closeAfterMs={PLAYER_POINT_MODAL_CLOSE_MS}
+          variant="player"
+          dismissed={dismissedPointKey === pointDismissKey && pointDismissKey !== null}
+          onDismiss={() => {
+            if (pointDismissKey !== null) setDismissedPointKey(pointDismissKey);
+          }}
+        />
+      ) : null}
+
+      {snap.winnerDisplay && pauseStartedAt === null ? (
         <WinnerScreen
           playerName={snap.winnerDisplay.playerName}
           avatarKey={snap.winnerDisplay.avatarKey}
           scoreLine={snap.playerShowScores === false ? null : `${snap.winnerDisplay.score} pts`}
         />
-      )}
+      ) : null}
 
       <section className="bz-buzz-hero">
         {snap.state === "round_active" &&
@@ -3414,6 +3722,22 @@ function Admin(): JSX.Element {
     [callHostSnapshot, hostBasePath],
   );
 
+  // INCERTAIN: l'animateur peut modifier ce délai après la création, comme l'autre compte à rebours.
+  const onHostNextQuestionCountdownChange = useCallback(
+    async (seconds: number): Promise<void> => {
+      setErr(null);
+      try {
+        const n = await callHostSnapshot(`${hostBasePath}/host/next-question-countdown`, "POST", {
+          seconds,
+        });
+        setSnap(n);
+      } catch (e) {
+        setErr(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [callHostSnapshot, hostBasePath],
+  );
+
   const onHostBuzzGraceWindowChange = useCallback(
     async (durationMs: number): Promise<void> => {
       setErr(null);
@@ -3668,7 +3992,7 @@ function Admin(): JSX.Element {
           <section className="bz-host-hero">
             <div className="bz-host-hero-info">
               <span className="bz-eyebrow">code joueurs</span>
-              <div className="bz-host-code">{snap.joinCode}</div>
+              <HostJoinCode code={snap.joinCode} />
               <div className="bz-host-join">
                 {window.location.host}{BASE_PATH}/join?code=<strong>{snap.joinCode}</strong>
               </div>
@@ -3714,7 +4038,7 @@ function Admin(): JSX.Element {
             <div className="bz-host-hero-qr">
               <QRCodeSVG
                 value={joinUrl}
-                size={160}
+                size={112}
                 level="M"
                 includeMargin
                 aria-label="QR code rejoindre la partie"
@@ -3722,12 +4046,6 @@ function Admin(): JSX.Element {
               <span className="bz-host-qr-cap">scanne pour rejoindre</span>
             </div>
           </section>
-
-          <BroadcastPreviewCard
-            snap={snap}
-            partyId={pid}
-            onChange={(patch) => void onHostBroadcastDisplay(patch)}
-          />
 
           {err ? <pre className="bz-err">{err}</pre> : null}
 
@@ -3968,6 +4286,19 @@ function Admin(): JSX.Element {
                     }}
                   />
                 </label>
+                <label className="bz-settings-label">
+                  Délai avant la question suivante (3–30 secondes)
+                  <input
+                    type="number"
+                    min={3}
+                    max={30}
+                    value={snap.nextQuestionCountdownSec ?? 5}
+                    onChange={(e) => {
+                      const val = Number.parseInt(e.target.value, 10);
+                      if (val >= 3 && val <= 30) void onHostNextQuestionCountdownChange(val);
+                    }}
+                  />
+                </label>
                 <label className="bz-settings-label" style={{ marginTop: 12 }}>
                   Écran de gagnant
                   <select
@@ -4033,17 +4364,27 @@ function Admin(): JSX.Element {
         </main>
 
         <aside className="bz-host-aside">
-          {/* Buzz queue */}
-          <section className="bz-host-section">
-            <h2>
-              File de buzz
-              {snap.buzzOrder.length > 0 ? (
+          <HostAsideBlock partyId={pid} blockId="preview" title="Aperçu diffusion">
+            <BroadcastPreviewCard
+              snap={snap}
+              partyId={pid}
+              hideHeading
+              onChange={(patch) => void onHostBroadcastDisplay(patch)}
+            />
+          </HostAsideBlock>
+          <HostAsideBlock
+            partyId={pid}
+            blockId="buzz"
+            title="File de buzz"
+            titleExtra={
+              snap.buzzOrder.length > 0 ? (
                 <span className="bz-pill bz-live">
                   <span className="bz-dot" />
                   live
                 </span>
-              ) : null}
-            </h2>
+              ) : null
+            }
+          >
             {snap.buzzOrder.length === 0 ? (
               <p className="bz-muted" style={{ margin: 0, fontSize: 12 }}>
                 Vide.
@@ -4097,11 +4438,9 @@ function Admin(): JSX.Element {
                 })}
               </ol>
             )}
-          </section>
+          </HostAsideBlock>
 
-          {/* Scoreboard */}
-          <section className="bz-host-section">
-            <h2>Scores</h2>
+          <HostAsideBlock partyId={pid} blockId="scores" title="Scores">
             <ul className="bz-host-scores">
               {sortedPlayers.map((pl2, idx) => (
                 <li key={pl2.id} className="bz-host-score-row">
@@ -4143,11 +4482,10 @@ function Admin(): JSX.Element {
                 </li>
               ))}
             </ul>
-          </section>
+          </HostAsideBlock>
 
-          {/* Chat */}
-          <section className="bz-host-section bz-chat">
-            <h2>Chat</h2>
+          <HostAsideBlock partyId={pid} blockId="chat" title="Chat">
+            <div className="bz-chat">
             <ul className="bz-chat-list">
               {snap.chatTail.length === 0 ? (
                 <li
@@ -4184,7 +4522,8 @@ function Admin(): JSX.Element {
                 Publier
               </button>
             </div>
-          </section>
+            </div>
+          </HostAsideBlock>
         </aside>
 
         {addMancheOpen ? (
@@ -4461,65 +4800,49 @@ function Admin(): JSX.Element {
               role="dialog"
               aria-modal="true"
               aria-labelledby="launch-dialog-title"
-              className="bz-modal-dialog"
+              className="bz-modal-dialog bz-launch-dialog"
               onMouseDown={(evt) => {
                 evt.stopPropagation();
               }}
             >
               <h2 id="launch-dialog-title">Choisir le mode de lancement</h2>
-              <p style={{ marginBottom: 24, fontSize: 14 }}>
-                Sélectionnez comment vous souhaitez lancer cette manche.
-              </p>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <p className="bz-launch-sub">Sélectionnez comment vous souhaitez lancer cette manche.</p>
+              <div className="bz-launch-cards">
                 <button
                   type="button"
-                  className="bz-primary"
-                  style={{
-                    padding: "16px 24px",
-                    fontSize: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    textAlign: "left",
-                  }}
+                  className="bz-launch-card"
                   onClick={() => {
                     void onHostMancheLaunch(launchDialogMancheId, "normal", false);
                     setLaunchDialogOpen(false);
                   }}
                 >
-                  <strong style={{ marginBottom: 8 }}>Lancer en mode normal</strong>
-                  <span style={{ fontSize: 13, opacity: 0.9 }}>
-                    Affiche le tutoriel (si premier lancement de ce type de jeu), puis contrôle manuel par l'hôte
+                  <span className="bz-launch-icon" aria-hidden="true">▶</span>
+                  <span className="bz-launch-copy">
+                    <span className="bz-launch-card-title">Lancer en mode normal</span>
+                    <span className="bz-launch-card-desc">
+                      Affiche le tutoriel (si premier lancement de ce type de jeu), puis contrôle manuel par l&apos;hôte
+                    </span>
                   </span>
                 </button>
                 <button
                   type="button"
-                  className="bz-primary"
-                  style={{
-                    padding: "16px 24px",
-                    fontSize: 16,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "flex-start",
-                    textAlign: "left",
-                    backgroundColor: "#4CAF50",
-                  }}
+                  className="bz-launch-card bz-launch-card--auto"
                   onClick={() => {
                     void onHostMancheLaunch(launchDialogMancheId, "autonomous", false);
                     setLaunchDialogOpen(false);
                   }}
                 >
-                  <strong style={{ marginBottom: 8 }}>Lancer en mode autonome</strong>
-                  <span style={{ fontSize: 13, opacity: 0.9 }}>
-                    Pas de tutoriel, enchaînement automatique des questions/rounds
+                  <span className="bz-launch-icon" aria-hidden="true">⚡</span>
+                  <span className="bz-launch-copy">
+                    <span className="bz-launch-card-title">Lancer en mode autonome</span>
+                    <span className="bz-launch-card-desc">
+                      Pas de tutoriel, enchaînement automatique des questions/rounds
+                    </span>
                   </span>
                 </button>
               </div>
-              <div className="bz-modal-actions" style={{ marginTop: 24 }}>
-                <button
-                  type="button"
-                  onClick={() => setLaunchDialogOpen(false)}
-                >
+              <div className="bz-launch-footer">
+                <button type="button" className="bz-launch-cancel" onClick={() => setLaunchDialogOpen(false)}>
                   Annuler
                 </button>
               </div>
@@ -4552,17 +4875,18 @@ function Admin(): JSX.Element {
 }
 
 function snapshotForBroadcastPreview(snap: PartySnapshot): PartySnapshot {
-  const board = snap.gameBoard;
-  if (board === undefined || board === null) return snap;
+  const stripped: PartySnapshot = { ...snap, winnerDisplay: null, pointAward: null };
+  const board = stripped.gameBoard;
+  if (board === undefined || board === null) return stripped;
   if (board.kind === "quiz") {
     const { correctChoiceIndex: _correct, ...rest } = board;
-    return { ...snap, gameBoard: rest };
+    return { ...stripped, gameBoard: rest };
   }
   if (board.kind === "audio_blind") {
     const { revealTitle: _title, revealArtist: _artist, ...rest } = board;
-    return { ...snap, gameBoard: rest };
+    return { ...stripped, gameBoard: rest };
   }
-  return snap;
+  return stripped;
 }
 
 function BroadcastStandingBlock(props: {
@@ -4637,6 +4961,7 @@ function BroadcastStandingBlock(props: {
 function BroadcastPreviewCard(props: {
   snap: PartySnapshot;
   partyId: string;
+  hideHeading?: boolean;
   onChange: (patch: {
     broadcastShowRanking?: boolean;
     broadcastShowScores?: boolean;
@@ -4654,7 +4979,7 @@ function BroadcastPreviewCard(props: {
     props.snap.broadcastViewModeGlobal === "team" && teamsEnabled ? "team" : "individual";
   return (
     <section className="bz-projected-card" aria-label="Aperçu diffusion">
-      <h2 className="bz-projected-title">Aperçu diffusion</h2>
+      {props.hideHeading ? null : <h2 className="bz-projected-title">Aperçu diffusion</h2>}
       <div className="bz-bc-preview-frame">
         <BroadcastSurface
           snap={snapshotForBroadcastPreview(props.snap)}
@@ -4742,6 +5067,15 @@ function Broadcast(): JSX.Element {
   const [err, setErr] = useState<string | null>(null);
   const [tutorialGameKind, setTutorialGameKind] = useState<string | null>(null);
   const [tutorialCanSkip, setTutorialCanSkip] = useState(false);
+  const [showHostReturn, setShowHostReturn] = useState(false);
+
+  useEffect(() => {
+    if (!pid || typeof localStorage === "undefined") {
+      setShowHostReturn(false);
+      return;
+    }
+    setShowHostReturn(shouldShowHostReturnLink(readHostToken(localStorage, pid)));
+  }, [pid]);
 
   useEffect(() => {
     if (!pid) return undefined;
@@ -4779,15 +5113,21 @@ function Broadcast(): JSX.Element {
         setTutorialCanSkip(payload.canSkip === true);
       }
     };
+    const onTerminated = (): void => {
+      if (typeof localStorage !== "undefined") forgetHostToken(localStorage, pid);
+      setShowHostReturn(false);
+    };
     s.on("party:patch", onSnap);
     s.on("party:answer_fx", onAnswerFx);
     s.on("party:tutorial", onTutorial);
+    s.on("party:terminated", onTerminated);
 
     return (): void => {
       cancelled = true;
       s.off("party:patch", onSnap);
       s.off("party:answer_fx", onAnswerFx);
       s.off("party:tutorial", onTutorial);
+      s.off("party:terminated", onTerminated);
       s.disconnect();
     };
   }, [pid]);
@@ -4809,6 +5149,7 @@ function Broadcast(): JSX.Element {
       snap={snap}
       partyId={pid}
       mode="live"
+      showHostReturn={showHostReturn}
       tutorial={
         tutorialGameKind === null
           ? null
@@ -4826,10 +5167,14 @@ function BroadcastSurface(props: {
   snap: PartySnapshot;
   partyId: string;
   mode: "live" | "preview";
+  showHostReturn?: boolean;
   tutorial?: { gameKind: string; canSkip: boolean; onClose: () => void } | null;
 }): JSX.Element {
   const { snap, partyId, mode } = props;
   const preview = mode === "preview";
+  const pauseStartedAt =
+    typeof snap.nextQuestionCountdownStartedAt === "number" ? snap.nextQuestionCountdownStartedAt : null;
+  const countdownNow = useServerCountdownNow(pauseStartedAt);
   const joinUrl = `${window.location.origin}${BASE_PATH}/join?code=${encodeURIComponent(snap.joinCode)}`;
   const board = snap.gameBoard ?? null;
   const quizBoard = board !== null && board.kind === "quiz" ? board : null;
@@ -4857,10 +5202,16 @@ function BroadcastSurface(props: {
 
   return (
     <div className={preview ? "bz-broadcast bz-broadcast--preview" : "bz-broadcast"}>
-      {preview ? null : (
-        <Link to={`/party/${encodeURIComponent(partyId)}/admin`} className="bz-bc-exit">
+      {preview || props.showHostReturn !== true ? null : (
+        <button
+          type="button"
+          className="bz-bc-exit"
+          onClick={() => {
+            window.open(withBase(hostAdminPath(partyId)), "_blank", "noopener,noreferrer");
+          }}
+        >
           ← retour tableau
-        </Link>
+        </button>
       )}
 
       <header className="bz-bc-header">
@@ -4891,13 +5242,25 @@ function BroadcastSurface(props: {
           </div>
         ) : null}
 
-        {snap.winnerDisplay && (
+        {!preview && snap.pointAward != null && pauseStartedAt !== null ? (
+          <PointAwardModal
+            award={snap.pointAward}
+            startedAt={pauseStartedAt}
+            durationSec={snap.nextQuestionCountdownSec ?? 5}
+            nowMs={countdownNow}
+            closeAfterMs={BROADCAST_POINT_MODAL_CLOSE_MS}
+            variant="broadcast"
+            dismissed={false}
+          />
+        ) : null}
+
+        {!preview && snap.winnerDisplay && pauseStartedAt === null ? (
           <WinnerScreen
             playerName={snap.winnerDisplay.playerName}
             avatarKey={snap.winnerDisplay.avatarKey}
             scoreLine={winnerScoreLine}
           />
-        )}
+        ) : null}
 
         {snap.state === "round_active" &&
         snap.countdownStartedAt !== null &&
@@ -4931,6 +5294,12 @@ function BroadcastSurface(props: {
           </div>
         ) : null}
 
+        <QuestionCountdownFrame
+          startedAt={snap.state === "round_active" ? pauseStartedAt : null}
+          durationSec={snap.nextQuestionCountdownSec ?? 5}
+          nowMs={countdownNow}
+          variant="broadcast"
+        >
         {snap.state === "round_active" && quizBoard !== null ? (
           <>
             <div className="bz-bc-meta">
@@ -4996,6 +5365,7 @@ function BroadcastSurface(props: {
             En attente — l'animateur doit charger un pack quiz.
           </div>
         ) : null}
+        </QuestionCountdownFrame>
 
         {snap.state === "between_rounds" || snap.state === "ended" ? (
           <div className="bz-bc-end">

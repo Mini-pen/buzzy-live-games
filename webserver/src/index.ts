@@ -3,7 +3,7 @@ import type { Server } from "socket.io";
 import { buildApp } from "./app.js";
 import { setBasePath } from "./basePath.js";
 import { loadConfig } from "./config.js";
-import { partySnapshotWithGame } from "./domain/partySnapshotPresenter.js";
+import { partySnapshotWithGame, quizPackFromLoadedId } from "./domain/partySnapshotPresenter.js";
 import { PartyStore, type PartyNotifyMeta } from "./domain/store.js";
 import { loadBuzzSoundCatalog, resolveBuzzSoundPublicUrl } from "./games/buzzSoundCatalog.js";
 import type { QuizPack } from "./games/pack.js";
@@ -145,8 +145,15 @@ async function main(): Promise<void> {
 
   // Countdown ticker: check every 500ms if countdown should start or buzzer should open
   const countdownTick = (): void => {
+    if (quizPacksByRun === undefined || importedPacksRef === undefined) return;
+    const allPacks = new Map([...quizPacksByRun, ...importedPacksRef.getAll()]);
     for (const party of store.getAllParties()) {
       if (party.state !== "round_active") continue;
+
+      if (party.nextQuestionCountdownStartedAt !== null) {
+        const pack = quizPackFromLoadedId(allPacks, party.loadedPackId);
+        store.maybeFinishNextQuestionCountdown(party, pack);
+      }
       
       if (party.countdownStartedAt === null && party.readyPhaseStartedAt !== null) {
         store.maybeStartCountdownIfReady(party, config.readyTimeoutMs);

@@ -308,6 +308,9 @@ export function partySnapshotWithGame(
     readyPhaseStartedAt: party.readyPhaseStartedAt,
     countdownStartedAt: party.countdownStartedAt,
     countdownDurationSec: party.countdownDurationSec,
+    nextQuestionCountdownSec: party.nextQuestionCountdownSec,
+    nextQuestionCountdownStartedAt: party.nextQuestionCountdownStartedAt,
+    pointAward: party.pointAward,
     winnerDisplay: party.winnerDisplay,
   };
   const hostExtraFields =

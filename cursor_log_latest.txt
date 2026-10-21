@@ -1,30 +1,30 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Recette Minipen de l'affichage projeté. Documentation seule, aucun code.
+**Contexte** : retours de test manuel (12 points), rebasé sur `main` `311f488` (CA-39 à CA-51). Travail direct sur `main`, sans PR.
 
 ## Objectifs
 
-- Ajouter dans le §4.6 du cahier des charges la sous-section « Recette Minipen du 21/10/2026 ».
-- Numéroter les critères à la suite de CA-38.
-- Y intégrer les maquettes Design UI, toujours en proposition, et noter les écarts avec le CDC sans les trancher.
+- Corriger l'écran noir (animateur, joueur, diffusion) après une réponse collective ou un compte à rebours.
+- « Retour tableau » ouvre l'animateur dans un nouvel onglet, jeton hors de l'URL et du DOM de la diffusion (CA-48).
+- Sélection QCM visible dès le relâchement, cartes de lancement lisibles, code de partie plus petit, aperçu à droite et blocs repliables, photo ronde, pause avant la question suivante.
 
 ## Réalisations
 
-- `cahier-des-charges.md`, §4.6, sous-section au statut « En cours de correction ». CA-39 à CA-51. Règle, critère vérifiable et cas limites pour chacun.
-- Maquettes citées, hors dépôt (`/workspace/ui/buzzy/`) : `modale_lancement_v1.png`, `gagnant_joueur_v1.png`, `decompte_question_joueur_v1.png`, `gagnant_diffusion_v1.png`.
-- Modale de lancement (`modale_lancement_v1.png`) : Décidé par Minipen. Cartes pleine largeur, hauteur automatique, `#FFCA28` / `#1E7A3C`, contrastes 11,4:1 et 5,4:1, anneau blanc au survol et au focus.
-- Décompte : les v2 remplacent les v1. Dans la modale (`gagnant_joueur_v2.png`, `gagnant_diffusion_v2.png`), texte « Prochaine question dans : », sans les secondes, cercle juste à droite (Décidé). Après fermeture, bandeau pleine largeur en haut du bloc question, joueur et diffusion (`decompte_question_joueur_v2.png`, `decompte_question_diffusion_v2.png`, sources HTML, `banner.css`). Valeurs en Proposition de Design UI : fond `#FFCA28`, texte `#1a1a1a` gras, 18 px / 28 px, chiffre 24 px / 36 px, barre 5 px / 8 px. L'énoncé et les réponses restent visibles dessous.
-- Diffusion : même modale en 16:9, avatar 220 px, fermeture à 3 s.
-- Fermeture joueur laissée à Minipen (3 ou 4 s). Provisoire documenté : le code garde 4 s, marqué incertain.
-- Écarts non tranchés : emplacement de l'aperçu (CA-30 / CA-40), aside (CA-30 / CA-41), compte à rebours §4.5 vs CA-49, avance automatique §2.5 et CA-15 §4.8, jeton sessionStorage vs « Retour tableau », contenu de l'écran du gagnant (§4.5, CA-20) vs « +1 point ».
-- Note de correspondance mise à jour dans `DEV_PLAN.md`.
+- Cause de l'écran noir : `.bz-winner-screen` est `position: fixed` avec `backdrop-filter: blur(20px)`. La miniature (`.bz-bc-preview-frame`) ne contient pas le `fixed`, le calque couvre la page animateur et Chromium le peint en noir. Le même calque noircit le joueur et la diffusion. Le `countdownDurationSec` (3–10 s, souvent 10 chez l'animateur) laissait cet écran jusqu'à l'ouverture du buzzer.
+- La miniature ne rend plus l'écran §4.5 ni la modale de point. `backdrop-filter` retiré de l'écran de fin. `contain: paint` sur le cadre d'aperçu.
+- Nouvelle pause `nextQuestionCountdownSec` (défaut 5, bornes 3–30), distincte de `countdownDurationSec`. Horloge serveur `nextQuestionCountdownStartedAt`. Modale de point (4 s joueur, 3 s diffusion, ou la fin de la pause si elle est plus courte), puis bannière jaune et barre de progression. Pas de modale gagnant sur la page animateur.
+- Jeton animateur aussi dans `localStorage` (`partygames:hostToken:<partyId>`), `sessionStorage` inchangé, effacé à la fin de partie. Le bouton n'a pas de `href`. Masqué s'il n'y a pas de jeton sur ce navigateur.
+- QCM : la classe sélectionnée gagne sur `:hover`. Cartes de lancement en hauteur automatique. Code à 28 px avec « Copier ». Aperçu en tête de la colonne de droite, quatre blocs repliables. Avatars ronds, anneau or sur la modale de point.
+- CA-30 aligné sur la recette (aperçu à droite, blocs repliables). Les écarts 1 et 2 du cahier le notent ; Minipen peut revenir en arrière.
+- Vitest `webserver/` : 364/364. `tsc` serveur vert. Le `tsc` client échoue encore sur des erreurs déjà présentes (`React` UMD, `snap` possiblement nul).
 
 ## Prochain focus suggéré
 
-- Confirmation Minipen : localStorage, lien « Retour tableau », plage 3–30 s, fermeture joueur 3 ou 4 s, et les six écarts.
-- Correction produit du CA-44 (pages noires) par l'agent qui code. Hors de cette session.
+- Confirmer avec Minipen les points INCERTAIN (bornes 3–30, 4 s / 3 s, pause aussi en autonome, édition du délai après création, 28 px, anneau or, libellé `+N points`, jeton partagé via localStorage).
+- Brancher `updatePlayerClockSync` sans double compensation (note de la session du 2026-10-07).
+- Le client envoie encore `{ durationSec }` à `/host/countdown-duration` alors que le schéma attend `{ seconds }` (préexistant, non corrigé).
 
 ## Références
 
-- `cahier-des-charges.md`, section 4.6, sous-section « Recette Minipen du 21/10/2026 », CA-39 à CA-51.
+- `webserver/src/domain/nextQuestionCountdown.ts`, `hostReturnLink.ts`, `store.ts`, `webserver/client/src/App.tsx`, `buzzy.css`, `cahier-des-charges.md` §4.5, CA-30, CA-33, CA-48.

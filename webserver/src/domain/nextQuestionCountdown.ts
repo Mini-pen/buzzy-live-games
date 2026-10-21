@@ -1,0 +1,90 @@
+/**
+ * * Pause shown on the next question before it becomes playable.
+ *   Distinct from §4.5 `countdownDurationSec` (pre-buzzer countdown after « Prêt »).
+ */
+
+/** * Default length of the next-question pause. */
+export const NEXT_QUESTION_COUNTDOWN_DEFAULT_SEC = 5;
+
+// INCERTAIN: borne 3–30 s retenue comme intervalle raisonnable ; Minipen peut la resserrer.
+/** * Inclusive minimum for `nextQuestionCountdownSec`. */
+export const NEXT_QUESTION_COUNTDOWN_MIN_SEC = 3;
+
+/** * Inclusive maximum for `nextQuestionCountdownSec`. */
+export const NEXT_QUESTION_COUNTDOWN_MAX_SEC = 30;
+
+// INCERTAIN: l'animateur pourra aligner le téléphone sur 3 s. Garder cette constante facile à changer.
+/** * Player point-modal auto-close, unless the pause ends sooner. */
+export const PLAYER_POINT_MODAL_CLOSE_MS = 4_000;
+
+/** * Broadcast point-modal auto-close, unless the pause ends sooner. */
+export const BROADCAST_POINT_MODAL_CLOSE_MS = 3_000;
+
+/** * True when `seconds` is an integer inside the allowed pause range. */
+export function isValidNextQuestionCountdownSec(seconds: number): boolean {
+  return (
+    Number.isInteger(seconds) &&
+    seconds >= NEXT_QUESTION_COUNTDOWN_MIN_SEC &&
+    seconds <= NEXT_QUESTION_COUNTDOWN_MAX_SEC
+  );
+}
+
+/**
+ * * Whole seconds still to show (5, 4, 3…) from a server start timestamp.
+ *   `null` when the pause is not running. `0` once the pause has elapsed.
+ */
+export function nextQuestionCountdownRemainingSec(
+  startedAt: number | null,
+  durationSec: number,
+  nowMs: number,
+): number | null {
+  if (startedAt === null || !Number.isFinite(startedAt) || !Number.isFinite(durationSec)) return null;
+  const totalMs = durationSec * 1000;
+  if (totalMs <= 0) return 0;
+  const elapsed = nowMs - startedAt;
+  if (elapsed >= totalMs) return 0;
+  return Math.max(0, Math.ceil((totalMs - elapsed) / 1000));
+}
+
+/**
+ * * Drain ratio in `[0, 1]` (1 = full, 0 = empty) from the same server timestamp.
+ *   `null` when the pause is not running.
+ */
+export function nextQuestionCountdownProgress(
+  startedAt: number | null,
+  durationSec: number,
+  nowMs: number,
+): number | null {
+  if (startedAt === null || !Number.isFinite(startedAt) || !(durationSec > 0)) return null;
+  const totalMs = durationSec * 1000;
+  const elapsed = nowMs - startedAt;
+  if (elapsed <= 0) return 1;
+  if (elapsed >= totalMs) return 0;
+  return 1 - elapsed / totalMs;
+}
+
+/**
+ * * Whether the point modal is still up.
+ *   It closes on click (`dismissed`), at `closeAfterMs`, or at the end of the pause — whichever is sooner.
+ */
+export function isPointModalVisible(input: {
+  dismissed: boolean;
+  startedAt: number | null;
+  durationSec: number;
+  closeAfterMs: number;
+  nowMs: number;
+}): boolean {
+  if (input.dismissed || input.startedAt === null) return false;
+  const pauseEnd = input.startedAt + Math.max(0, input.durationSec) * 1000;
+  const modalEnd = input.startedAt + Math.max(0, input.closeAfterMs);
+  return input.nowMs < Math.min(pauseEnd, modalEnd);
+}
+
+/**
+ * * Pill under the winner name.
+ *   INCERTAIN: the mockup prints the literal « +1 point » ; this uses the points just awarded.
+ */
+export function pointAwardLabel(points: number): string {
+  const n = Number.isInteger(points) && points > 0 ? points : 1;
+  return n === 1 ? "+1 point" : `+${n} points`;
+}

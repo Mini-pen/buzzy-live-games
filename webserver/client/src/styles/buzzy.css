@@ -680,10 +680,18 @@ html, body {
   cursor: pointer;
   font: inherit;
   color: inherit;
+  height: auto;
+  min-height: 48px;
+  white-space: normal;
+  padding: 10px 14px;
 }
-.bz-app .bz-choice--selected {
+.bz-app button.bz-choice.bz-choice--selected,
+.bz-app button.bz-choice.bz-choice--selected:hover,
+.bz-app button.bz-choice.bz-choice--selected:focus,
+.bz-app button.bz-choice.bz-choice--selected:active {
   border-color: var(--bz-accent);
   background: rgba(255, 204, 46, 0.1);
+  color: var(--bz-text);
 }
 .bz-app .bz-choice--player-pick-good {
   outline: 2px solid var(--bz-good);
@@ -997,9 +1005,9 @@ html, body {
 .bz-app .bz-host-hero {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 20px;
+  gap: 12px;
   align-items: center;
-  padding: 22px 24px;
+  padding: 14px 16px;
   background: var(--bz-surface);
   border: 1px solid var(--bz-line);
   border-radius: var(--bz-r-lg);
@@ -1008,13 +1016,25 @@ html, body {
   .bz-app .bz-host-hero { grid-template-columns: 1fr auto; }
 }
 .bz-app .bz-host-hero-info { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.bz-app .bz-host-code-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
 .bz-app .bz-host-code {
   font-family: var(--bz-f-display);
   font-weight: 800;
-  font-size: clamp(48px, 8vw, 88px);
-  letter-spacing: -0.04em;
+  /* INCERTAIN: 28px retenu comme taille de titre, pas le label mono 11px des sections. */
+  font-size: 28px;
+  letter-spacing: -0.03em;
   color: var(--bz-accent);
-  line-height: 1;
+  line-height: 1.1;
+}
+.bz-app button.bz-host-code-copy {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
 }
 .bz-app .bz-host-join {
   font-family: var(--bz-f-mono);
@@ -1149,7 +1169,8 @@ html, body {
   border: 1px solid var(--bz-line);
   border-radius: var(--bz-r-lg);
 }
-.bz-app .bz-host-section > h2 {
+.bz-app .bz-host-section > h2,
+.bz-app button.bz-host-section-toggle {
   font-family: var(--bz-f-mono);
   font-size: 11px;
   letter-spacing: 0.2em;
@@ -1160,6 +1181,28 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.bz-app button.bz-host-section-toggle {
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  justify-content: flex-start;
+  cursor: pointer;
+}
+.bz-app button.bz-host-section-toggle:hover,
+.bz-app button.bz-host-section-toggle:active {
+  background: transparent;
+  color: var(--bz-text-strong);
+  transform: none;
+}
+.bz-app .bz-host-section-title { flex: 0 1 auto; }
+.bz-app .bz-host-aside .bz-bc-preview-frame {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Host queue (smaller than player queue) */
@@ -1594,6 +1637,10 @@ html, body {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   z-index: 100;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
 }
 
 /* ── Patch · résidus de thème clair ────────────────────────────── */
@@ -1610,7 +1657,8 @@ html, body {
   color: var(--bz-text);
 }
 
-/* Avatar — cercle autour de l'image */
+/* Avatar — cercle autour de l'image, y compris hors de .bz-app (grand écran). */
+.bz-avatar-img,
 .bz-app .bz-avatar-img {
   flex-shrink: 0;
   object-fit: cover;
@@ -1800,8 +1848,7 @@ html, body {
 .bz-winner-screen {
   position: fixed;
   inset: 0;
-  background: linear-gradient(135deg, rgba(57, 233, 145, 0.12), rgba(255, 204, 46, 0.12));
-  backdrop-filter: blur(20px);
+  background: rgba(6, 6, 12, 0.88);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1877,12 +1924,14 @@ html, body {
 }
 .bz-bc-preview-frame {
   position: relative;
-  width: 480px;
-  min-width: 320px;
-  max-width: 640px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   aspect-ratio: 16 / 9;
   resize: both;
   overflow: hidden;
+  contain: paint;
+  transform: translateZ(0);
   border: 1px solid var(--bz-line-strong, #3a3a4a);
   border-radius: 12px;
   background: #0e0e16;
@@ -2050,3 +2099,259 @@ html, body {
 }
 .bz-team-view-toast p { margin: 0 0 10px; }
 .bz-team-view-toast-actions { display: flex; gap: 8px; }
+
+/* Next-question pause: yellow banner on the question block. */
+.bz-q-frame {
+  margin: 18px 0;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--bz-r-lg, 16px);
+  border: 1px solid var(--bz-line, #2c2c3c);
+  background: var(--bz-surface, #16161f);
+}
+.bz-q-frame .bz-board {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+.bz-q-frame-body { padding: 16px 18px 18px; }
+.bz-q-frame--broadcast {
+  width: 100%;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 12px;
+}
+.bz-q-frame--broadcast .bz-q-frame-body { padding: 28px 44px 32px; }
+.bz-q-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #ffca28;
+  color: #1a1a1a;
+  font-weight: 800;
+  white-space: nowrap;
+  font-size: 18px;
+}
+.bz-q-frame--broadcast .bz-q-banner {
+  gap: 20px;
+  padding: 18px 32px;
+  font-size: 28px;
+}
+.bz-q-progress { height: 5px; background: #3a3420; }
+.bz-q-frame--broadcast .bz-q-progress { height: 8px; }
+.bz-q-progress > span {
+  display: block;
+  height: 100%;
+  background: rgba(255, 202, 40, 0.85);
+}
+.bz-drain {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.bz-drain-num {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  line-height: 1;
+}
+
+/* Point modal. Solid overlay, no backdrop-filter (that painted the page black). */
+.bz-point-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(6, 6, 12, 0.78);
+}
+.bz-point-modal--broadcast { background: rgba(6, 6, 12, 0.8); }
+.bz-point-card {
+  width: min(326px, 100%);
+  box-sizing: border-box;
+  background: #1c1c28;
+  border: 1px solid #34344a;
+  border-radius: 20px;
+  padding: 30px 22px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.bz-point-modal--broadcast .bz-point-card {
+  width: min(640px, 100%);
+  border-radius: 28px;
+  padding: 48px 40px 40px;
+}
+.bz-point-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid #ffca28;
+  box-shadow: 0 0 0 4px rgba(255, 202, 40, 0.18), 0 0 28px 6px rgba(255, 202, 40, 0.45);
+}
+.bz-point-avatar--broadcast {
+  width: 220px;
+  height: 220px;
+  box-shadow: 0 0 0 6px rgba(255, 202, 40, 0.16), 0 0 48px 12px rgba(255, 202, 40, 0.45);
+}
+.bz-point-kicker {
+  margin: 16px 0 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #c9c9d6;
+}
+.bz-point-modal--broadcast .bz-point-kicker { font-size: 26px; }
+.bz-point-name {
+  margin: 4px 0 0;
+  font-size: 34px;
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.05;
+}
+.bz-point-modal--broadcast .bz-point-name { font-size: 64px; }
+.bz-point-pill {
+  margin: 12px 0 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  font-size: 16px;
+  font-weight: 800;
+}
+.bz-point-modal--broadcast .bz-point-pill { font-size: 26px; }
+.bz-point-count {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #c9c9d6;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.bz-point-modal--broadcast .bz-point-count {
+  margin-top: 30px;
+  gap: 16px;
+  font-size: 24px;
+}
+.bz-point-hint {
+  margin: 14px 0 0;
+  font-size: 12.5px;
+  color: #9a9ab0;
+}
+
+/* Launch mode cards. */
+.bz-app .bz-launch-dialog {
+  width: min(540px, 100%);
+  background: #1c1c28;
+  background-image: none;
+  border: 1px solid #2c2c3c;
+  border-radius: 16px;
+  padding: 28px;
+}
+.bz-app .bz-launch-dialog h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #fff;
+}
+.bz-app .bz-launch-sub {
+  margin: 8px 0 0;
+  font-size: 15px;
+  color: #c9c9d6;
+}
+.bz-launch-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+.bz-app button.bz-launch-card,
+.bz-app button.bz-launch-card:hover,
+.bz-app button.bz-launch-card:active {
+  width: 100%;
+  min-height: 72px;
+  height: auto;
+  padding: 16px 20px;
+  border-radius: 16px;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 14px;
+  text-align: left;
+  white-space: normal;
+  background: #ffca28;
+  color: #1a1a1a;
+  filter: none;
+  transform: none;
+  box-shadow: none;
+}
+.bz-app button.bz-launch-card--auto,
+.bz-app button.bz-launch-card--auto:hover,
+.bz-app button.bz-launch-card--auto:active {
+  background: #1e7a3c;
+  color: #fff;
+}
+.bz-app button.bz-launch-card:hover,
+.bz-app button.bz-launch-card:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  box-shadow: 0 6px 20px rgba(255, 202, 40, 0.25);
+}
+.bz-launch-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: rgba(26, 26, 26, 0.12);
+  font-size: 16px;
+}
+.bz-launch-card--auto .bz-launch-icon { background: rgba(255, 255, 255, 0.16); }
+.bz-launch-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.bz-launch-card-title {
+  font-size: 17px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bz-launch-card-desc {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: normal;
+}
+.bz-launch-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.bz-app button.bz-launch-cancel,
+.bz-app button.bz-launch-cancel:hover {
+  background: transparent;
+  color: #c9c9d6;
+  border: 1px solid #3a3a4c;
+  box-shadow: none;
+  filter: none;
+}

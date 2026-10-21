@@ -165,8 +165,19 @@ export interface Party {
   autoPlay: AutoPlayState;
   /** * Game kinds (round types) already seen in this party; used to determine if tutorial should be shown. */
   seenGameKinds: Set<string>;
-  /** * Pre-question countdown duration in seconds (3–10). */
+  /** * Pre-question countdown duration in seconds (3–10). §4.5, after « Prêt ». */
   countdownDurationSec: number;
+  /**
+   * * Pause before the next question becomes playable (3–30 s).
+   *   Distinct from `countdownDurationSec`.
+   */
+  nextQuestionCountdownSec: number;
+  /** * Server timestamp when the next-question pause started; null when that pause is idle. */
+  nextQuestionCountdownStartedAt: number | null;
+  /** * Point published while the next-question pause runs. Null when nobody scored. */
+  pointAward: PointAward | null;
+  /** * Point kept until the next pause starts. Absent from the public snapshot. */
+  pendingPointAward: PointAward | null;
   /** * When to show winner screen: "question" or "round". */
   winnerScreenMode: "question" | "round";
   /** * Player IDs who marked themselves ready for the next question. */
@@ -422,6 +433,12 @@ export interface PartyPublicSnapshot {
   };
   /** * Pre-question countdown duration in seconds (3–10), host only. */
   countdownDurationSec?: number;
+  /** * Pause before the next question (3–30 s). Distinct from `countdownDurationSec`. */
+  nextQuestionCountdownSec?: number;
+  /** * Server timestamp of the next-question pause; null when idle. */
+  nextQuestionCountdownStartedAt?: number | null;
+  /** * Point shown during the next-question pause. */
+  pointAward?: PointAward | null;
   /** * Winner screen mode: "question" or "round", host only. */
   winnerScreenMode?: "question" | "round";
   /** * IDs of players who marked ready for the next question. */
@@ -432,6 +449,14 @@ export interface PartyPublicSnapshot {
   countdownStartedAt?: number | null;
   /** * Winner screen state: null when not showing, or { playerId, playerName, avatarKey, score }. */
   winnerDisplay?: { playerId: string; playerName: string; avatarKey: string; score: number } | null;
+}
+
+/** * One scored player, shown on the point modal during the next-question pause. */
+export interface PointAward {
+  playerId: string;
+  playerName: string;
+  avatarKey: string;
+  points: number;
 }
 
 /** * Stored inside the player JWT (`pid` mandatory; Fastify validates `sub` as player id). */

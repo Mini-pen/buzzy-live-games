@@ -54,6 +54,7 @@ const createPartySchema = z
     closedAfterStart: z.boolean(),
     allowRename: z.boolean(),
     allowTeamChange: z.boolean(),
+    nextQuestionCountdownSec: z.number().int().min(3).max(30).optional(),
   })
   .superRefine((d, ctx) => {
     if (!d.playersUnlimited && d.maxPlayers === undefined) {
@@ -137,6 +138,10 @@ const verdictSoundsSchema = z.object({
 
 const countdownDurationSchema = z.object({
   seconds: z.number().int().min(3).max(10),
+});
+
+const nextQuestionCountdownSchema = z.object({
+  seconds: z.number().int().min(3).max(30),
 });
 
 const winnerScreenModeSchema = z.object({
@@ -389,6 +394,7 @@ export async function registerPartyRoutes(
         closedAfterStart: body.closedAfterStart,
         allowRename: body.allowRename,
         allowTeamChange: body.allowTeamChange,
+        nextQuestionCountdownSec: body.nextQuestionCountdownSec,
       });
 
       const joinRelative = `/join?code=${encodeURIComponent(party.joinCode)}`;
@@ -899,6 +905,26 @@ export async function registerPartyRoutes(
         if (!store.verifyAdminToken(party, token))
           return reply.status(401).send({ error: "UNAUTHORIZED" });
         store.adminSetCountdownDuration(party, body.seconds);
+        return snapHost(party);
+      } catch (err) {
+        if (err instanceof z.ZodError) {
+          return reply.status(400).send({ error: "VALIDATION", issues: err.issues });
+        }
+        return replyDomain(reply, err);
+      }
+    },
+  );
+
+  app.post<{ Params: { partyId: string } }>(
+    "/api/parties/:partyId/host/next-question-countdown",
+    async (req, reply) => {
+      try {
+        const body = nextQuestionCountdownSchema.parse(req.body ?? {});
+        const party = requireParty(store, req.params.partyId);
+        const token = readBearer(req.headers.authorization);
+        if (!store.verifyAdminToken(party, token))
+          return reply.status(401).send({ error: "UNAUTHORIZED" });
+        store.adminSetNextQuestionCountdownSec(party, body.seconds);
         return snapHost(party);
       } catch (err) {
         if (err instanceof z.ZodError) {
