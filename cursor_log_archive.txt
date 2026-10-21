@@ -186,3 +186,10 @@ Session 2026-10-21 — Hauteur stable, nombre de réponses (commit 575a232)
 - CA-66 : proposition de Design UI pour 2 à 6 réponses. Au-delà de 6 : À décider.
 - CA-70 : mesure et troncature à l'import, choix incertain. Coupe au dernier mot qui tient, encore une proposition.
 - CA-72 : remesure de toutes les réponses, choix incertain. Refus d'enregistrer, choix incertain de Specs Writer.
+
+================================================================================
+Session 2026-10-21 — Question suivante à l'ouverture du buzzer (commits dbfee86, e0d95c2)
+================================================================================
+- CA-60 : Décidé (Minipen, 21/10/2026, réponse transmise par Coding Agent). « la nouvelle question s'affiche seulement quand le buzzer s'ouvre », en privé à 22h52.
+- CA-61 : envoi avant l'ouverture, encore incertain. Phrase du §4.5 non réécrite.
+- Écart `5fd119a` : `commitCueAdvance` avance l'index trop tôt. `state` jamais "ended", écran noir de `WinnerScreen`. Correctifs non choisis.

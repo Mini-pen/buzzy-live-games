@@ -1,28 +1,30 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Affichage de la question à l'ouverture du buzzer. Documentation seule, poussée sur `main`.
+**Contexte** : Écran de résultat en fin de manche. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Passer en décidé l'affichage de la nouvelle question seulement à l'ouverture du buzzer.
-- Retirer cette question des points ouverts.
-- Noter deux écarts code/CDC de Test Writer, sans choisir le correctif.
+- Décider un podium à trois places sur le téléphone et la diffusion, à la place de l'écran noir `WinnerScreen`.
+- Relier cet écran à l'écart « state jamais ended », sans choisir le passage de `state`.
+- Laisser les cinq choix de Specs Writer en incertain.
 
 ## Réalisations
 
-- CA-60 : Décidé (Minipen, 21/10/2026, réponse transmise par Coding Agent). En privé, à 22h52 heure de Paris : « la nouvelle question s'affiche seulement quand le buzzer s'ouvre ». Pendant les décomptes, la question qui vient d'être jouée reste. La nouvelle n'apparaît qu'à l'ouverture. Avec tous les décomptes à 0, elle apparaît directement à l'ouverture. Pendant « Prêt ? », le CA-64 reste. La phrase du §4.5 sur le départ du décompte après l'affichage de la question n'est pas réécrite.
-- CA-61 : l'envoi avant l'ouverture reste un choix incertain.
-- Écart `5fd119a` : `commitCueAdvance` avance l'index avant la pause, la question suivante est visible trop tôt sur les trois écrans. Le correctif n'est pas choisi.
-- Écart `5fd119a` sur le CA-55 : le serveur ne passe jamais `state` à "ended". L'écran noir vient de `WinnerScreen` en plein écran en fin de manche. L'écran de fin de manche reste non décrit. Le correctif n'est pas choisi.
-- Le sens du lancement manuel reste un choix incertain.
+- CA-73 : Décidé par Minipen, « oui, écran de résultat sur le tel et sur l'écran de diffusion, avec un podium à 3 places ». Le téléphone de chaque joueur et la diffusion affichent ce podium. Il remplace `WinnerScreen`.
+- CA-44 et CA-55 : la phrase « écran de remplacement non décrit » est conservée et remplacée par ce podium, pour le téléphone et la diffusion. La page animateur n'est pas dans la décision.
+- Le serveur qui ne passe jamais `state` à "ended" reste l'écart de Test Writer (`5fd119a`). Le passage à "ended" n'est pas choisi.
+- Choix incertains de Specs Writer : équipes ou joueurs selon le mode, ex aequo sur la même marche, marches vides masquées, place et score hors podium, écran jusqu'au lancement de la suite.
+- Maquettes hors dépôt, ordinateur partagé : `podium_diffusion_v1.png` (1600×900) et `podium_joueur_v1.png` (390×844, sans défilement). Choix incertains de Design UI : badge « Ex æquo », classement dense 1, 1, 2, 3. Écart possible avec 1, 1, 3, à trancher. Mode équipes : nombre de joueurs. « Votre apport : N points » et le meilleur joueur sont une proposition.
+- Cas limites notés : ex aequo, 1 ou 2 joueurs, joueur déconnecté (place non décidée), tout le monde à 0 point.
+- Le CA-20 (écran de fin de partie, score ou rang, bouton « Suivant ») n'est pas tranché par cette fin de manche.
 
 ## Prochain focus suggéré
 
-- Confirmer l'envoi de la question suivante seulement à l'ouverture (CA-61).
-- Choisir le correctif de `commitCueAdvance` et celui de l'écran de fin de manche.
+- Confirmer les cinq choix du podium.
+- Dire si un joueur déconnecté pendant la manche figure sur le podium.
+- Choisir ou non le passage de `state` à "ended".
 
 ## Références
 
-- `cahier-des-charges.md` §4.5 et §4.6, CA-55, CA-60, CA-61.
-- Commit de Test Writer `5fd119a`, hors de `main` au moment de cette note.
+- `cahier-des-charges.md` §4.6, CA-44, CA-55, CA-73.
