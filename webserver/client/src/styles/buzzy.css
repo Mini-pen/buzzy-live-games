@@ -1197,7 +1197,7 @@ html, body {
 /* Sticky controls bar */
 .bz-app .bz-host-controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
   padding: 12px;
   background: color-mix(in oklab, var(--bz-surface) 92%, transparent);
@@ -1210,7 +1210,14 @@ html, body {
   margin-top: 8px;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
 }
-.bz-app .bz-host-controls button { height: 36px; font-size: 13px; padding: 0 12px; }
+.bz-app .bz-host-controls button {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 36px;
+  font-size: 13px;
+  padding: 0 8px;
+  white-space: nowrap;
+}
 .bz-app .bz-host-buzz-tools {
   display: flex;
   flex-wrap: wrap;
