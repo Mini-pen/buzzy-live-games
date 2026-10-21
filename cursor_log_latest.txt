@@ -1,31 +1,28 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-21  
-**Contexte** : Zone fixe, polices minimales et limite de saisie. Documentation seule, poussée sur `main`.
+**Contexte** : Hauteur stable, coupe à l'import et nombre de réponses. Documentation seule, poussée sur `main`.
 
 ## Objectifs
 
-- Remplacer le défilement de dernier recours et la coupe en jeu.
-- Fixer les polices minimales à 14 px et 10 px.
-- Faire de la mesure dans l'aperçu la règle principale d'enregistrement.
-- Ajouter les CA-67 à CA-70 sans trancher les choix encore ouverts.
+- Décider le calcul de hauteur sur la plus petite hauteur stable, sans suivre la barre d'adresse.
+- Répondre à l'endroit de la coupe à l'import par un choix incertain, sans le trancher.
+- Remplacer l'écart « N ≠ 4 non décidé » par la proposition de Design UI, et noter le vide au-delà de 6.
+- Ajouter la remesure de toutes les réponses quand on en ajoute ou en retire une.
 
 ## Réalisations
 
-- CA-66 : zone fixe par écran, buzzer immobile. Polices minimales décidées, 14 px pour la question et 10 px pour les réponses. Les 15 px, 12 px et 8 px sont conservés et marqués remplacés. La répartition de Design UI (48 px, 50 %, 35 %, quatre réponses, buzzer 30 % plafonné à 230 px) remplace les 140 px et 46 px fixes, qui restent un exemple pour le 390×844. Écart : cette répartition suppose quatre réponses, alors que `quizChoiceIndex` va de 0 à N-1. Le partage quand N n'est pas 4 n'est pas décidé. Mesure du buzzer sur 360×640, 390×844 et une tablette, par un test navigateur Playwright et non par Vitest. Le §5.1.4, qui dit qu'aucun Playwright n'est configuré, est conservé.
-- CA-67 : aucun défilement, et rien n'est coupé en jeu. Le filet « … » pour d'anciens packs reste incertain.
-- CA-68 : l'éditeur refuse un texte qui ne tient pas dans l'aperçu à la police minimale, même sous la limite de caractères. L'À décider « avertir ou bloquer » est résolu. Les limites 140 et 120 (le 120 remplace le 60) restent incertaines.
-- CA-69 : compteur « 128 / 140 » et aperçu téléphone, décidé (« c'est parfait »). Maquette `editeur_limites_v1.png`. Le gris, les 85 % (ils remplacent les 90 %), le bouton grisé et le contour rouge restent des propositions.
-- CA-70 : à l'import ZIP, question et réponse trop longues sont tronquées, avec le message « Attention, la question xx dépasse la taille autorisée ». À décider : où couper un texte sous la limite de caractères mais trop large à la mesure. Proposition non tranchée : au dernier mot qui tient.
+- CA-71 : décidé (« oui, je valide ce plan ! »). La répartition se calcule sur la plus petite hauteur stable. Elle ne change pas avec la barre d'adresse. Elle n'est recalculée qu'à la rotation. Testeur le vérifie sur un vrai téléphone, en faisant défiler la page.
+- CA-70 : choix incertain de Coding Agent, proposition de Testeur. Après l'import, le navigateur mesure chaque texte, tronque jusqu'à ce qu'il tienne, puis affiche « Attention, la question N dépasse la taille autorisée ». La coupe au dernier mot qui tient reste une proposition. Le point n'est pas décidé.
+- CA-66 : proposition de Design UI pour N. De 2 à 4 réponses, une colonne, parts égales, police jusqu'à 16 px avec 2 réponses. 5 ou 6 réponses, deux colonnes de 3 lignes. Le bloc question et le buzzer ne bougent pas. Au-delà de 6 réponses : À décider.
+- CA-72 : choix incertain de Testeur. L'éditeur remesure toutes les réponses, pas seulement le champ modifié. Cas limite : des textes à la limite qui ne tiennent plus de 4 à 5 réponses. Choix incertain de Specs Writer : l'éditeur refuse alors d'enregistrer et signale les réponses concernées.
 
 ## Prochain focus suggéré
 
-- Confirmer l'écran de mesure 360×640, le garde-fou 140 / 120, et la mesure seulement dans le navigateur.
-- Trancher où couper à l'import un texte sous la limite de caractères mais trop large à la mesure.
-- Confirmer la répartition de hauteur, et le partage quand le nombre de réponses n'est pas 4.
-- Citer le chemin du fichier de phrases dès qu'il est sur main.
+- Confirmer la disposition des cases selon N, et trancher au-delà de 6 réponses.
+- Confirmer la mesure à l'import et la coupe au dernier mot qui tient.
+- Confirmer la remesure de toutes les réponses, et le refus d'enregistrer quand elles ne tiennent plus.
 
 ## Références
 
-- `cahier-des-charges.md` §4.6, CA-66 à CA-70.
-- `editeur_limites_v1.png`, hors dépôt, `/workspace/ui/buzzy/`.
+- `cahier-des-charges.md` §4.6, CA-66 à CA-72.

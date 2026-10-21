@@ -169,3 +169,12 @@ Session 2026-10-21 — Bloc d'attente à hauteur question et réponses (commit 1
 - CA-65 : réponses cachées, décidé, parce que Minipen a validé la v5.
 - CA-66 de ce commit : pas de trou. Choix incertain alors : hauteur de la question précédente, petit saut, hauteur par défaut. Les 386 px de la v6 illustrent un 390×844.
 - Phrase identique sur tous les écrans, tirée par le serveur : décidé. « Jamais deux fois de suite » reste incertain. Chemin du fichier de phrases absent de main.
+
+================================================================================
+Session 2026-10-21 — Zone fixe, mesure à la création, import ZIP (commit 59ed400)
+================================================================================
+- Polices minimales décidées : 14 px pour la question, 10 px pour les réponses. Les 15 px, 12 px et 8 px sont marqués remplacés.
+- CA-67 : aucun défilement, rien n'est coupé en jeu. Filet « … » pour anciens packs encore incertain.
+- CA-68 : la mesure dans l'aperçu refuse un texte qui ne tient pas, même sous la limite de caractères.
+- CA-69 : compteur « 128 / 140 » et aperçu téléphone, décidé. Maquette `editeur_limites_v1.png`. Détails de gris et de 85 % encore en proposition.
+- CA-70 : import ZIP, troncature et message. Où couper un texte sous la limite mais trop large restait À décider.
