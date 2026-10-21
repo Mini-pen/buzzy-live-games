@@ -927,7 +927,7 @@ describe("ready marks and the host return tab", () => {
     const orangeCaption = orange.querySelector(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption");
     const orangeCount = orange.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count");
     expect(orangeCaption?.textContent).toContain("Touchez quand vous êtes prêt");
-    expect(orangeCount?.textContent).toMatch(/joueurs pr/);
+    expect(orangeCount?.textContent).toMatch(/joueurs prêts/);
     expect(orange.querySelector(".bz-ready-hold .bz-ready-roster")).not.toBeNull();
     expect(getComputedStyle(orangeCaption as Element).bottom).not.toBe(getComputedStyle(orangeCount as Element).bottom);
     expect(getComputedStyle(orange.querySelector(".bz-buzz-slot") as Element).overflow).toBe("hidden");
@@ -938,7 +938,7 @@ describe("ready marks and the host return tab", () => {
       "Touchez à nouveau pour annuler",
     );
     expect(green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count")?.textContent).toMatch(
-      /joueurs pr/,
+      /joueurs prêts/,
     );
     const greenCaption = green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption");
     const greenCount = green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count");

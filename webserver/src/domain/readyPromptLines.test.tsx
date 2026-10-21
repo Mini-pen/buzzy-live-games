@@ -111,7 +111,7 @@ describe("consigne et compteur Prêt", () => {
     expect(greenButton?.textContent?.trim()).toBe("Prêt !");
     const greenLines = pair(green);
     expect(greenLines.caption.textContent?.trim()).toBe("Touchez à nouveau pour annuler");
-    expect(greenLines.count.textContent?.trim()).toBe("1 / 2 joueurs prêt");
+    expect(greenLines.count.textContent?.trim()).toBe("1 / 2 joueurs prêts");
   });
 
   it.todo("Playwright");

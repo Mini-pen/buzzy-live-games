@@ -147,5 +147,6 @@ export function readyStatusLabel(ready: number, total: number, surface: "player"
   }
   // INCERTAIN: « 3 / 5 joueurs prêts » under the player button is a Design UI proposal.
   const joueur = safeTotal === 1 ? "joueur" : "joueurs";
-  return `${safeReady} / ${safeTotal} ${joueur} ${pret}`;
+  const joueursPrets = safeTotal === 1 ? "prêt" : "prêts";
+  return `${safeReady} / ${safeTotal} ${joueur} ${joueursPrets}`;
 }

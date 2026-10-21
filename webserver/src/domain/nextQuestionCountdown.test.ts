@@ -340,7 +340,9 @@ describe("next-question countdown", () => {
     expect(pointAwardLabel(1, "2")).toBe("+ 1 point pour l'équipe 2");
     expect(pointAwardLabel(10, "2")).toBe("+ 10 points pour l'équipe 2");
     expect(readyStatusLabel(3, 5, "player")).toBe("3 / 5 joueurs prêts");
-    expect(readyStatusLabel(1, 5, "player")).toBe("1 / 5 joueurs prêt");
+    expect(readyStatusLabel(1, 5, "player")).toBe("1 / 5 joueurs prêts");
+    expect(readyStatusLabel(1, 1, "player")).toBe("1 / 1 joueur prêt");
+    expect(readyStatusLabel(0, 1, "player")).toBe("0 / 1 joueur prêt");
     expect(readyStatusLabel(3, 5, "summary")).toBe("3/5 prêts");
     expect(readyStatusLabel(1, 5, "summary")).toBe("1/5 prêt");
   });
