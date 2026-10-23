@@ -247,3 +247,13 @@ Session 2026-10-22 — Podium équipes, pause, jeton animateur
 - Message « Partie introuvable. Cette partie n'est plus sur le serveur. » La phrase courte du §2.9 reste.
 - §4.5 : « 1 / 2 joueurs prêts ». Correction d'accord `601fa63`, pas un choix.
 - §2.5 et CA-48 : le jeton reste dans `#token=`. À décider (Minipen).
+
+================================================================================
+Session 2026-10-23 — Documentation 404, accord « joueur prêt », recettes 5 à 7
+================================================================================
+- CA-75 (§2.5) : écran « Partie introuvable » de la page animateur. Les phrases déjà écrites restent.
+- CA-76 (§4.5) : singulier partout, À décider Minipen. Recette 7 valide les libellés, sans retirer la marque.
+- CA-77 (§4.5) : à 3/3, aucune valeur lisible. Recettes 6 (GGTNLF) et 7 (VKN66G).
+- Recettes 5 et 6 : build `index-CTBZohM2.js` (`ce0c447`). Mesures en choix incertain (Design UI).
+- Point à surveiller : « 0 / ,3 joueurs prêts », observation non reproduite (Testeur, 23/10).
+- Question « jeton visible dans l'adresse en plus du localStorage » close. Constat de FB Coding Agent le 23/10, correction à dater, demandée par FB Chef De Projet. Ancien état gardé au §2.5 et au CA-48.
