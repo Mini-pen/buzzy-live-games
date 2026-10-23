@@ -14,15 +14,34 @@ import type { PartyPublicSnapshot } from "./types.js";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-/** * Last `party:patch` listener. A test pushes a stale snapshot through it while a field is focused. */
-export const socketSink: { onPatch: ((snapshot: unknown) => void) | null } = { onPatch: null };
+type SocketListener = (payload: unknown) => void;
+
+/**
+ * * Last socket listeners registered by the mounted page.
+ *   `onPatch` stays for tests that push a stale snapshot while a field is focused.
+ */
+export const socketSink: {
+  onPatch: SocketListener | null;
+  listeners: Map<string, SocketListener>;
+} = { onPatch: null, listeners: new Map() };
+
+/** * Delivers one socket event to the listener the page registered. */
+export function emitAdminSocket(event: string, payload: unknown): void {
+  const listener = socketSink.listeners.get(event);
+  if (listener === undefined) throw new Error(`no socket listener for ${event}`);
+  listener(payload);
+}
 
 vi.mock("socket.io-client", () => ({
   io: () => ({
     on: (event: string, cb: (payload: unknown) => void) => {
+      socketSink.listeners.set(event, cb);
       if (event === "party:patch") socketSink.onPatch = cb;
     },
-    off: () => undefined,
+    off: (event: string) => {
+      socketSink.listeners.delete(event);
+      if (event === "party:patch") socketSink.onPatch = null;
+    },
     disconnect: () => undefined,
     emit: () => undefined,
   }),
@@ -109,9 +128,22 @@ export async function flushAdmin(): Promise<void> {
   });
 }
 
-function screenSettled(container: HTMLElement, route: string, settleOnTokenWall: boolean): boolean {
+function screenSettled(
+  container: HTMLElement,
+  route: string,
+  flags: { settleOnTokenWall: boolean; settleOnUnavailable: boolean },
+): boolean {
   const text = container.textContent ?? "";
-  if (settleOnTokenWall && text.includes("Jeton animateur absent ou lien incomplet")) return true;
+  if (flags.settleOnTokenWall && text.includes("Jeton animateur absent ou lien incomplet")) return true;
+  if (
+    flags.settleOnUnavailable &&
+    (text.includes("Partie introuvable") ||
+      text.includes("Jeton refusé") ||
+      text.includes("Partie indisponible") ||
+      text.includes("Connexion impossible"))
+  ) {
+    return true;
+  }
   if (text.includes("Partie indisponible") || text.includes("Partie introuvable")) return false;
   if (route.includes("/broadcast")) {
     return container.querySelector(".bz-broadcast") !== null && !text.includes("Connexion à la partie");
@@ -128,6 +160,8 @@ export interface ShowAdminOptions {
   playerId?: string;
   /** * When the token wall is a result the test asserts, do not throw on it. */
   settleOnTokenWall?: boolean;
+  /** * When « Partie introuvable » or « Jeton refusé » is the result the test asserts. */
+  settleOnUnavailable?: boolean;
   respond?: (request: AdminRequest) => Response | null;
 }
 
@@ -143,6 +177,7 @@ export async function showAdminScreen(
 ): Promise<HTMLElement> {
   adminRequests.length = 0;
   socketSink.onPatch = null;
+  socketSink.listeners.clear();
   responder = options?.respond ?? null;
   installAdminFetch(host, player);
   if (route.includes("/play")) rememberPlayer(host().id, options?.playerId ?? "alice");
@@ -166,7 +201,12 @@ export async function showAdminScreen(
   });
   for (let i = 0; i < 10; i += 1) {
     await flushAdmin();
-    if (screenSettled(container, route, options?.settleOnTokenWall === true)) {
+    if (
+      screenSettled(container, route, {
+        settleOnTokenWall: options?.settleOnTokenWall === true,
+        settleOnUnavailable: options?.settleOnUnavailable === true,
+      })
+    ) {
       if (renderErrors.length > 0) throw renderErrors[0];
       return container;
     }
@@ -183,6 +223,7 @@ export async function releaseAdminScreens(options?: { keepStorage?: boolean; kee
   renderErrors.length = 0;
   responder = null;
   socketSink.onPatch = null;
+  socketSink.listeners.clear();
   document.body.replaceChildren();
   if (options?.keepStorage !== true) {
     localStorage.clear();
