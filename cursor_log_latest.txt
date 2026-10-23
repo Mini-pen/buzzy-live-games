@@ -16,6 +16,7 @@
 - CA-77 (§4.5) : à 3/3, aucune valeur lisible. Recettes 6 (GGTNLF) et 7 (VKN66G).
 - Recettes 5 et 6 : build `index-CTBZohM2.js` (`ce0c447`). Mesures en choix incertain (Design UI).
 - Point à surveiller : « 0 / ,3 joueurs prêts », observation non reproduite (Testeur, 23/10).
+- Question « jeton visible dans l'adresse en plus du localStorage » close. Constat de FB Coding Agent le 23/10, correction à dater, demandée par FB Chef De Projet. Ancien état gardé au §2.5 et au CA-48.
 
 ## Prochain focus suggéré
 
