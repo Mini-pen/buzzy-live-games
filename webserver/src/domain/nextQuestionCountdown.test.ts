@@ -339,13 +339,11 @@ describe("next-question countdown", () => {
     expect(pointAwardLabel(10, pointTeamLabel(2, null))).toBe("+ 10 points pour l'équipe 2");
     expect(pointAwardLabel(1, "2")).toBe("+ 1 point pour l'équipe 2");
     expect(pointAwardLabel(10, "2")).toBe("+ 10 points pour l'équipe 2");
-    expect(readyStatusLabel(3, 5, "player")).toBe("3 / 5 joueurs prêts");
-    expect(readyStatusLabel(1, 5, "player")).toBe("1 / 5 joueur prêt");
-    expect(readyStatusLabel(1, 3, "player")).toBe("1 / 3 joueur prêt");
-    expect(readyStatusLabel(2, 3, "player")).toBe("2 / 3 joueurs prêts");
-    expect(readyStatusLabel(1, 1, "player")).toBe("1 / 1 joueur prêt");
-    expect(readyStatusLabel(0, 3, "player")).toBe("0 / 3 joueurs prêts");
-    expect(readyStatusLabel(0, 1, "player")).toBe("0 / 1 joueurs prêts");
+    // * The player sentence is a Design UI proposal. It lives in uncertainPlayerReadyLabel.test.tsx.
+    //   CDC §4.5 fixes only the agreement: singular for 1 (« 1 joueur »), plural otherwise, including 0.
+    expect(readyStatusLabel(1, 1, "player")).toContain("1 joueur");
+    expect(readyStatusLabel(0, 3, "player")).toContain("joueurs prêts");
+    expect(readyStatusLabel(0, 3, "player")).not.toContain("joueur prêt");
     expect(readyStatusLabel(3, 5, "summary")).toBe("3/5 prêts");
     expect(readyStatusLabel(1, 5, "summary")).toBe("1/5 prêt");
     expect(readyStatusLabel(0, 5, "summary")).toBe("0/5 prêts");

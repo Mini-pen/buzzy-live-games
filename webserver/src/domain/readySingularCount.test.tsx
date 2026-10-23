@@ -8,8 +8,8 @@ import { releaseRenderedScreens, showPartyScreen } from "./renderPartyScreen.js"
 import { PartyStore } from "./store.js";
 
 /**
- * * Singular ready line on the phone when the only player is ready.
- *   « 1 / 2 joueur prêt » is already covered in readyPromptLines.test.tsx.
+ * * CDC §4.5, correction 601fa63, not a choice: the singular stays for 1, « 1 joueur ».
+ *   One ready player of one. The open label for several players is uncertainPlayerReadyLabel.test.tsx.
  */
 
 const buzzCatalog: LoadedBuzzSoundCatalog = {
