@@ -14,6 +14,7 @@
 - 20/20 réussites du test « shows that buzz on a later GET once the grace window has elapsed ».
 - Build OK. Suite : 518 réussites. Deux échecs déjà présents sur `main` sans ce diff : `questionJumpBeforeHash.test.tsx` (l. 157) et `uncertainHostTokenInAddress.test.tsx` (l. 107). Aucun fichier `*.test.*` modifié.
 - Virgule « 0 / ,3 » : aucune cause dans le code actuel (FB Coding Agent, 23/10), rien corrigé, hypothèse d'un ancien build non vérifiée, toujours en observation. `2b83f02` ajoute `INCERTAIN` sur l'accord singulier, sans changer le comportement. L'accord reste À décider (Minipen).
+- Effet de bord de `bd450b60` (FB Coding Agent, 23/10, `store.ts`) : un buzz en attente pendant la pause reprend le délai de grâce restant au lieu de se clore pendant le gel. Choix incertain, à confirmer par Minipen. Rattaché à l'écart pause du §2.5 (retour lobby au CDC, gel dans le code `f81d3ec`). Non tranché.
 
 ## Prochain focus suggéré
 
