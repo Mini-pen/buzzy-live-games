@@ -237,3 +237,20 @@ Session 2026-10-21 — Fin de manche, dernière question, livraisons 6023afd (co
 - CA-73 : À décider si la manche se termine seule ou seulement avec « Afficher gagnant ».
 - `6023afd` : « Question suivante → » désactivé, réglage numérique à la sortie du champ. Ne répond pas à l'À décider.
 - Statuts de recette : réponse D, contour jaune, hauteur 398 px, podium en escalier. Recette toujours en cours.
+
+================================================================================
+Session 2026-10-22 — Podium équipes, pause, jeton animateur (documentation)
+================================================================================
+- CA-73 : « N joueurs » (« 1 joueur ») sous le nom d'équipe, sur sa marche. Choix incertain, `98e9559`.
+- §2.5 : pause qui gèle l'écran. La phrase « retour lobby » reste. « Afficher gagnant » ouvre le podium, sans répondre à l'À décider. Saut `?question=N` sans bouton. Message « Partie introuvable. Cette partie n'est plus sur le serveur. » La phrase courte du §2.9 reste.
+- §4.5 : « 1 / 2 joueurs prêts ». Correction d'accord, pas un choix.
+- §2.5 et CA-48 : le jeton reste dans `#token=`. À décider (Minipen).
+
+================================================================================
+Session 2026-10-23 — Tests jeton, 404, dialogue, tutoriel
+================================================================================
+- Branche `cursor/host-token-dialog-tutorial-tests-151c`. Tests seulement, pas de code de production.
+- `#token` est retiré dès que le localStorage relit le même jeton. Un 404 garde `partygames:hostToken:<id>`. Un 401 l'efface. Un 403 ne l'efface pas : `it.fails`, cause `App.tsx:963` et `App.tsx:3890-3894`.
+- Libellé exact du 404 isolé (`LONG_MISSING_PARTY_COPY`). Chrome du dialogue et du tutoriel isolé (`FOREGROUND_DARK_CHROME`). Pixels en `it.todo` Playwright.
+- Le singulier « 1 / 3 joueurs prêts » n'est pas figé : le Coding Agent le corrige en « 1 / 3 joueur prêt ».
+- Suite Vitest : 538 tests, 531 passés, 7 todo. `buzzRegistrationRace` vert.

@@ -15,7 +15,7 @@ import { PartyStore } from "./store.js";
 import type { Party, PartyPublicSnapshot } from "./types.js";
 
 /**
- * * `?question=70` is read before `#token`.
+ * * `?question=70` is read from the query. `#token` is stored, then removed from the address.
  *   Out-of-range values stay on the current question and surface the store's sentence.
  */
 
@@ -149,12 +149,14 @@ async function openJump(rawQuestion: string, count: number): Promise<{ page: HTM
 }
 
 describe("?question avant #token", () => {
-  it("saute à la question 70 demandée dans la query, le jeton restant dans le fragment", async () => {
+  it("saute à la question 70 demandée dans la query, puis retire #token", async () => {
     begin();
     const { page, party } = await openJump("70", 70);
     expect(page.querySelector(".bz-host-controls")).not.toBeNull();
     expect(page.textContent).not.toContain("Jeton animateur absent ou lien incomplet");
-    expect(window.location.hash).toContain(`token=${TOKEN}`);
+    expect(window.location.hash.includes("token=")).toBe(false);
+    expect(window.location.search).toContain("question=70");
+    expect(localStorage.getItem(`partygames:hostToken:${party.id.toLowerCase()}`)).toBe(TOKEN);
     expect(page.textContent).toContain("ENONCE_70");
     expect(party.currentQuestionIndex).toBe(69);
     const jump = adminRequests.find((request) => request.url.includes("/host/jump-question"));

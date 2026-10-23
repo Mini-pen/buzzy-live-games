@@ -129,11 +129,20 @@ describe("saisie d'un réglage numérique", () => {
       });
       expect(field?.value).toBe("30");
 
+      await act(async () => {
+        socketSink.onPatch?.({ ...stale, nextQuestionCountdownSec: 30 });
+      });
+      expect(field?.value).toBe("30");
+      await act(async () => {
+        socketSink.onPatch?.({ ...stale, nextQuestionCountdownSec: 8 });
+      });
+      expect(field?.value).toBe("8");
+
       const firstThirty = assigned.indexOf("30");
       const snappedBack = firstThirty >= 0 && assigned.slice(firstThirty + 1).includes("20");
-      // * The brief return to the old value after Enter is still an open bug if this is true.
-      //   Cause to name if it fails: HostNumberField clears `draft` on blur (App.tsx:3304-3306)
-      //   before the server snapshot echoes 30, so the input paints `props.value` again.
+      // * HostNumberField keeps the typed number in `optimisticHostNumbers` until the snapshot
+      //   echoes it (`shown`, App.tsx:3399; blur keeps that hold, App.tsx:3446-3450).
+      //   A return to 20 after Enter means the old `props.value` was painted again.
       expect(snappedBack).toBe(false);
     } finally {
       if (descriptor !== undefined) Object.defineProperty(HTMLInputElement.prototype, "value", descriptor);
