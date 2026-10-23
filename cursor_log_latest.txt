@@ -15,6 +15,7 @@
 - Build OK. Suite : 518 réussites. Deux échecs déjà présents sur `main` sans ce diff : `questionJumpBeforeHash.test.tsx` (l. 157) et `uncertainHostTokenInAddress.test.tsx` (l. 107). Aucun fichier `*.test.*` modifié.
 - Virgule « 0 / ,3 » : aucune cause dans le code actuel (FB Coding Agent, 23/10), rien corrigé, hypothèse d'un ancien build non vérifiée, toujours en observation. `2b83f02` ajoute `INCERTAIN` sur l'accord singulier, sans changer le comportement. L'accord reste À décider (Minipen).
 - Effet de bord, commits `bd450b60` et `b09e6346` : un buzz en attente pendant la pause reprend le délai de grâce restant au lieu de se clore pendant le gel. À décider (Minipen), demande de FB Chef De Projet. `b09e6346` pose le commentaire INCERTAIN de FB Coding Agent dans `adminToggleLivePause`, juste avant `scheduleGraceFinalize(party)`, sans changement de comportement ni de test. Rattaché à l'écart pause du §2.5 (retour lobby au CDC, gel dans le code `f81d3ec`). Non tranché.
+- Recette 8 (TS Testeur, CVQB9D, `index-C5erKbXt.js`) : deux buzz quasi simultanés OK, le premier gagne ; pause en fenêtre de grâce OK, gagnant vers 1,5 s après « Reprendre », délai exact non mesuré, À décider Minipen conservé. Plafond 1000 ms déjà au CDC. « BUZZ ! » inactif sans choix QCM : À décider (Minipen). Onglets d'un même navigateur, 1 à 3 erreurs console non inspectées, partie laissée en place.
 
 ## Prochain focus suggéré
 
