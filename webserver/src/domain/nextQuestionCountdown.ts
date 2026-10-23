@@ -141,6 +141,7 @@ export function pointAwardLabel(points: number, teamName?: string | null): strin
 export function readyStatusLabel(ready: number, total: number, surface: "player" | "summary"): string {
   const safeReady = Number.isFinite(ready) ? Math.max(0, Math.floor(ready)) : 0;
   const safeTotal = Number.isFinite(total) ? Math.max(0, Math.floor(total)) : 0;
+  // INCERTAIN: FB Coding Agent, 2026-10-23, accord « joueur prêt » au singulier à 1 seul prêt, 0 au pluriel, aligné sur l'animateur, à confirmer par Minipen
   const pret = safeReady === 1 ? "prêt" : "prêts";
   if (surface === "summary") {
     // INCERTAIN: host and broadcast use « 3/5 prêts ».
