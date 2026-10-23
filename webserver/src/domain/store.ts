@@ -47,7 +47,7 @@ import type {
 } from "./types.js";
 import { computeEstimatedTimestamp, rankBuzzByEstimatedTime } from "./clockSync.js";
 
-function clearBuzzQueue(party: Party, opts?: { keepWinnerHighlight?: boolean }): void {
+function resetBuzzQueueState(party: Party, opts?: { keepWinnerHighlight?: boolean }): void {
   party.buzzOrder = [];
   party.buzzQuizGuess.clear();
   party.pendingBuzzQueue = [];
@@ -125,16 +125,31 @@ export class PartyStore {
     this.parties.delete(id);
   }
 
-  /** * Finalizes the parked buzz when the grace window ends, even if nobody buzzes again. */
+  /**
+   * * Arms one timer until `Date.now()` reaches the grace deadline.
+   *   `setTimeout` can run about 1 ms early. A callback that misses the check
+   *   schedules the remainder instead of leaving the buzz parked.
+   */
   private scheduleGraceFinalize(party: Party): void {
     if (this.graceFinalizeTimers.has(party.id)) return;
+    if (party.liveRoundPausedAt != null) return;
     if (party.buzzWindowFirstBuzzAt === null || party.pendingBuzzQueue.length === 0) return;
-    const elapsed = Date.now() - party.buzzWindowFirstBuzzAt;
-    const delay = Math.max(0, party.buzzGraceWindowMs - elapsed);
+    const remaining = party.buzzGraceWindowMs - (Date.now() - party.buzzWindowFirstBuzzAt);
+    if (remaining <= 0) {
+      if (this.maybeFinalizeBuzzDecision(party)) return;
+      // * The wall clock stepped back between the two reads. One millisecond later the check runs again.
+      const retry = setTimeout(() => {
+        this.graceFinalizeTimers.delete(party.id);
+        this.scheduleGraceFinalize(party);
+      }, 1);
+      this.graceFinalizeTimers.set(party.id, retry);
+      return;
+    }
+    // * The callback drops its own id before arming again, so a short timer cannot block the retry.
     const timer = setTimeout(() => {
       this.graceFinalizeTimers.delete(party.id);
-      this.maybeFinalizeBuzzDecision(party);
-    }, delay);
+      this.scheduleGraceFinalize(party);
+    }, remaining);
     this.graceFinalizeTimers.set(party.id, timer);
   }
 
@@ -143,6 +158,12 @@ export class PartyStore {
     if (timer === undefined) return;
     clearTimeout(timer);
     this.graceFinalizeTimers.delete(partyId);
+  }
+
+  /** * Drops the parked buzz and the timer that would otherwise close the old window. */
+  private clearBuzzQueue(party: Party, opts?: { keepWinnerHighlight?: boolean }): void {
+    this.clearGraceFinalizeTimer(party.id);
+    resetBuzzQueueState(party, opts);
   }
 
   broadcast(party: Party): void {
@@ -740,7 +761,7 @@ export class PartyStore {
   }
 
   resetBuzzBoard(party: Party): void {
-    clearBuzzQueue(party);
+    this.clearBuzzQueue(party);
     this.touch(party);
     this.broadcast(party);
   }
@@ -761,7 +782,7 @@ export class PartyStore {
         party.lastBuzzGapMs = null;
       }
     } else {
-      clearBuzzQueue(party, { keepWinnerHighlight: true });
+      this.clearBuzzQueue(party, { keepWinnerHighlight: true });
       party.buzzWindowOpenedAt = null;
     }
     this.touch(party);
@@ -845,6 +866,9 @@ export class PartyStore {
       );
     }
     party.buzzGraceWindowMs = durationMs;
+    // * The armed delay was computed from the previous duration.
+    this.clearGraceFinalizeTimer(party.id);
+    this.scheduleGraceFinalize(party);
     this.touch(party);
     this.broadcast(party);
   }
@@ -932,7 +956,7 @@ export class PartyStore {
         }
       }
     }
-    clearBuzzQueue(party);
+    this.clearBuzzQueue(party);
     this.syncActiveQuizProgressIntoScriptItem(party);
     this.touch(party);
     this.notify(party.id, party, extras);
@@ -975,7 +999,7 @@ export class PartyStore {
     pack: QuizPack | null,
     opts?: { gap?: boolean },
   ): void {
-    clearBuzzQueue(party);
+    this.clearBuzzQueue(party);
     party.buzzWindowOpen = false;
     this.clearReadyPhase(party);
     if (opts?.gap !== false && party.appliedNextQuestionCountdownSec > 0) {
@@ -1283,7 +1307,7 @@ export class PartyStore {
         party.currentQuestionIndex = null;
         if (party.state === "round_active") party.state = "lobby";
         party.buzzWindowOpen = false;
-        clearBuzzQueue(party);
+        this.clearBuzzQueue(party);
       }
     }
     
@@ -1429,6 +1453,8 @@ export class PartyStore {
     const pausedAt = party.liveRoundPausedAt ?? null;
     if (pausedAt === null) {
       party.liveRoundPausedAt = Date.now();
+      // * A timer armed before the pause would close the grace window while the clock is frozen.
+      this.clearGraceFinalizeTimer(party.id);
       this.touch(party);
       this.broadcast(party);
       return;
@@ -1436,6 +1462,8 @@ export class PartyStore {
     const heldMs = Math.max(0, Date.now() - pausedAt);
     party.liveRoundPausedAt = null;
     this.shiftLiveClocks(party, heldMs);
+    // INCERTAIN: FB Coding Agent, 2026-10-23, un buzz en attente pendant la pause reprend le délai de grâce restant au lieu de se clore pendant le gel, à confirmer par Minipen (commit bd450b60)
+    this.scheduleGraceFinalize(party);
     this.touch(party);
     this.broadcast(party);
   }
@@ -1454,7 +1482,7 @@ export class PartyStore {
     this.syncActiveQuizProgressIntoScriptItem(party);
     party.state = "lobby";
     party.buzzWindowOpen = false;
-    clearBuzzQueue(party);
+    this.clearBuzzQueue(party);
     party.mancheResultOpen = false;
     this.clearNextQuestionPause(party);
     this.touch(party);
@@ -1564,7 +1592,7 @@ export class PartyStore {
     }
     party.videoReplaySerial += 1;
     party.buzzWindowOpen = false;
-    clearBuzzQueue(party);
+    this.clearBuzzQueue(party);
     this.syncActiveQuizProgressIntoScriptItem(party);
     this.touch(party);
     this.broadcast(party);
@@ -2259,7 +2287,7 @@ export class PartyStore {
       party.currentQuestionIndex = null;
       party.loadedPackId = null;
       party.buzzWindowOpen = false;
-      clearBuzzQueue(party);
+      this.clearBuzzQueue(party);
     } else {
       party.activeMancheId = item.id;
       this.hydrateRuntimeFromMancheItem(party, item, packs);
