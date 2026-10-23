@@ -1,6 +1,33 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
 **Date** : 2026-10-23  
+**Contexte** : Documentation seule. Écran 404 animateur, accord « joueur prêt », recettes 5 à 7. Poussée sur `main`.
+
+## Objectifs
+
+- Consigner trois À décider Minipen, sans les trancher.
+- Aligner l'exemple « 1 / 2 joueurs prêts » sur « 1 / 2 joueur prêt », SHA `a4571828`.
+- Noter les recettes 5, 6 et 7 du 23/10, et le point à surveiller sur la virgule.
+
+## Réalisations
+
+- CA-75 (§2.5) : écran « Partie introuvable » de la page animateur. Les phrases déjà écrites restent.
+- CA-76 (§4.5) : singulier partout, À décider Minipen. Recette 7 valide les libellés, sans retirer la marque.
+- CA-77 (§4.5) : à 3/3, aucune valeur lisible. Recettes 6 (GGTNLF) et 7 (VKN66G).
+- Recettes 5 et 6 : build `index-CTBZohM2.js` (`ce0c447`). Mesures en choix incertain (Design UI).
+- Point à surveiller : « 0 / ,3 joueurs prêts », observation non reproduite (Testeur, 23/10).
+- Question « jeton visible dans l'adresse en plus du localStorage » close. Constat de FB Coding Agent le 23/10, correction à dater, demandée par FB Chef De Projet. Ancien état gardé au §2.5 et au CA-48.
+
+## Prochain focus suggéré
+
+- Trancher les À décider Minipen : libellé 404, singulier partout, affichage ou non de « 3/3 ».
+- Reproduire ou écarter la virgule parasite.
+
+## Références
+
+- `cahier-des-charges.md` §2.5, §4.5, §4.6, CA-75, CA-76, CA-77.
+- Commits `ce0c447`, `a4571828`.
+
 **Contexte** : Complément Specs Writer sur la PR de tests. `a457182` est repris. Aucun code de production modifié.
 
 ## Objectifs
