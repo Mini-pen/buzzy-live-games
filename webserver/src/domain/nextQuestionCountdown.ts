@@ -136,6 +136,7 @@ export function pointAwardLabel(points: number, teamName?: string | null): strin
 /**
  * * Ready-count line.
  *   `player` is under the buzzer (« 3 / 5 joueurs prêts »). `summary` is the host and the broadcast (« 3/5 prêts »).
+ *   Both surfaces agree on the ready count. Singular only when that count is 1. Zero stays plural, as on the host.
  */
 export function readyStatusLabel(ready: number, total: number, surface: "player" | "summary"): string {
   const safeReady = Number.isFinite(ready) ? Math.max(0, Math.floor(ready)) : 0;
@@ -146,7 +147,7 @@ export function readyStatusLabel(ready: number, total: number, surface: "player"
     return `${safeReady}/${safeTotal} ${pret}`;
   }
   // INCERTAIN: « 3 / 5 joueurs prêts » under the player button is a Design UI proposal.
-  const joueur = safeTotal === 1 ? "joueur" : "joueurs";
-  const joueursPrets = safeTotal === 1 ? "prêt" : "prêts";
-  return `${safeReady} / ${safeTotal} ${joueur} ${joueursPrets}`;
+  // * « joueur prêt » follows the ready count, the same rule as `pret` on the host.
+  const joueur = safeReady === 1 ? "joueur" : "joueurs";
+  return `${safeReady} / ${safeTotal} ${joueur} ${pret}`;
 }

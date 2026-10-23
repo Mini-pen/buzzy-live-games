@@ -8,8 +8,8 @@ import { releaseRenderedScreens, showPartyScreen } from "./renderPartyScreen.js"
 import { PartyStore } from "./store.js";
 
 /**
- * * Singular ready line on the phone. « 1 / 2 joueurs prêts » is already covered
- *   in readyPromptLines.test.tsx. This file only locks the one-player sentence.
+ * * Singular ready line on the phone when the only player is ready.
+ *   « 1 / 2 joueur prêt » is already covered in readyPromptLines.test.tsx.
  */
 
 const buzzCatalog: LoadedBuzzSoundCatalog = {

@@ -1006,7 +1006,7 @@ describe("ready marks and the host return tab", () => {
       "Touchez à nouveau pour annuler",
     );
     expect(green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count")?.textContent).toMatch(
-      /joueurs prêts/,
+      /1 \/ 2 joueur prêt/,
     );
     const greenCaption = green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-buzz-caption");
     const greenCount = green.querySelector(".bz-buzz-slot .bz-ready-stack .bz-ready-count");
