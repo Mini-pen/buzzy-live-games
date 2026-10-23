@@ -1462,6 +1462,7 @@ export class PartyStore {
     const heldMs = Math.max(0, Date.now() - pausedAt);
     party.liveRoundPausedAt = null;
     this.shiftLiveClocks(party, heldMs);
+    // INCERTAIN: FB Coding Agent, 2026-10-23, un buzz en attente pendant la pause reprend le délai de grâce restant au lieu de se clore pendant le gel, à confirmer par Minipen (commit bd450b60)
     this.scheduleGraceFinalize(party);
     this.touch(party);
     this.broadcast(party);
