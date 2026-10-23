@@ -1,26 +1,28 @@
 # Journal de bord — buzzy-live-games (session la plus récente)
 
-**Date** : 2026-10-22  
-**Contexte** : Podium équipes, pause, jeton animateur. Documentation seule, poussée sur `main`.
+**Date** : 2026-10-23  
+**Contexte** : Documentation seule. Écran 404 animateur, accord « joueur prêt », recettes 5 à 7. Poussée sur `main`.
 
 ## Objectifs
 
-- Noter les choix incertains de Coding Agent dans `98e9559` et `f81d3ec`, sans les trancher.
-- Noter la correction d'accord `601fa63`.
-- Consigner l'écart du jeton animateur à côté de la règle décidée (§2.5, CA-48).
+- Consigner trois À décider Minipen, sans les trancher.
+- Aligner l'exemple « 1 / 2 joueurs prêts » sur « 1 / 2 joueur prêt », SHA `a4571828`.
+- Noter les recettes 5, 6 et 7 du 23/10, et le point à surveiller sur la virgule.
 
 ## Réalisations
 
-- CA-73 : « N joueurs » (« 1 joueur ») sous le nom d'équipe, sur sa marche. Choix incertain, `98e9559`.
-- §2.5 : pause qui gèle l'écran. La phrase « retour lobby » reste. « Afficher gagnant » ouvre le podium, sans répondre à l'À décider. Saut `?question=N` sans bouton. Message « Partie introuvable. Cette partie n'est plus sur le serveur. » La phrase courte du §2.9 reste.
-- §4.5 : « 1 / 2 joueurs prêts ». Correction d'accord, pas un choix.
-- §2.5 et CA-48 : le jeton reste dans `#token=`. À décider (Minipen).
+- CA-75 (§2.5) : écran « Partie introuvable » de la page animateur. Les phrases déjà écrites restent.
+- CA-76 (§4.5) : singulier partout, À décider Minipen. Recette 7 valide les libellés, sans retirer la marque.
+- CA-77 (§4.5) : à 3/3, aucune valeur lisible. Recettes 6 (GGTNLF) et 7 (VKN66G).
+- Recettes 5 et 6 : build `index-CTBZohM2.js` (`ce0c447`). Mesures en choix incertain (Design UI).
+- Point à surveiller : « 0 / ,3 joueurs prêts », observation non reproduite (Testeur, 23/10).
 
 ## Prochain focus suggéré
 
-- Trancher le jeton visible dans l'adresse, et la pause qui gèle au lieu du salon.
+- Trancher les À décider Minipen : libellé 404, singulier partout, affichage ou non de « 3/3 ».
+- Reproduire ou écarter la virgule parasite.
 
 ## Références
 
-- `cahier-des-charges.md` §2.5, §2.9, §4.5, CA-48, CA-73.
-- Commits `98e9559`, `601fa63`, `f81d3ec`.
+- `cahier-des-charges.md` §2.5, §4.5, §4.6, CA-75, CA-76, CA-77.
+- Commits `ce0c447`, `a4571828`.

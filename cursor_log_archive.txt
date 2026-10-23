@@ -237,3 +237,13 @@ Session 2026-10-21 — Fin de manche, dernière question, livraisons 6023afd (co
 - CA-73 : À décider si la manche se termine seule ou seulement avec « Afficher gagnant ».
 - `6023afd` : « Question suivante → » désactivé, réglage numérique à la sortie du champ. Ne répond pas à l'À décider.
 - Statuts de recette : réponse D, contour jaune, hauteur 398 px, podium en escalier. Recette toujours en cours.
+
+================================================================================
+Session 2026-10-22 — Podium équipes, pause, jeton animateur
+================================================================================
+- Choix incertains de Coding Agent dans `98e9559` et `f81d3ec`, non tranchés.
+- CA-73 : « N joueurs » (« 1 joueur ») sous le nom d'équipe, sur sa marche.
+- §2.5 : pause qui gèle l'écran. La phrase « retour lobby » reste. « Afficher gagnant » ouvre le podium. Saut `?question=N` sans bouton.
+- Message « Partie introuvable. Cette partie n'est plus sur le serveur. » La phrase courte du §2.9 reste.
+- §4.5 : « 1 / 2 joueurs prêts ». Correction d'accord `601fa63`, pas un choix.
+- §2.5 et CA-48 : le jeton reste dans `#token=`. À décider (Minipen).
